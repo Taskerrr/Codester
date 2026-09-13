@@ -6,5 +6,6 @@ Service icons identify the connected products; Codester is not affiliated with t
 - SigNoz icon: `frontend/src/assets/signoz.svg` from [SigNoz/signoz](https://github.com/SigNoz/signoz), Apache-2.0.
 - OpenAI blossom identifying Codex: `frontend/src/assets/Logos/openai.svg` from [SigNoz/signoz](https://github.com/SigNoz/signoz). OpenAI trademark; no endorsement implied.
 - PostgreSQL elephant: single-colour PostgreSQL mark distributed by [Simple Icons](https://simpleicons.org/), CC0-1.0. Postgres, PostgreSQL, and the Slonik Logo are PostgreSQL Community Association of Canada trademarks; no endorsement implied.
+- Docker whale: single-colour Docker mark distributed by [Simple Icons](https://simpleicons.org/), CC0-1.0. Docker is a trademark of Docker, Inc.; no endorsement implied.
 
 The original SVG marks are unchanged. See [Apache license](APACHE-2.0.txt) for the source repositories' code license; it does not grant trademark rights.

@@ -123,8 +123,10 @@ class Poller:
 
     def snapshot(self) -> dict:
         with self.lock:
+            settings = self.store.read()
             return {
-                "demo": self.store.read()["demo"],
+                "demo": settings["demo"],
+                "layout": settings["dashboard_apps"],
                 "services": copy.deepcopy(self.state),
                 "server_time": time.time(),
                 "revision": self.generation,

@@ -1,6 +1,6 @@
 # Codester
 
-A private, local dashboard for Codex subscription usage, Dagster runs, and SigNoz service health. Designed for a 2560 × 720 touchscreen, with responsive layouts for other screens. Each developer runs their own instance and saves their own connections.
+A private, local dashboard for Codex subscription usage, Dagster runs, SigNoz service health, and local Docker containers. Designed for a 2560 × 720 touchscreen, with responsive layouts for other screens. Each developer runs their own instance and saves their own connections.
 
 ## Start locally
 
@@ -18,7 +18,7 @@ Install **Python 3.12+** or [uv](https://docs.astral.sh/uv/getting-started/insta
 .\scripts\start.ps1
 ```
 
-Open **http://localhost:8765**. The app starts in clearly labelled demo mode. Open Settings, enter connections, save, test each saved connection, then turn off demo mode. Enabling a service is independent of demo mode; demo makes no automatic upstream requests. Explicit connection tests always use real saved settings.
+Open **http://localhost:8765**. The app starts in demo mode. Open Settings, choose the three apps shown in the overview, enter connections, save, test each saved connection, then turn off demo mode. Codex, Dagster, and SigNoz are the default columns. Enabling a service is independent of demo mode; demo makes no automatic upstream requests. Explicit connection tests always use real saved settings.
 
 The server uses Waitress, not Flask's development server. No JavaScript build or database service is needed. Startup uses the committed lockfile when uv is available. The pip fallback resolves compatible package ranges.
 
@@ -35,6 +35,8 @@ docker compose up --build -d
 Visit the same localhost URL. Settings persist in the `codester-data` volume across container updates. `docker compose down` preserves settings; `docker compose down -v` deletes them. To update, pull changes and run the build command again.
 
 Docker packaging supports Dagster and SigNoz directly. **Codex is optional and unavailable in the default image**: it contains neither your host's Codex executable nor credentials. Use native startup for Codex account and VS Code activity monitoring. Do not mount a macOS/Windows executable into a Linux container or expect it to run. There is no host helper in v1.
+
+The Docker container-management screen is intended for native Codester startup. It uses the local Docker CLI on Windows/macOS and can fall back to a local Unix socket. The Compose setup deliberately does not mount the Docker control socket into Codester; access to that socket effectively grants control of the host through Docker.
 
 Docker still requires host memory for Docker Desktop. Native startup is the lightest option, particularly when using existing localhost tunnels.
 
@@ -79,6 +81,12 @@ Top apps ranks the three services with the most incoming SERVER spans over the l
 
 The adapters are fixture/schema-tested, but your work-server versions, permissions, units, and deep links must be compared with the actual interfaces before relying on live values. Unsupported response shapes are explicit failures, never empty healthy dashboards.
 
+### Docker Desktop
+
+Tap the Docker whale in the left rail to open the container screen. It lists running and stopped containers, image names, status text, and published ports. Start is immediate. Stop requires a second tap within four seconds and asks Docker for a ten-second graceful stop. Requests are bounded, container identifiers are validated against the current local list, and no image removal, container deletion, shell access, or compose operations are exposed.
+
+Docker Desktop must be running and the current user must already have permission to use it. Native Windows/macOS startup uses the Docker CLI installed with Docker Desktop. Set `CODESTER_DOCKER_SOCKET` only when a nonstandard Unix socket should be used and the Docker CLI is unavailable.
+
 ## Storage and privacy
 
 Native storage is `.data/` in the project directory (ignored by Git). Docker storage is `/data`. Override with `CODESTER_DATA_DIR`. SQLite holds preferences; SigNoz keys are encrypted with Fernet using a per-installation `secret.key`. POSIX directories/files use 0700/0600. On Windows, startup removes inherited directory grants and grants the current user access through `icacls`; use a new private directory, since existing explicit grants are not removed. Windows ACL behavior still needs validation on your work machine. Encryption does not protect against someone with access to both database and key. Back up both together and keep them out of Git.
@@ -87,7 +95,7 @@ Blank key fields preserve the saved key; the removal checkbox explicitly deletes
 
 The server binds to loopback by default. Docker publishes only `127.0.0.1`. Host validation, origin checks, CSRF tokens, response size limits, and a restrictive content security policy protect the local app. This is a single-user local tool with **no multi-user authentication**; do not publish it on a shared network. The process can access configured private URLs by design.
 
-The display has a clock/overview rail and three compact service channels. Mint quota meters, purple pipeline indicators and orange health graphs carry the service colors. Live mini-graphs collect up to 30 successful readings per browser tab; they start with one point, reset when connection settings change, and do not invent historical data. Demo mode uses sample curves. Dagster spinners stop on stale connections or when reduced motion is enabled.
+The display has a clock/launcher rail and three configurable app channels. Settings stores three unique choices and their left-to-right order. Codex, Dagster, and SigNoz have live overview renderers; Docker has a compact container summary and a full management screen. PostgreSQL, Linux servers, and GitHub currently provide selectable placeholders for later integrations. Dagster spinners stop on stale connections or when reduced motion is enabled.
 
 Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results. Demo data is never used as a fallback for a failed live connection.
 
@@ -101,6 +109,6 @@ uv run ty check
 uv run python -m codester
 ```
 
-Environment: `CODESTER_PORT` (8765), `CODESTER_HOST` (127.0.0.1), `CODESTER_DATA_DIR`, optional `CODESTER_CODEX_BIN` and `CODEX_HOME`. Both scripts forward `--port` and `--host` arguments. Run one application process per storage directory so pollers and the encryption key are not duplicated.
+Environment: `CODESTER_PORT` (8765), `CODESTER_HOST` (127.0.0.1), `CODESTER_DATA_DIR`, optional `CODESTER_CODEX_BIN`, `CODEX_HOME`, and `CODESTER_DOCKER_SOCKET`. Both scripts forward `--port` and `--host` arguments. Run one application process per storage directory so pollers and the encryption key are not duplicated.
 
 See [validation notes](docs/VALIDATION.md), [API and adapter sources](docs/SOURCES.md), and [third-party marks](docs/THIRD_PARTY.md).

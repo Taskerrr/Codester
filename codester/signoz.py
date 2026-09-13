@@ -2,6 +2,7 @@
 
 import json
 import math
+import re
 import time
 from urllib.parse import quote
 
@@ -160,9 +161,13 @@ def top_apps(config: dict, key: str) -> list[dict]:
             requests = row.get(requests_column)
             if not isinstance(service, str) or not service:
                 continue
-            try:
+            if isinstance(requests, int | float):
                 count = float(requests)
-            except (TypeError, ValueError):
+            elif isinstance(requests, str) and re.fullmatch(
+                r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", requests
+            ):
+                count = float(requests)
+            else:
                 continue
             if math.isfinite(count) and count >= 0:
                 apps.append({"service": service, "rate": count / 300})

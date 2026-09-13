@@ -105,6 +105,49 @@ def test_settings_invalid_panels(client):
     assert client.put("/api/settings", json=data, headers=csrf(client)).status_code == 400
 
 
+def test_dashboard_layout_persists_and_rejects_duplicates(client):
+    data = settings()
+    data["dashboard_apps"] = ["docker", "codex", "postgres"]
+    response = client.put("/api/settings", json=data, headers=csrf(client))
+    assert response.status_code == 200
+    assert response.json["dashboard_apps"] == ["docker", "codex", "postgres"]
+    assert client.get("/api/dashboard").json["layout"] == ["docker", "codex", "postgres"]
+
+    data["dashboard_apps"] = ["docker", "docker", "codex"]
+    assert client.put("/api/settings", json=data, headers=csrf(client)).status_code == 400
+
+
+def test_docker_page_and_controls(app, client, monkeypatch):
+    containers = [
+        {
+            "id": "a" * 64,
+            "name": "web",
+            "image": "example/web:latest",
+            "state": "running",
+            "status": "Up 2 minutes",
+            "ports": "8080→80/tcp",
+            "running": True,
+        }
+    ]
+    actions = []
+    monkeypatch.setattr("codester.docker_engine.containers", lambda: containers)
+    monkeypatch.setattr(
+        "codester.docker_engine.control",
+        lambda container_id, action: actions.append((container_id, action)),
+    )
+    assert client.get("/docker").status_code == 200
+    response = client.get("/api/docker/containers")
+    assert response.json["running"] == 1 and response.json["total"] == 1
+    response = client.post(
+        f"/api/docker/containers/{'a' * 64}/stop", headers=csrf(client)
+    )
+    assert response.status_code == 200
+    assert actions == [("a" * 64, "stop")]
+    assert client.post(
+        f"/api/docker/containers/{'a' * 64}/remove", headers=csrf(client)
+    ).status_code == 404
+
+
 def test_private_permissions(tmp_path):
     import os
 

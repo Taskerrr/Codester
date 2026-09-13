@@ -5,13 +5,14 @@ import hmac
 import os
 import re
 import secrets
+import threading
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from flask import Flask, abort, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 
-from codester import dagster, demo, signoz
+from codester import dagster, demo, docker_engine, signoz
 from codester.poller import INTERVALS, Poller
 from codester.store import METRICS, ConfigurationError, Store
 from codester.transport import IntegrationError
@@ -23,6 +24,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     store = Store(data_dir or Path(os.environ.get("CODESTER_DATA_DIR", ".data")))
     poller = Poller(store)
     token = secrets.token_urlsafe(32)
+    docker_lock = threading.Lock()
     app.extensions.update(store=store, poller=poller)
 
     @app.before_request
@@ -66,6 +68,10 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     @app.get("/settings")
     def settings_page():
         return render_template("settings.html", csrf=token, metrics=METRICS)
+
+    @app.get("/docker")
+    def docker_page():
+        return render_template("docker.html", csrf=token)
 
     @app.get("/api/health")
     def health():
@@ -111,6 +117,27 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
                 raise ConfigurationError("Save the SigNoz connection first.")
             names = signoz.services(config, key)
         return jsonify(services=names, note="Services observed in the last 24 hours (up to 200).")
+
+    @app.get("/api/docker/containers")
+    def docker_containers():
+        with docker_lock:
+            containers = docker_engine.containers()
+        return jsonify(
+            containers=containers,
+            running=sum(container["running"] for container in containers),
+            total=len(containers),
+        )
+
+    @app.post("/api/docker/containers/<container_id>/<action>")
+    def docker_control(container_id: str, action: str):
+        if not re.fullmatch(r"[0-9a-fA-F]{12,64}", container_id) or action not in {
+            "start",
+            "stop",
+        }:
+            abort(404)
+        with docker_lock:
+            docker_engine.control(container_id, action)
+        return jsonify(ok=True)
 
     @app.get("/api/errors/<name>/<identifier>")
     def error_detail(name: str, identifier: str):

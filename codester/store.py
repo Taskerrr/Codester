@@ -15,6 +15,7 @@ from cryptography.fernet import Fernet
 
 DEFAULTS: dict = {
     "demo": True,
+    "dashboard_apps": ["codex", "dagster", "signoz"],
     "codex": {"enabled": False, "activity": False},
     "dagster": {"enabled": False, "api_url": "", "browser_url": ""},
     "signoz": {
@@ -26,6 +27,9 @@ DEFAULTS: dict = {
     },
 }
 METRICS = {"request_rate": "Request rate", "error_rate": "Error rate", "p95": "p95 latency"}
+DASHBOARD_APPS = frozenset(
+    {"codex", "dagster", "signoz", "postgres", "server", "github", "docker"}
+)
 
 
 class ConfigurationError(ValueError):
@@ -83,6 +87,15 @@ def validate(data: object) -> dict:
     if not isinstance(data.get("demo"), bool):
         raise ConfigurationError("Choose demo or live mode.")
     result["demo"] = data["demo"]
+    dashboard_apps = data.get("dashboard_apps", DEFAULTS["dashboard_apps"])
+    if (
+        not isinstance(dashboard_apps, list)
+        or len(dashboard_apps) != 3
+        or any(not isinstance(app, str) or app not in DASHBOARD_APPS for app in dashboard_apps)
+        or len(set(dashboard_apps)) != 3
+    ):
+        raise ConfigurationError("Choose three different dashboard apps.")
+    result["dashboard_apps"] = dashboard_apps
     for name in ("codex", "dagster", "signoz"):
         item = data.get(name)
         if not isinstance(item, dict) or not isinstance(item.get("enabled"), bool):
@@ -140,7 +153,9 @@ class Store:
 
     def read(self) -> dict:
         with self.lock, sqlite3.connect(self.path) as db:
-            return json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()[0])
+            data = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()[0])
+        data.setdefault("dashboard_apps", list(DEFAULTS["dashboard_apps"]))
+        return data
 
     def public(self) -> dict:
         data = self.read()

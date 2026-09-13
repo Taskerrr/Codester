@@ -9,6 +9,8 @@ const clamp = value => Math.min(100, Math.max(0, number(value)));
 const empty = text => `<p class="deck-empty">${e(text)}</p>`;
 const spinner = label => `<span class="loading-ring" role="img" aria-label="${e(label)}"></span>`;
 const sectionHeading = (title, aside = '') => `<div class="mini-heading"><h3>${e(title)}</h3><span>${e(aside)}</span></div>`;
+const utilityApps = new Set(['postgres', 'server', 'github', 'docker']);
+let dockerPanelLoading = false;
 
 function ring({value, label, detail = '', progress = 0, live = false}) {
   const safeProgress = live ? 92 : clamp(progress);
@@ -98,7 +100,53 @@ function signoz(data) {
 
 const renderers = {codex, dagster, signoz};
 
+function applyLayout(layout) {
+  const overview = $('#overview');
+  for (const panel of overview.querySelectorAll('[data-app-panel]')) panel.hidden = true;
+  layout.forEach(name => {
+    const panel = overview.querySelector(`[data-app-panel="${name}"]`);
+    if (panel) {
+      panel.hidden = false;
+      overview.append(panel);
+    }
+  });
+  for (const button of document.querySelectorAll('[data-app]')) {
+    button.classList.toggle('selected', layout.includes(button.dataset.app));
+    button.setAttribute('aria-pressed', String(layout.includes(button.dataset.app)));
+  }
+}
+
+function utilityPlaceholder(name) {
+  const labels = {
+    postgres: ['PostgreSQL', 'Metrics connection coming later'],
+    server: ['Linux servers', 'Host metrics connection coming later'],
+    github: ['GitHub', 'Repository connection coming later'],
+  };
+  const [label, note] = labels[name];
+  return `<div class="utility-placeholder"><strong>${e(label)}</strong><span>${e(note)}</span><a href="/settings#dashboard-layout">Settings ↗</a></div>`;
+}
+
+async function refreshDockerPanel() {
+  const target = $('#docker-content');
+  if (!target || target.closest('.channel').hidden || dockerPanelLoading) return;
+  dockerPanelLoading = true;
+  try {
+    const data = await api('/api/docker/containers', {timeout: 10000});
+    const stopped = data.total - data.running;
+    target.innerHTML = `<div class="utility-stats"><div><strong>${data.running}</strong><span>running</span></div><div><strong>${stopped}</strong><span>stopped</span></div></div>
+      ${sectionHeading('Containers')}
+      <div class="container-mini-list">${data.containers.slice(0, 5).map(container => `<div class="container-mini"><i data-running="${container.running}" aria-hidden="true"></i><strong title="${e(container.name)}">${e(container.name)}</strong><span>${e(container.state)}</span></div>`).join('') || empty('No containers')}</div>
+      <a class="utility-open" href="/docker">Manage containers →</a>`;
+  } catch (error) {
+    target.innerHTML = `<div class="utility-placeholder"><strong>Docker unavailable</strong><span>${e(error.message)}</span><a href="/docker">Open Docker →</a></div>`;
+  } finally {
+    dockerPanelLoading = false;
+  }
+}
+
 function render(snapshot) {
+  const layout = snapshot.layout || ['codex', 'dagster', 'signoz'];
+  applyLayout(layout);
   for (const [name, state] of Object.entries(snapshot.services)) {
     const status = $(`#${name}-status`);
     const channel = status.closest('.channel');
@@ -123,6 +171,10 @@ function render(snapshot) {
     target.scrollTop = scrollTop;
     if (focusedId) Array.from(target.querySelectorAll('[data-id]')).find(element => element.dataset.id === focusedId)?.focus({preventScroll: true});
   }
+  for (const name of layout.filter(name => utilityApps.has(name) && name !== 'docker')) {
+    $(`#${name}-content`).innerHTML = utilityPlaceholder(name);
+  }
+  if (layout.includes('docker')) refreshDockerPanel();
 }
 
 async function refresh() {
@@ -172,6 +224,18 @@ async function openDetail(button) {
 $('#overview').addEventListener('click', event => {
   const button = event.target.closest('[data-id][data-service]');
   if (button) openDetail(button);
+});
+
+$('.deck-buttons').addEventListener('click', event => {
+  const button = event.target.closest('[data-app]');
+  if (!button) return;
+  if (button.dataset.app === 'docker') {
+    window.location.assign('/docker');
+    return;
+  }
+  const panel = document.querySelector(`[data-app-panel="${button.dataset.app}"]:not([hidden])`);
+  if (panel) panel.querySelector('.channel-arrow').focus();
+  else window.location.assign('/settings#dashboard-layout');
 });
 
 function back() {

@@ -11,6 +11,17 @@
     <label class="toggle"><input id="demo" type="checkbox"> Show demo data</label>
     <p class="help">Preview the display without connecting any services. Demo mode never mixes sample values with live data.</p>
   </fieldset>
+  <fieldset id="dashboard-layout" class="settings-section"><legend>Dashboard columns</legend>
+    <p class="help">Choose the three apps shown beside the clock, in left-to-right order.</p>
+    <div class="form-grid dashboard-selects">
+      {% for i in range(3) %}
+      <label>Column {{ i + 1 }}<select id="dashboard-app-{{ i }}">
+        <option value="codex">Codex</option><option value="dagster">Dagster</option><option value="signoz">SigNoz</option>
+        <option value="postgres">PostgreSQL</option><option value="server">Linux servers</option><option value="github">GitHub</option><option value="docker">Docker</option>
+      </select></label>
+      {% endfor %}
+    </div>
+  </fieldset>
   <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/codex.svg" alt=""> Codex</legend>
     <label class="toggle"><input id="codex-enabled" type="checkbox"> Monitor my Codex subscription</label>
     <p class="help">Uses the Codex installation and ChatGPT sign-in on this computer. No OpenAI API key is needed. If prompted by a connection error, sign in through Codex locally and test again.</p>

@@ -9,8 +9,15 @@ function selectService(select, value) {
   if (!Array.from(select.options).some(option => option.value === value)) select.add(new Option(value, value));
   select.value = value;
 }
+function updateDashboardOptions() {
+  const selects = Array.from({length:3},(_,i)=>$(`#dashboard-app-${i}`));
+  const selected = selects.map(select=>select.value);
+  for(const select of selects) for(const option of select.options) option.disabled = option.value !== select.value && selected.includes(option.value);
+}
 function fill(data) {
   $('#demo').checked = data.demo;
+  for(let i=0;i<3;i++) $(`#dashboard-app-${i}`).value = data.dashboard_apps[i];
+  updateDashboardOptions();
   for(const name of ['codex','dagster','signoz']) {
     $(`#${name}-enabled`).checked = data[name].enabled;
     if(name === 'codex') { $('#codex-activity').checked = data.codex.activity; continue; }
@@ -28,7 +35,7 @@ function fill(data) {
   selectService($('#error-service'),data.signoz.error_service);
 }
 function read() {
-  const data = {demo:$('#demo').checked,codex:{enabled:$('#codex-enabled').checked, activity:$('#codex-activity').checked}};
+  const data = {demo:$('#demo').checked,dashboard_apps:Array.from({length:3},(_,i)=>$(`#dashboard-app-${i}`).value),codex:{enabled:$('#codex-enabled').checked, activity:$('#codex-activity').checked}};
   for(const name of ['dagster','signoz']) data[name] = {enabled:$(`#${name}-enabled`).checked,api_url:$(`#${name}-api_url`).value,browser_url:$(`#${name}-browser_url`).value};
   data.signoz.api_key=$('#signoz-key').value;
   data.signoz.clear_key=$('#clear-key').checked;
@@ -46,6 +53,7 @@ $('#settings-form').addEventListener('submit', async event => {
   finally { $('#save').disabled=false; $('#save').textContent='Save settings'; }
 });
 $('#settings-form').addEventListener('input',()=> { $('#save-note').textContent='Unsaved changes'; });
+for(let i=0;i<3;i++) $(`#dashboard-app-${i}`).addEventListener('change',updateDashboardOptions);
 for(const button of document.querySelectorAll('.test')) button.addEventListener('click',async()=> {
   const name=button.dataset.service;
   button.disabled=true;
