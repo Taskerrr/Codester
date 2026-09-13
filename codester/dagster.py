@@ -79,6 +79,7 @@ def snapshot(config: dict) -> dict:
     return {
         "queued": total,
         "running": data["running"]["count"],
+        "failed": data["failed"]["count"],
         "oldest": oldest,
         "queue": [normalize(r) for r in data["queued"]["results"]],
         "jobs": [normalize(r) for r in data["running"]["results"]],

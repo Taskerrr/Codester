@@ -75,6 +75,8 @@ Measurements cover the last 15 minutes of incoming SERVER spans (`kind = 2`):
 
 These are trace-derived values. Sampling, missing instrumentation, and services that only emit internal/consumer spans affect coverage. This version does not query arbitrary infrastructure metrics. Recent errors show failed spans (all kinds) filtered by the separately selected service. Details fetch up to 30 trace spans from the last day; use the source link for complete exception details.
 
+Top apps ranks the three services with the most incoming SERVER spans over the last five minutes and displays each count as requests per second. It is independent of the configured measurement rows. If the installed SigNoz version cannot run that grouped query, the dashboard keeps the other measurements and shows Top apps as unavailable.
+
 The adapters are fixture/schema-tested, but your work-server versions, permissions, units, and deep links must be compared with the actual interfaces before relying on live values. Unsupported response shapes are explicit failures, never empty healthy dashboards.
 
 ## Storage and privacy

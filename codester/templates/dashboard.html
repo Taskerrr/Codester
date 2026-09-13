@@ -7,21 +7,33 @@
 {% block header %}{% endblock %}
 {% block content %}
 <main id="main" class="deck">
-  <a href="/settings" class="deck-settings icon-button" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m9 3-1 3-3 1-2 5 2 5 3 1 1 3h6l1-3 3-1 2-5-2-5-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/></svg></a>
   <p id="connection-warning" class="deck-warning" role="status" hidden></p>
   <div id="overview" class="deck-layout">
     <aside class="clock-rail" aria-label="Workspace overview">
-      <span class="rail-brand">codester<span>_</span></span>
-      <img class="rail-emblem" src="{{ url_for('static', filename='favicon.svg') }}" alt="">
+      <div class="rail-top">
+        <a href="/settings" class="icon-button" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m9 3-1 3-3 1-2 5 2 5 3 1 1 3h6l1-3 3-1 2-5-2-5-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+       </div>
+      <div class="rail-emblem" aria-hidden="true"><span>&lt;</span><i></i></div>
       <div class="rail-clock"><time id="clock"></time><span id="date"></span></div>
-      <div id="quick-stats" class="quick-stats" aria-label="Quick status"></div>
-      <div class="rail-bottom"><span id="mode"></span><button id="fullscreen" class="icon-button" type="button" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div>
+      <nav class="deck-buttons" aria-label="Dashboard sections">
+        <button class="deck-button codex" type="button" aria-label="Codex details coming later" title="Codex"><img src="{{ url_for('static', filename='codex.svg') }}" alt=""></button>
+        <button class="deck-button dagster" type="button" aria-label="Dagster details coming later" title="Dagster"><img src="{{ url_for('static', filename='dagster.svg') }}" alt=""></button>
+        <button class="deck-button signoz" type="button" aria-label="SigNoz details coming later" title="SigNoz"><img src="{{ url_for('static', filename='signoz.svg') }}" alt=""></button>
+        <button class="deck-button database" type="button" aria-label="PostgreSQL dashboard coming later" title="PostgreSQL"><span class="postgres-mark"><img src="{{ url_for('static', filename='postgresql.svg') }}" alt=""></span></button>
+        <button class="deck-button server" type="button" aria-label="Linux server metrics coming later" title="Linux servers"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="5" width="26" height="22" rx="4"/><path class="terminal-cutout" d="m9 12 4 4-4 4M17 20h6"/></svg></button>
+        <button class="deck-button github" type="button" aria-label="GitHub dashboard coming later" title="GitHub"><svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-4.1 25.3c.7.1.9-.3.9-.7v-2.5c-3.8.8-4.6-1.6-4.6-1.6-.6-1.6-1.5-2-1.5-2-1.3-.9.1-.9.1-.9 1.4.1 2.2 1.5 2.2 1.5 1.3 2.2 3.4 1.6 4.2 1.2.1-.9.5-1.6.9-2-3-.3-6.2-1.5-6.2-6.4 0-1.4.5-2.6 1.4-3.5-.1-.3-.6-1.7.1-3.5 0 0 1.1-.4 3.6 1.3a12.4 12.4 0 0 1 6.6 0c2.5-1.7 3.6-1.3 3.6-1.3.7 1.8.2 3.2.1 3.5.9.9 1.4 2.1 1.4 3.5 0 5-3.2 6.1-6.2 6.4.5.4.9 1.3.9 2.6v3.9c0 .4.2.8.9.7A13 13 0 0 0 16 3Z"/></svg></button>
+      </nav>
+      <div class="rail-bottom"><button id="fullscreen" class="icon-button" type="button" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div>
     </aside>
-    {% for name, label in [('codex', 'Codex'), ('dagster', 'Dagster'), ('signoz', 'SigNoz')] %}
+    {% for name, label, subtitle in [('codex', 'Codex', 'USAGE'), ('dagster', 'Dagster', 'ORCHESTRATION'), ('signoz', 'SigNoz', 'OBSERVABILITY')] %}
     <section class="channel {{ name }}" aria-label="{{ label }}">
       <header class="channel-header">
-        <img src="{{ url_for('static', filename=name + '.svg') }}" alt="{{ label }}" title="{{ label }}">
+        <div class="channel-identity">
+          <img src="{{ url_for('static', filename=name + '.svg') }}" alt="">
+          <div><h2>{{ label }}</h2><span>{{ subtitle }}</span></div>
+        </div>
         <span id="{{ name }}-status" class="channel-status" role="status"></span>
+        <a class="channel-arrow" href="/settings" aria-label="Configure {{ label }}">›</a>
       </header>
       <div id="{{ name }}-message" class="channel-message" role="status"></div>
       <div id="{{ name }}-content" class="channel-content"><span class="loading-ring" role="status" aria-label="Loading {{ label }}"></span></div>

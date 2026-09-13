@@ -56,6 +56,16 @@ def test_signoz_v5_values_filters_and_units(monkeypatch):
                     ],
                 }
             ]
+        elif payload["compositeQuery"]["queries"][0]["spec"]["name"] == "top_apps":
+            results = [
+                {
+                    "columns": [
+                        {"name": "service.name", "columnType": "group", "queryName": "top_apps"},
+                        {"name": "count()", "columnType": "aggregation", "queryName": "top_apps"},
+                    ],
+                    "data": [["checkout", 600], ["worker", 300]],
+                }
+            ]
         else:
             results = [
                 scalar_result("p0", 900),
@@ -68,6 +78,10 @@ def test_signoz_v5_values_filters_and_units(monkeypatch):
     monkeypatch.setattr(signoz, "post_json", post)
     result = signoz.snapshot(CONFIG, "secret")
     assert [p["value"] for p in result["panels"]] == [1, 2, 123]
+    assert result["top_apps"] == [
+        {"service": "checkout", "rate": 2},
+        {"service": "worker", "rate": 1},
+    ]
     assert result["errors"][0]["url"] == "http://localhost:8000/trace/abc123"
     assert (
         "customer\\'s-api"
@@ -75,9 +89,10 @@ def test_signoz_v5_values_filters_and_units(monkeypatch):
     )
     assert (
         "has_error = true"
-        in requests[1]["compositeQuery"]["queries"][0]["spec"]["filter"]["expression"]
+        in requests[2]["compositeQuery"]["queries"][0]["spec"]["filter"]["expression"]
     )
     assert requests[0]["end"] - requests[0]["start"] == 900000
+    assert requests[1]["end"] - requests[1]["start"] == 300000
 
 
 def test_signoz_service_discovery(monkeypatch):
@@ -159,6 +174,7 @@ def test_dagster_counts_queue_pagination_and_browser_link(monkeypatch):
     monkeypatch.setattr(dagster, "graphql", gql)
     data = dagster.snapshot(CONFIG)
     assert data["queued"] == 2
+    assert data["failed"] == 0
     assert 299 <= data["oldest"] <= 302
     assert data["jobs"][0]["url"] == "http://localhost:8000/runs/r"
     assert len(calls) == 2

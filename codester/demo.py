@@ -42,6 +42,7 @@ def snapshot(service: str) -> dict:
         return {
             "queued": 4,
             "running": 2,
+            "failed": 2,
             "oldest": 192,
             "queue": [
                 {"id": f"q{i}", "title": name, "status": "QUEUED", "timestamp": now - 192 + i * 20}
@@ -61,6 +62,12 @@ def snapshot(service: str) -> dict:
                     "title": "materialize_revenue_model",
                     "status": "STARTED",
                     "duration": 98,
+                },
+                {
+                    "id": "r3",
+                    "title": "daily_data_cleanup",
+                    "status": "STARTED",
+                    "duration": 41,
                 },
             ],
             "errors": [
@@ -102,6 +109,12 @@ def snapshot(service: str) -> dict:
                 "unit": "ms",
             },
         ],
+        "top_apps": [
+            {"service": "Fuel Reporting", "rate": 18.2},
+            {"service": "Driver Logbook", "rate": 11.7},
+            {"service": "Plant Portal", "rate": 7.4},
+        ],
+        "top_apps_message": "",
         "errors": [
             {
                 "id": "demo-signoz-1",

@@ -115,6 +115,60 @@ def scalar(results: list[dict], name: str) -> float | None:
     raise IntegrationError("SigNoz omitted a requested measurement.")
 
 
+def top_apps(config: dict, key: str) -> list[dict]:
+    """Rank instrumented services by incoming request rate over five minutes."""
+    results = query(
+        config,
+        key,
+        [
+            {
+                "name": "top_apps",
+                "filter": {"expression": "kind = 2"},
+                "aggregations": [{"expression": "count()", "alias": "requests"}],
+                "groupBy": [{"name": "service.name", "fieldContext": "resource"}],
+                "order": [{"key": {"name": "requests"}, "direction": "desc"}],
+                "limit": 3,
+            }
+        ],
+        seconds=300,
+    )
+    apps = []
+    for result in results:
+        columns = result.get("columns", [])
+        service_column = next(
+            (
+                column.get("name")
+                for column in columns
+                if column.get("name") == "service.name"
+                or column.get("columnType") == "group"
+            ),
+            None,
+        )
+        requests_column = next(
+            (
+                column.get("name")
+                for column in columns
+                if column.get("queryName") == "top_apps"
+                and column.get("columnType") == "aggregation"
+            ),
+            None,
+        )
+        if not service_column or not requests_column:
+            continue
+        for row in table_rows(result):
+            service = row.get(service_column)
+            requests = row.get(requests_column)
+            if not isinstance(service, str) or not service:
+                continue
+            try:
+                count = float(requests)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(count) and count >= 0:
+                apps.append({"service": service, "rate": count / 300})
+    return sorted(apps, key=lambda app: app["rate"], reverse=True)[:3]
+
+
 def trace_link(config: dict, trace_id: str) -> str:
     return (config["browser_url"] or config["api_url"]) + "/trace/" + quote(trace_id, safe="")
 
@@ -207,9 +261,17 @@ def snapshot(config: dict, key: str) -> dict:
     condition = "has_error = true"
     if config["error_service"]:
         condition += " AND service.name = " + literal(config["error_service"])
+    apps_message = ""
+    try:
+        apps = top_apps(config, key)
+    except IntegrationError:
+        apps = []
+        apps_message = "Top apps unavailable for this SigNoz version."
     errors = error_rows(config, query(config, key, [raw_spec(condition, 8)], "raw"))
     return {
         "panels": panels,
+        "top_apps": apps,
+        "top_apps_message": apps_message,
         "errors": errors,
         "note": "Last 15 minutes · incoming SERVER spans · sampled traces may undercount requests",
     }
