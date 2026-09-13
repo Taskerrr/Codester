@@ -1,0 +1,16 @@
+services:
+  codester:
+    build: .
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - codester-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  codester-data:

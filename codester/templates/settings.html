@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Settings · Codester{% endblock %}
+{% block scripts %}<script type="module" src="{{ url_for('static', filename='settings.js') }}"></script>{% endblock %}
+{% block navigation %}<a class="quiet-button" href="/">← Overview</a>{% endblock %}
+{% block content %}
+<main id="main" class="settings-main">
+  <div class="settings-intro"><p class="eyebrow">MAKE IT YOURS</p><h1>Your workspace connections</h1><p class="muted">Saved on this machine. Connect once, then keep your work in view.</p></div>
+  <p id="settings-status" class="notice" role="status" hidden></p>
+  <form id="settings-form">
+  <fieldset class="settings-section"><legend>Display mode</legend>
+    <label class="toggle"><input id="demo" type="checkbox"> Show demo data</label>
+    <p class="help">Preview the display without connecting any services. Demo mode never mixes sample values with live data.</p>
+  </fieldset>
+  <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/codex.svg" alt=""> Codex</legend>
+    <label class="toggle"><input id="codex-enabled" type="checkbox"> Monitor my Codex subscription</label>
+    <p class="help">Uses the Codex installation and ChatGPT sign-in on this computer. No OpenAI API key is needed. If prompted by a connection error, sign in through Codex locally and test again.</p>
+    <label class="toggle"><input id="codex-activity" type="checkbox"> Show recent local VS Code task titles</label>
+    <p class="help">Reads local thread metadata without changing sessions. Recent activity does not mean a task is running. WSL or remote sessions may use a different Codex home.</p>
+    <button type="button" class="secondary-button test" data-service="codex">Test saved Codex connection</button><p id="codex-test" role="status" class="test-result"></p>
+  </fieldset>
+  <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/dagster.svg" alt=""> Dagster</legend>
+    <label class="toggle"><input id="dagster-enabled" type="checkbox"> Monitor Dagster</label>
+    <div class="form-grid"><label>API base URL<input id="dagster-api_url" type="url" placeholder="http://localhost:8000" autocomplete="off"></label>
+    <label><span>Browser base URL <span class="optional">optional</span></span><input id="dagster-browser_url" type="url" placeholder="Use API URL" autocomplete="off"></label></div>
+    <p class="help">Use the address your Flask process can reach. Browser URL controls where run links open. This adapter expects a self-hosted deployment without login.</p>
+    <button type="button" class="secondary-button test" data-service="dagster">Test saved Dagster connection</button><p id="dagster-test" role="status" class="test-result"></p>
+  </fieldset>
+  <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/signoz.svg" alt=""> SigNoz</legend>
+    <label class="toggle"><input id="signoz-enabled" type="checkbox"> Monitor SigNoz</label>
+    <div class="form-grid"><label>API base URL<input id="signoz-api_url" type="url" placeholder="http://localhost:8080" autocomplete="off"></label>
+    <label><span>Browser base URL <span class="optional">optional</span></span><input id="signoz-browser_url" type="url" placeholder="Use API URL" autocomplete="off"></label></div>
+    <label>Query API key<input id="signoz-key" type="password" placeholder="Enter a query API key" autocomplete="new-password"></label>
+    <p id="key-note" class="help">Use a read-capable API key, not a telemetry ingestion key. Keys are encrypted in local storage.</p>
+    <label class="toggle"><input id="clear-key" type="checkbox"> Remove the saved SigNoz key</label>
+    <div class="button-row"><button type="button" class="secondary-button test" data-service="signoz">Test saved SigNoz connection</button><button type="button" id="discover" class="secondary-button">Find services</button></div>
+    <p id="signoz-test" role="status" class="test-result"></p><p id="discovery-status" role="status" class="help">Save the connection first, then find services observed in the last 24 hours.</p>
+    <h3>Measurements</h3><p class="help">Choose up to three. Values cover the last 15 minutes of incoming server spans; trace sampling affects accuracy.</p>
+    {% for i in range(3) %}
+    <div class="panel-config"><label class="toggle panel-toggle"><input id="panel-{{ i }}-enabled" type="checkbox" checked> {{ i + 1 }}</label>
+      <label>Service<select id="panel-{{ i }}-service" class="service-select"><option value="">All services</option></select></label>
+      <label>Measurement<select id="panel-{{ i }}-metric">{% for value, label in metrics.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+    </div>
+    {% endfor %}
+    <label>Recent errors from<select id="error-service" class="service-select"><option value="">All services</option></select></label>
+  </fieldset>
+  <details class="network-help"><summary>Using SSH tunnels or Docker?</summary><p>For native startup, use your existing <code>http://localhost:PORT</code> forward. In Docker Desktop, try <code>http://host.docker.internal:PORT</code> as the API URL and keep <code>http://localhost:PORT</code> as the browser URL.</p><p>A tunnel bound only to host loopback may not be reachable from a container. If the test fails, use native startup or ask your administrator for an appropriately scoped forwarding setup. Codester does not modify SSH tunnels.</p></details>
+  <div class="save-bar"><span id="save-note">Changes apply after saving.</span><button type="submit" id="save" class="primary-button">Save settings</button></div>
+  </form>
+</main>
+{% endblock %}
