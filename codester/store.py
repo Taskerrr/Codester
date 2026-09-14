@@ -26,6 +26,11 @@ DEFAULTS: dict = {
         "error_service": "",
         "panels": [{"service": "", "metric": m} for m in ["request_rate", "error_rate", "p95"]],
     },
+    "github": {
+        "enabled": False,
+        "api_url": "https://api.github.com",
+        "browser_url": "https://github.com",
+    },
     "tunnels": [],
 }
 METRICS = {"request_rate": "Request rate", "error_rate": "Error rate", "p95": "p95 latency"}
@@ -128,7 +133,7 @@ def validate(data: object) -> dict:
     ):
         raise ConfigurationError("Choose three different dashboard apps.")
     result["dashboard_apps"] = dashboard_apps
-    for name in ("codex", "dagster", "signoz"):
+    for name in ("codex", "dagster", "signoz", "github"):
         item = data.get(name)
         if not isinstance(item, dict) or not isinstance(item.get("enabled"), bool):
             raise ConfigurationError(f"Choose whether to enable {name}.")
@@ -234,6 +239,7 @@ class Store:
             data = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()[0])
         data.setdefault("dashboard_apps", list(DEFAULTS["dashboard_apps"]))
         data.setdefault("tunnels", [])
+        data.setdefault("github", copy.deepcopy(DEFAULTS["github"]))
         for tunnel in data["tunnels"]:
             tunnel.setdefault("id", tunnel_identifier(tunnel))
             tunnel.setdefault("auth", "agent")
@@ -242,6 +248,7 @@ class Store:
     def public(self) -> dict:
         data = self.read()
         data["signoz"]["has_key"] = bool(self.secret("signoz"))
+        data["github"]["has_token"] = bool(self.secret("github"))
         for tunnel in data["tunnels"]:
             tunnel["has_password"] = bool(
                 self.secret(f"tunnel-password:{tunnel_identifier(tunnel)}")
@@ -258,10 +265,21 @@ class Store:
         assert isinstance(data, dict)
         key = data["signoz"].get("api_key", "")
         clear = data["signoz"].get("clear_key", False)
+        github_token = data["github"].get("token", "")
+        clear_github_token = data["github"].get("clear_token", False)
         if not isinstance(key, str) or len(key) > 8192 or "\n" in key or "\r" in key:
             raise ConfigurationError("Invalid API key.")
         if not isinstance(clear, bool):
             raise ConfigurationError("Invalid key removal choice.")
+        if (
+            not isinstance(github_token, str)
+            or len(github_token) > 8192
+            or "\n" in github_token
+            or "\r" in github_token
+        ):
+            raise ConfigurationError("Invalid GitHub token.")
+        if not isinstance(clear_github_token, bool):
+            raise ConfigurationError("Invalid GitHub token removal choice.")
         raw_tunnels = data.get("tunnels", [])
         assert isinstance(raw_tunnels, list)
         # Blank means preserve, explicit clear means delete.
@@ -306,4 +324,11 @@ class Store:
                 db.execute(
                     "INSERT OR REPLACE INTO secrets VALUES ('signoz', ?)",
                     (self.cipher.encrypt(key.strip().encode()),),
+                )
+            if clear_github_token:
+                db.execute("DELETE FROM secrets WHERE name='github'")
+            elif github_token.strip():
+                db.execute(
+                    "INSERT OR REPLACE INTO secrets VALUES ('github', ?)",
+                    (self.cipher.encrypt(github_token.strip().encode()),),
                 )

@@ -107,6 +107,12 @@ These are trace-derived values. Sampling, missing instrumentation, and services 
 
 Top apps ranks the three services with the most incoming SERVER spans over the last five minutes and displays each count as requests per second. It is independent of the configured measurement rows. If the installed SigNoz version cannot run that grouped query, the dashboard keeps the other measurements and shows Top apps as unavailable.
 
+### GitHub
+
+Choose GitHub in one of the three dashboard slots, then enable it in Settings and save a personal access token. The panel shows the last 12 weeks of contributions and the three most recently pushed repositories, with a 14-day commit sparkline for each. It refreshes every five minutes.
+
+For private repositories, give a fine-grained token access to the repositories you want to display with **Metadata: read** and **Contents: read**. The token is encrypted in Codester's local data directory and is never returned to the browser after saving.
+
 The adapters are fixture/schema-tested, but your work-server versions, permissions, units, and deep links must be compared with the actual interfaces before relying on live values. Unsupported response shapes are explicit failures, never empty healthy dashboards.
 
 ### Docker Desktop

@@ -55,6 +55,16 @@
     {% endfor %}
     <label>Recent errors from<select id="error-service" class="service-select"><option value="">All services</option></select></label>
   </fieldset>
+  <fieldset id="github" class="settings-section"><legend><svg class="tiny-icon inline-github" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-4.1 25.3c.7.1.9-.3.9-.7v-2.5c-3.8.8-4.6-1.6-4.6-1.6-.6-1.6-1.5-2-1.5-2-1.3-.9.1-.9.1-.9 1.4.1 2.2 1.5 2.2 1.5 1.3 2.2 3.4 1.6 4.2 1.2.1-.9.5-1.6.9-2-3-.3-6.2-1.5-6.2-6.4 0-1.4.5-2.6 1.4-3.5-.1-.3-.6-1.7.1-3.5 0 0 1.1-.4 3.6 1.3a12.4 12.4 0 0 1 6.6 0c2.5-1.7 3.6-1.3 3.6-1.3.7 1.8.2 3.2.1 3.5.9.9 1.4 2.1 1.4 3.5 0 5-3.2 6.1-6.2 6.4.5.4.9 1.3.9 2.6v3.9c0 .4.2.8.9.7A13 13 0 0 0 16 3Z"/></svg> GitHub</legend>
+    <label class="toggle"><input id="github-enabled" type="checkbox"> Monitor GitHub</label>
+    <div class="form-grid"><label>API base URL<input id="github-api_url" type="url" placeholder="https://api.github.com" autocomplete="off"></label>
+    <label>Browser base URL<input id="github-browser_url" type="url" placeholder="https://github.com" autocomplete="off"></label></div>
+    <label>Personal access token<input id="github-token" type="password" placeholder="github_pat_…" autocomplete="new-password"></label>
+    <p id="github-token-note" class="help">No token saved.</p>
+    <label class="toggle"><input id="clear-github-token" type="checkbox"> Remove saved token</label>
+    <button type="button" class="secondary-button test" data-service="github">Test connection</button><p id="github-test" role="status" class="test-result"></p>
+    <p class="help">Repository metadata + contents read access.</p>
+  </fieldset>
   <fieldset id="ssh-tunnels" class="settings-section"><legend>SSH tunnels</legend>
     <p class="help">Use the SSH switch on the dashboard. Dropped sessions reconnect automatically; saved passwords are encrypted locally.</p>
     <div id="tunnel-list" class="tunnel-list"></div>

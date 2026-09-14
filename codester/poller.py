@@ -4,11 +4,11 @@ import copy
 import threading
 import time
 
-from codester import codex, dagster, demo, signoz
+from codester import codex, dagster, demo, github, signoz
 from codester.store import Store
 from codester.transport import IntegrationError
 
-INTERVALS = {"codex": 60, "dagster": 10, "signoz": 30}
+INTERVALS = {"codex": 60, "dagster": 10, "signoz": 30, "github": 300}
 
 
 class Poller:
@@ -60,14 +60,16 @@ class Poller:
             return codex.snapshot(config[name])
         if name == "dagster":
             return dagster.snapshot(config[name])
-        return signoz.snapshot(config[name], key)
+        if name == "signoz":
+            return signoz.snapshot(config[name], key)
+        return github.snapshot(config[name], key)
 
     def refresh(self, name: str) -> bool:
         with self.operation_locks[name]:
             with self.lock:
                 generation = self.generation
                 config = self.store.read()
-                key = self.store.secret("signoz") if name == "signoz" else ""
+                key = self.store.secret(name) if name in {"signoz", "github"} else ""
             result = {
                 "status": "disabled",
                 "message": "Connect in settings to start monitoring.",

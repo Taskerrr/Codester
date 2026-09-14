@@ -31,14 +31,20 @@ def settings():
 
 
 def test_credentials_persist_encrypted_and_are_not_returned(app, client, tmp_path):
-    response = client.put("/api/settings", json=settings(), headers=csrf(client))
+    original = settings()
+    original["github"]["token"] = "github-test-super-secret"
+    response = client.put("/api/settings", json=original, headers=csrf(client))
     assert response.status_code == 200
     assert "test-super-secret" not in response.text
     assert "api_key" not in response.json["signoz"]
     assert response.json["signoz"]["has_key"]
+    assert "token" not in response.json["github"]
+    assert response.json["github"]["has_token"]
     assert b"test-super-secret" not in (tmp_path / "settings.sqlite").read_bytes()
+    assert b"github-test-super-secret" not in (tmp_path / "settings.sqlite").read_bytes()
     restarted = Store(tmp_path)
     assert restarted.secret("signoz") == "test-super-secret"
+    assert restarted.secret("github") == "github-test-super-secret"
     assert restarted.read()["signoz"]["api_url"] == "http://localhost:8080"
     assert Store(tmp_path / "other").secret("signoz") == ""
     data = response.json
@@ -46,8 +52,10 @@ def test_credentials_persist_encrypted_and_are_not_returned(app, client, tmp_pat
     client.put("/api/settings", json=data, headers=csrf(client))
     assert restarted.secret("signoz") == "test-super-secret"
     data["signoz"]["clear_key"] = True
+    data["github"]["clear_token"] = True
     client.put("/api/settings", json=data, headers=csrf(client))
     assert restarted.secret("signoz") == ""
+    assert restarted.secret("github") == ""
 
 
 def test_reject_cross_origin_and_missing_csrf(client):

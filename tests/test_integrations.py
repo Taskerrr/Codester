@@ -3,11 +3,12 @@ import sqlite3
 import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 
 import httpx
 import pytest
 
-from codester import codex, dagster, signoz
+from codester import codex, dagster, github, signoz
 from codester.transport import IntegrationError, post_json
 
 CONFIG = {
@@ -32,6 +33,67 @@ def scalar_result(name, value):
         ],
         "data": [[value]],
     }
+
+
+def test_github_activity_and_repository_sparklines(monkeypatch):
+    monkeypatch.setattr(
+        github,
+        "post_json",
+        lambda url, payload, headers: {
+            "data": {
+                "viewer": {
+                    "login": "jack",
+                    "contributionsCollection": {
+                        "contributionCalendar": {
+                            "totalContributions": 3,
+                            "weeks": [
+                                {
+                                    "contributionDays": [
+                                        {"date": "2026-09-14", "contributionCount": 1},
+                                        {"date": "2026-09-15", "contributionCount": 2},
+                                    ]
+                                }
+                            ],
+                        }
+                    },
+                }
+            }
+        },
+    )
+    calls = []
+
+    def get(url, headers, params):
+        calls.append((url, params))
+        if url.endswith("/user/repos"):
+            return [
+                {
+                    "full_name": "jack/codester",
+                    "private": True,
+                    "description": "Dashboard",
+                    "pushed_at": "2026-09-15T10:00:00Z",
+                }
+            ]
+        return [{"commit": {"author": {"date": datetime.now(UTC).isoformat()}}}]
+
+    monkeypatch.setattr(github, "get_json", get)
+    result = github.snapshot(
+        {"api_url": "https://api.github.com", "browser_url": "https://github.com"},
+        "secret",
+    )
+    assert result["login"] == "jack"
+    assert result["total"] == 3
+    assert result["repositories"][0]["name"] == "jack/codester"
+    assert sum(result["repositories"][0]["commits"]) == 1
+    assert result["repositories"][0]["url"] == "https://github.com/jack/codester"
+    assert len(calls) == 2
+
+
+def test_github_requires_token_and_rejects_graphql_errors(monkeypatch):
+    with pytest.raises(IntegrationError, match="token"):
+        github.snapshot({"api_url": "https://api.github.com"}, "")
+    monkeypatch.setattr(github, "post_json", lambda *args: {"errors": [{"message": "no"}]})
+    with pytest.raises(IntegrationError, match="contribution history"):
+        github.snapshot({"api_url": "https://api.github.com"}, "secret")
 
 
 def test_signoz_v5_values_filters_and_units(monkeypatch):

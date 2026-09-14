@@ -33,7 +33,7 @@
         <button id="fullscreen" class="icon-button" type="button" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
       </div>
     </aside>
-    {% for name, label, subtitle, icon, route in [('codex', 'Codex', 'USAGE', 'codex.svg', '/settings'), ('dagster', 'Dagster', 'ORCHESTRATION', 'dagster.svg', '/settings'), ('signoz', 'SigNoz', 'OBSERVABILITY', 'signoz.svg', '/settings'), ('postgres', 'PostgreSQL', 'DATABASE', 'postgresql.svg', '/settings#dashboard-layout'), ('server', 'Linux', 'SERVERS', '', '/settings#dashboard-layout'), ('github', 'GitHub', 'REPOSITORY', '', '/settings#dashboard-layout'), ('docker', 'Docker', 'CONTAINERS', 'docker.svg', '/docker')] %}
+    {% for name, label, subtitle, icon, route in [('codex', 'Codex', 'USAGE', 'codex.svg', '/settings'), ('dagster', 'Dagster', 'ORCHESTRATION', 'dagster.svg', '/settings'), ('signoz', 'SigNoz', 'OBSERVABILITY', 'signoz.svg', '/settings'), ('postgres', 'PostgreSQL', 'DATABASE', 'postgresql.svg', '/settings#dashboard-layout'), ('server', 'Linux', 'SERVERS', '', '/settings#dashboard-layout'), ('github', 'GitHub', 'ACTIVITY', '', '/settings#github'), ('docker', 'Docker', 'CONTAINERS', 'docker.svg', '/docker')] %}
     <section class="channel {{ name }}" data-app-panel="{{ name }}" aria-label="{{ label }}" {% if name not in ['codex', 'dagster', 'signoz'] %}hidden{% endif %}>
       <header class="channel-header">
         <div class="channel-identity">

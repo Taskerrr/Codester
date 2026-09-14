@@ -9,7 +9,7 @@ const clamp = value => Math.min(100, Math.max(0, number(value)));
 const empty = text => `<p class="deck-empty">${e(text)}</p>`;
 const spinner = label => `<span class="loading-ring" role="img" aria-label="${e(label)}"></span>`;
 const sectionHeading = (title, aside = '') => `<div class="mini-heading"><h3>${e(title)}</h3><span>${e(aside)}</span></div>`;
-const utilityApps = new Set(['postgres', 'server', 'github', 'docker']);
+const utilityApps = new Set(['postgres', 'server', 'docker']);
 let dockerPanelLoading = false;
 let dockerControlLoading = false;
 let dockerPendingStop = '';
@@ -112,7 +112,42 @@ function signoz(data) {
     </div>`;
 }
 
-const renderers = {codex, dagster, signoz};
+function sparkline(values) {
+  const safe = values.map(number);
+  const peak = Math.max(...safe, 1);
+  const points = safe.map((value, index) => {
+    const x = safe.length === 1 ? 70 : index / (safe.length - 1) * 140;
+    return `${x.toFixed(1)},${(30 - value / peak * 25).toFixed(1)}`;
+  }).join(' ');
+  return `<svg class="repo-spark" viewBox="0 0 140 34" preserveAspectRatio="none" aria-hidden="true">
+    <polyline class="repo-spark-fill" points="0,34 ${points} 140,34"/>
+    <polyline class="repo-spark-line" points="${points}"/>
+  </svg>`;
+}
+
+function github(data) {
+  const days = (data.days || []).slice(-84);
+  const peak = Math.max(...days.map(day => number(day.count)), 1);
+  const calendar = days.map(day => {
+    const count = number(day.count);
+    const level = count ? Math.max(1, Math.ceil(count / peak * 4)) : 0;
+    return `<span class="contribution-day level-${level}" title="${e(day.date)} · ${count} contribution${count === 1 ? '' : 's'}" aria-label="${e(day.date)}: ${count} contributions"></span>`;
+  }).join('');
+  const weekly = days.slice(-7).reduce((total, day) => total + number(day.count), 0);
+  const repositories = (data.repositories || []).slice(0, 3).map(repository => `<a class="repo-row" href="${e(repository.url)}" target="_blank" rel="noopener noreferrer">
+    <div class="repo-copy"><strong title="${e(repository.name)}">${e(repository.name)}</strong><small>${repository.private ? 'PRIVATE' : 'PUBLIC'} · ${ago(repository.pushed_at)}</small></div>
+    ${sparkline(repository.commits || [])}
+    <b>${(repository.commits || []).reduce((total, count) => total + number(count), 0)}<small>14d</small></b>
+  </a>`).join('');
+  return `<div class="github-hero">
+      <div class="github-total"><strong>${number(data.total).toLocaleString()}</strong><span>12 WEEKS</span><small>${weekly} · 7 DAYS</small></div>
+      <div class="contribution-wrap"><div class="contribution-grid">${calendar}</div><div class="contribution-key"><span>Less</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>More</span></div></div>
+    </div>
+    ${sectionHeading('Recent repositories', data.login || '')}
+    <div class="repo-list">${repositories || empty('No repositories')}</div>`;
+}
+
+const renderers = {codex, dagster, signoz, github};
 
 function bytes(value) {
   if (!Number.isFinite(Number(value))) return '—';
@@ -143,7 +178,6 @@ function utilityPlaceholder(name) {
   const labels = {
     postgres: ['PostgreSQL', 'Metrics connection coming later'],
     server: ['Linux servers', 'Host metrics connection coming later'],
-    github: ['GitHub', 'Repository connection coming later'],
   };
   const [label, note] = labels[name];
   return `<div class="utility-placeholder"><strong>${e(label)}</strong><span>${e(note)}</span><a href="/settings#dashboard-layout">Settings ↗</a></div>`;

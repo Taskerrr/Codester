@@ -54,7 +54,7 @@ function fill(data) {
   editingSlot = null;
   $('#app-picker').hidden = true;
   renderDashboardApps();
-  for(const name of ['codex','dagster','signoz']) {
+  for(const name of ['codex','dagster','signoz','github']) {
     $(`#${name}-enabled`).checked = data[name].enabled;
     if(name === 'codex') { $('#codex-activity').checked = data.codex.activity; continue; }
     for(const field of ['api_url','browser_url']) $(`#${name}-${field}`).value = data[name][field];
@@ -62,6 +62,9 @@ function fill(data) {
   $('#signoz-key').value = '';
   $('#clear-key').checked = false;
   $('#key-note').textContent = data.signoz.has_key ? 'A key is saved. Leave blank to keep it, or enter a replacement.' : 'No key saved. Use a query API key, not an ingestion key.';
+  $('#github-token').value = '';
+  $('#clear-github-token').checked = false;
+  $('#github-token-note').textContent = data.github.has_token ? 'Token saved · leave blank to keep it.' : 'No token saved.';
   for(let i=0;i<3;i++) {
     const panel = data.signoz.panels[i];
     $(`#panel-${i}-enabled`).checked = Boolean(panel);
@@ -74,7 +77,7 @@ function fill(data) {
 }
 function read() {
   const data = {demo:$('#demo').checked,dashboard_apps:[...dashboardApps],codex:{enabled:$('#codex-enabled').checked, activity:$('#codex-activity').checked}};
-  for(const name of ['dagster','signoz']) data[name] = {enabled:$(`#${name}-enabled`).checked,api_url:$(`#${name}-api_url`).value,browser_url:$(`#${name}-browser_url`).value};
+  for(const name of ['dagster','signoz','github']) data[name] = {enabled:$(`#${name}-enabled`).checked,api_url:$(`#${name}-api_url`).value,browser_url:$(`#${name}-browser_url`).value};
   data.signoz.api_key=$('#signoz-key').value;
   data.signoz.clear_key=$('#clear-key').checked;
   data.signoz.error_service=$('#error-service').value;
@@ -93,6 +96,8 @@ function read() {
     remote_host:row.querySelector('[data-tunnel-field="remote_host"]').value,
     remote_port:Number(row.querySelector('[data-tunnel-field="remote_port"]').value),
   }));
+  data.github.token=$('#github-token').value;
+  data.github.clear_token=$('#clear-github-token').checked;
   return data;
 }
 async function saveSettings(refill = true) {
@@ -103,6 +108,7 @@ async function saveSettings(refill = true) {
     if (refill) fill(saved);
     else {
       $('#signoz-key').value='';
+      $('#github-token').value='';
       for (const row of document.querySelectorAll('.tunnel-config')) {
         const input=row.querySelector('[data-tunnel-field="password"]');
         const tunnel=saved.tunnels.find(item=>item.id === row.dataset.id);

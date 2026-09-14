@@ -184,7 +184,7 @@ code { overflow-wrap:anywhere; }
 }
 @media (min-width:2100px) { :root { font-size:18px; } }
 .service-icon img { width:32px; height:32px; object-fit:contain; }
-img.tiny-icon { width:24px; height:24px; object-fit:contain; vertical-align:middle; }
+.tiny-icon { width:24px; height:24px; object-fit:contain; vertical-align:middle; }
 @media (min-width:851px) {
   .job-row .row-content { display:flex; align-items:center; gap:12px; }
   .job-row .row-content small { margin:0; flex-shrink:0; }

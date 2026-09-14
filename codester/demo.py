@@ -85,6 +85,50 @@ def snapshot(service: str) -> dict:
                 },
             ],
         }
+    if service == "github":
+        counts = [0, 1, 0, 3, 2, 0, 0, 1, 4, 2, 0, 1, 0, 0, 2, 1, 5, 3, 0, 0, 1]
+        days = []
+        for offset in range(83, -1, -1):
+            day = time.localtime(now - offset * 86400)
+            count = counts[(83 - offset) % len(counts)]
+            days.append(
+                {
+                    "date": time.strftime("%Y-%m-%d", day),
+                    "count": count,
+                }
+            )
+        return {
+            "login": "taskerrr",
+            "total": sum(counts) * 4,
+            "days": days,
+            "url": "https://github.com/Taskerrr",
+            "repositories": [
+                {
+                    "name": "Taskerrr/Codester",
+                    "description": "Touchscreen developer dashboard",
+                    "private": False,
+                    "pushed_at": now - 420,
+                    "commits": [0, 1, 0, 2, 1, 0, 3, 2, 0, 1, 4, 1, 2, 3],
+                    "url": "https://github.com/Taskerrr/Codester",
+                },
+                {
+                    "name": "Taskerrr/data-platform",
+                    "description": "Shared orchestration projects",
+                    "private": True,
+                    "pushed_at": now - 7400,
+                    "commits": [1, 0, 1, 0, 3, 1, 0, 0, 2, 1, 1, 0, 2, 1],
+                    "url": "https://github.com/Taskerrr/data-platform",
+                },
+                {
+                    "name": "Taskerrr/internal-tools",
+                    "description": "Small team utilities",
+                    "private": True,
+                    "pushed_at": now - 86400,
+                    "commits": [0, 0, 2, 1, 0, 0, 1, 0, 0, 1, 0, 2, 0, 1],
+                    "url": "https://github.com/Taskerrr/internal-tools",
+                },
+            ],
+        }
     return {
         "panels": [
             {

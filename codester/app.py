@@ -122,7 +122,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         with poller.operation_locks[name]:
             with poller.lock:
                 config = store.read()
-                key = store.secret("signoz") if name == "signoz" else ""
+                key = store.secret(name) if name in {"signoz", "github"} else ""
             if name != "codex" and not config[name]["api_url"]:
                 raise ConfigurationError("Save a connection URL first.")
             poller.fetch(name, config, key)
