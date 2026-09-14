@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import socket
 import subprocess
 import threading
 import time
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from codester.store import ConfigurationError
+from codester.transport import IntegrationError
 
 
 class TunnelManager:
@@ -75,6 +77,65 @@ class TunnelManager:
             self.desired = False
             self._stop_processes()
             return self.status()
+
+    def test(self, identifier: str) -> dict:
+        active_port: int | None = None
+        with self.lock:
+            item = next(
+                (entry for entry in self.items.values() if entry["config"]["id"] == identifier),
+                None,
+            )
+            if item is None:
+                raise ConfigurationError("Save this SSH tunnel before testing it.")
+            config = item["config"].copy()
+            process = item["process"]
+            if process is not None and process.poll() is None and item["ever_connected"]:
+                active_port = config["local_port"]
+        if active_port is not None:
+            try:
+                with socket.create_connection(("127.0.0.1", active_port), timeout=2):
+                    return {"ok": True, "message": "Connected and responding."}
+            except OSError as exc:
+                raise IntegrationError(
+                    "SSH is connected, but the forwarded service did not respond."
+                ) from exc
+        if not self.ssh:
+            raise ConfigurationError("OpenSSH is not installed or is not available on PATH.")
+        if config["auth"] == "password" and not self.askpass:
+            raise ConfigurationError("The Codester SSH password helper is unavailable.")
+        with socket.socket() as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            test_port = reservation.getsockname()[1]
+        config["local_port"] = test_port
+        process = subprocess.Popen(  # noqa: S603
+            self._command(config),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            start_new_session=os.name != "nt",
+            env=self._environment(config),
+        )
+        deadline = time.monotonic() + 15
+        try:
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    stderr = process.communicate()[1] or b""
+                    detail = " ".join(stderr.decode(errors="replace").split())[:300]
+                    raise IntegrationError(detail or "SSH authentication failed.")
+                try:
+                    with socket.create_connection(("127.0.0.1", test_port), timeout=0.4):
+                        return {"ok": True, "message": "SSH and forwarded service responded."}
+                except OSError:
+                    time.sleep(0.2)
+            raise IntegrationError("SSH connected, but the forwarded service did not respond.")
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=2)
 
     def status(self) -> dict:
         with self.lock:

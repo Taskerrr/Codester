@@ -107,6 +107,12 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     def tunnel_disconnect():
         return jsonify(tunnel_manager.disconnect())
 
+    @app.post("/api/tunnels/<identifier>/test")
+    def tunnel_test(identifier: str):
+        if not re.fullmatch(r"[a-f0-9-]{16,64}", identifier):
+            abort(404)
+        return jsonify(tunnel_manager.test(identifier))
+
     @app.post("/api/connections/<name>/test")
     def connection_test(name: str):
         if name not in INTERVALS:

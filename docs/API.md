@@ -13,6 +13,7 @@ All routes are private to the local single-user app. JSON responses are `no-stor
 | GET | `/api/tunnels` | Managed SSH-forward status without credentials or process details |
 | POST | `/api/tunnels/connect` | Start every saved forward and keep reconnecting until disconnected |
 | POST | `/api/tunnels/disconnect` | Stop every managed forward and disable reconnecting |
+| POST | `/api/tunnels/{id}/test` | Test a saved SSH login and remote target through a temporary local forward |
 | GET | `/api/errors/{dagster,signoz}/{id}` | Bounded details for an ID in the current error snapshot |
 
 Settings use `demo` plus `codex` (`enabled`, `activity`), `dagster` (`enabled`, `api_url`, `browser_url`), `signoz` (`enabled`, `api_url`, `browser_url`, `error_service`, `panels`), and up to 20 `tunnels`. Each tunnel has an opaque ID, display name, authentication mode, SSH host/user/port, and local/remote host/port. Local ports, IDs, and names must be unique. A submitted tunnel `password` is encrypted separately; reads expose only `has_password`. Each SigNoz panel has `service` and one of `request_rate`, `error_rate`, `p95`. An empty service means all services. Up to three panels are accepted. The HTML settings form is the intended configuration interface.

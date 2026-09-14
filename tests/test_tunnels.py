@@ -3,6 +3,7 @@ import copy
 import pytest
 
 from codester.store import DEFAULTS, ConfigurationError, validate
+from codester.transport import IntegrationError
 from codester.tunnels import TunnelManager
 
 
@@ -144,3 +145,23 @@ def test_initial_ssh_failure_stops_retry_and_reports_error(monkeypatch, tmp_path
     assert status["desired"] is False
     assert status["tunnels"][0]["message"] == "Permission denied (password)."
     assert manager.disconnect()["state"] == "disconnected"
+
+
+def test_connection_test_reports_openssh_failure(monkeypatch, tmp_path):
+    class FailedProcess:
+        returncode = 255
+
+        def poll(self):
+            return self.returncode
+
+        def communicate(self):
+            return b"", b"Permission denied.\n"
+
+    monkeypatch.setattr(
+        "codester.tunnels.subprocess.Popen", lambda command, **kwargs: FailedProcess()
+    )
+    manager = TunnelManager(tmp_path, [tunnel(auth="password")], autostart=False)
+    manager.ssh = "/usr/bin/ssh"
+    manager.askpass = "/app/.venv/bin/codester-askpass"
+    with pytest.raises(IntegrationError, match="Permission denied"):
+        manager.test("1234567890abcdef")

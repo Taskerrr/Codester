@@ -1,5 +1,7 @@
 import {$, api} from './common.js';
 let saved;
+let dashboardApps = [];
+let editingSlot = null;
 function message(text, error = false) {
   $('#settings-status').textContent = text;
   $('#settings-status').hidden = false;
@@ -9,10 +11,22 @@ function selectService(select, value) {
   if (!Array.from(select.options).some(option => option.value === value)) select.add(new Option(value, value));
   select.value = value;
 }
-function updateDashboardOptions() {
-  const selects = Array.from({length:3},(_,i)=>$(`#dashboard-app-${i}`));
-  const selected = selects.map(select=>select.value);
-  for(const select of selects) for(const option of select.options) option.disabled = option.value !== select.value && selected.includes(option.value);
+function renderDashboardApps() {
+  for (const slot of document.querySelectorAll('.column-slot')) {
+    const index = Number(slot.dataset.slot);
+    const app = dashboardApps[index];
+    const source = app ? document.querySelector(`[data-app-choice="${app}"]`) : null;
+    const glyph = slot.querySelector('.slot-glyph');
+    glyph.replaceChildren(source ? source.firstElementChild.cloneNode(true) : document.createTextNode('+'));
+    slot.classList.toggle('editing', editingSlot === index);
+    slot.title = source ? source.textContent.trim() : 'Choose an app';
+    slot.setAttribute('aria-label', `Column ${index + 1}: ${source ? source.textContent.trim() : 'empty'}`);
+  }
+  for (const choice of document.querySelectorAll('[data-app-choice]')) {
+    const selectedAt = dashboardApps.indexOf(choice.dataset.appChoice);
+    choice.classList.toggle('selected', selectedAt >= 0);
+    choice.disabled = selectedAt >= 0 && selectedAt !== editingSlot;
+  }
 }
 function addTunnel(data = {}) {
   const row = $('#tunnel-template').content.firstElementChild.cloneNode(true);
@@ -31,12 +45,15 @@ function addTunnel(data = {}) {
   row.querySelector('.tunnel-title').textContent = data.name || 'New forward';
   row.querySelector('[data-tunnel-field="name"]').addEventListener('input', event => { row.querySelector('.tunnel-title').textContent = event.target.value || 'New forward'; });
   row.querySelector('.remove-tunnel').addEventListener('click', () => { row.remove(); $('#save-note').textContent='Unsaved changes'; });
+  row.querySelector('.test-tunnel').addEventListener('click', () => testTunnel(row));
   $('#tunnel-list').append(row);
 }
 function fill(data) {
   $('#demo').checked = data.demo;
-  for(let i=0;i<3;i++) $(`#dashboard-app-${i}`).value = data.dashboard_apps[i];
-  updateDashboardOptions();
+  dashboardApps = [...data.dashboard_apps];
+  editingSlot = null;
+  $('#app-picker').hidden = true;
+  renderDashboardApps();
   for(const name of ['codex','dagster','signoz']) {
     $(`#${name}-enabled`).checked = data[name].enabled;
     if(name === 'codex') { $('#codex-activity').checked = data.codex.activity; continue; }
@@ -56,7 +73,7 @@ function fill(data) {
   for (const tunnel of data.tunnels || []) addTunnel(tunnel);
 }
 function read() {
-  const data = {demo:$('#demo').checked,dashboard_apps:Array.from({length:3},(_,i)=>$(`#dashboard-app-${i}`).value),codex:{enabled:$('#codex-enabled').checked, activity:$('#codex-activity').checked}};
+  const data = {demo:$('#demo').checked,dashboard_apps:[...dashboardApps],codex:{enabled:$('#codex-enabled').checked, activity:$('#codex-activity').checked}};
   for(const name of ['dagster','signoz']) data[name] = {enabled:$(`#${name}-enabled`).checked,api_url:$(`#${name}-api_url`).value,browser_url:$(`#${name}-browser_url`).value};
   data.signoz.api_key=$('#signoz-key').value;
   data.signoz.clear_key=$('#clear-key').checked;
@@ -78,17 +95,69 @@ function read() {
   }));
   return data;
 }
-$('#settings-form').addEventListener('submit', async event => {
-  event.preventDefault();
+async function saveSettings(refill = true) {
   $('#save').disabled = true;
   $('#save').textContent = 'Saving…';
-  try { saved=await api('/api/settings',{method:'PUT',body:JSON.stringify(read())}); fill(saved); message('Settings saved. Your dashboard is updating.'); $('#save-note').textContent='All changes saved on this machine.'; }
+  try {
+    saved=await api('/api/settings',{method:'PUT',body:JSON.stringify(read())});
+    if (refill) fill(saved);
+    else {
+      $('#signoz-key').value='';
+      for (const row of document.querySelectorAll('.tunnel-config')) {
+        const input=row.querySelector('[data-tunnel-field="password"]');
+        const tunnel=saved.tunnels.find(item=>item.id === row.dataset.id);
+        input.value='';
+        input.required=row.querySelector('[data-tunnel-field="auth"]').value === 'password' && !tunnel?.has_password;
+        input.placeholder=tunnel?.has_password ? 'Saved · enter to replace' : 'Enter password';
+      }
+    }
+    $('#save-note').textContent='Saved';
+    return saved;
+  } finally {
+    $('#save').disabled=false;
+    $('#save').textContent='Save settings';
+  }
+}
+$('#settings-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  try { await saveSettings(); message('Settings saved.'); }
   catch(error) { message(error.message,true); }
-  finally { $('#save').disabled=false; $('#save').textContent='Save settings'; }
 });
 $('#settings-form').addEventListener('input',()=> { $('#save-note').textContent='Unsaved changes'; });
-for(let i=0;i<3;i++) $(`#dashboard-app-${i}`).addEventListener('change',updateDashboardOptions);
+for (const slot of document.querySelectorAll('.column-slot')) slot.addEventListener('click', () => {
+  editingSlot = Number(slot.dataset.slot);
+  $('#app-picker').hidden = false;
+  renderDashboardApps();
+  $('#app-picker').querySelector('button:not(:disabled)')?.focus();
+});
+for (const choice of document.querySelectorAll('[data-app-choice]')) choice.addEventListener('click', () => {
+  if (editingSlot === null) return;
+  const app = choice.dataset.appChoice;
+  const existing = dashboardApps.indexOf(app);
+  if (existing >= 0 && existing !== editingSlot) [dashboardApps[editingSlot], dashboardApps[existing]] = [dashboardApps[existing], dashboardApps[editingSlot]];
+  else dashboardApps[editingSlot] = app;
+  editingSlot = null;
+  $('#app-picker').hidden = true;
+  renderDashboardApps();
+  $('#save-note').textContent='Unsaved changes';
+});
 $('#add-tunnel').addEventListener('click',()=> { addTunnel(); $('#save-note').textContent='Unsaved changes'; });
+async function testTunnel(row) {
+  const button = row.querySelector('.test-tunnel');
+  const result = row.querySelector('.tunnel-test');
+  if (!$('#settings-form').reportValidity()) return;
+  button.disabled = true;
+  result.textContent = 'Testing…';
+  try {
+    await saveSettings(false);
+    const response = await api(`/api/tunnels/${encodeURIComponent(row.dataset.id)}/test`, {method:'POST', timeout:25000});
+    result.textContent = response.message;
+  } catch (error) {
+    result.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
 for(const button of document.querySelectorAll('.test')) button.addEventListener('click',async()=> {
   const name=button.dataset.service;
   button.disabled=true;

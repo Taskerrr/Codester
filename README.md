@@ -60,6 +60,8 @@ Docker still requires host memory for Docker Desktop. Native startup is the ligh
 
 Add each local forward in **Settings → SSH tunnels**, save, then use the tunnel switch beside the Settings button. Codester starts every forward together with OpenSSH keepalives and automatically reconnects a dropped established session with bounded backoff. Hover or focus the switch to inspect each connection. Turn the green switch off to disconnect them all; an initial connection failure stops and displays the OpenSSH error for correction.
 
+Each tunnel card has a Test action. It saves the current form, creates a temporary forward on an unused local port, and confirms both SSH authentication and access to the configured remote service.
+
 Each forward can use either the operating system's SSH agent or a password entered in Settings. Passwords are encrypted in Codester's local secret store and are never returned by its API, written into the OpenSSH command, or logged. A small local askpass helper decrypts the selected password only when OpenSSH requests it. Private keys are never copied into Codester. The first connection records the server key in Codester's private data directory; a changed key is rejected.
 
 Use `http://127.0.0.1:LOCAL_PORT` as a Dagster or SigNoz API URL for a Codester-managed forward. Under Docker, the forward and Flask both run inside the Codester container. A browser cannot open that container-local address directly, so set the service's Browser URL to an address your host browser can reach when source links are needed.

@@ -151,9 +151,19 @@ def test_tunnel_settings_and_controls(app, client, monkeypatch):
         "disconnect",
         lambda: {"state": "disconnected", "desired": False, "tunnels": []},
     )
+    monkeypatch.setattr(
+        manager,
+        "test",
+        lambda identifier: {"ok": True, "message": f"Tested {identifier}"},
+    )
     assert client.get("/api/tunnels").status_code == 200
     assert client.post("/api/tunnels/connect", headers=csrf(client)).json["desired"] is True
     assert client.post("/api/tunnels/disconnect", headers=csrf(client)).json["desired"] is False
+    response = client.post(
+        "/api/tunnels/1234567890abcdef/test", headers=csrf(client)
+    )
+    assert response.json["ok"] is True
+    assert client.post("/api/tunnels/not-valid/test", headers=csrf(client)).status_code == 404
 
 
 def test_docker_page_and_controls(app, client, monkeypatch):
