@@ -11,6 +11,9 @@ const spinner = label => `<span class="loading-ring" role="img" aria-label="${e(
 const sectionHeading = (title, aside = '') => `<div class="mini-heading"><h3>${e(title)}</h3><span>${e(aside)}</span></div>`;
 const utilityApps = new Set(['postgres', 'server', 'github', 'docker']);
 let dockerPanelLoading = false;
+let dockerControlLoading = false;
+let dockerPendingStop = '';
+let dockerPendingTimer;
 
 function ring({value, label, detail = '', progress = 0, live = false}) {
   const safeProgress = live ? 92 : clamp(progress);
@@ -58,9 +61,9 @@ function dagster(data) {
   const queued = number(data.queued);
   const total = running + queued;
   const jobs = data.jobs.slice(0, 3).map(job => `<div class="compact-row">
-    ${job.status === 'STARTED' ? spinner('Running') : '<span class="state-mark">!</span>'}
+    ${dagsterState(job.status)}
     <strong title="${e(job.title)}">${e(job.title)}</strong>
-    <time>${duration(job.duration)}</time>
+    <time>${job.status === 'QUEUED' ? 'queued' : duration(job.duration)}</time>
   </div>`).join('');
   return `<div class="dagster-hero hero-rings">
         ${ring({value: running, label: 'RUNNING', progress: total ? running / total * 100 : 0})}
@@ -70,6 +73,14 @@ function dagster(data) {
       <section>${sectionHeading('Recent jobs')}<div class="compact-list">${jobs || empty('Idle')}</div></section>
       <section>${sectionHeading('Errors')}${errors('dagster', data.errors)}</section>
     </div>`;
+}
+
+function dagsterState(status) {
+  if (['STARTING', 'STARTED', 'CANCELING'].includes(status)) return spinner(status === 'CANCELING' ? 'Canceling' : 'Running');
+  if (status === 'SUCCESS') return '<span class="state-mark success" aria-label="Succeeded">✓</span>';
+  if (status === 'FAILURE') return '<span class="state-mark failure" aria-label="Failed">!</span>';
+  if (status === 'CANCELED') return '<span class="state-mark" aria-label="Canceled">–</span>';
+  return '<span class="state-mark queued" aria-label="Queued"></span>';
 }
 
 function selectPanel(panels, metric, fallbackIndex) {
@@ -101,6 +112,15 @@ function signoz(data) {
 
 const renderers = {codex, dagster, signoz};
 
+function bytes(value) {
+  if (!Number.isFinite(Number(value))) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let amount = Number(value);
+  let unit = 0;
+  while (amount >= 1024 && unit < units.length - 1) { amount /= 1024; unit += 1; }
+  return `${amount.toLocaleString(undefined, {maximumFractionDigits: amount >= 10 ? 0 : 1})} ${units[unit]}`;
+}
+
 function applyLayout(layout) {
   const overview = $('#overview');
   for (const panel of overview.querySelectorAll('[data-app-panel]')) panel.hidden = true;
@@ -129,19 +149,72 @@ function utilityPlaceholder(name) {
 
 async function refreshDockerPanel() {
   const target = $('#docker-content');
-  if (!target || target.closest('.channel').hidden || dockerPanelLoading) return;
+  if (!target || target.closest('.channel').hidden || dockerPanelLoading || dockerControlLoading || dockerPendingStop) return;
   dockerPanelLoading = true;
   try {
     const data = await api('/api/docker/containers', {timeout: 10000});
-    const stopped = data.total - data.running;
-    target.innerHTML = `<div class="utility-stats"><div><strong>${data.running}</strong><span>running</span></div><div><strong>${stopped}</strong><span>stopped</span></div></div>
+    $('#docker-message').innerHTML = '';
+    const containers = data.containers.filter(container => container.manageable).sort(containerOrder);
+    const running = containers.filter(container => container.running).length;
+    const memoryUsed = containers.reduce((total, container) => total + (Number(container.memory_used) || 0), 0);
+    const runningProgress = containers.length ? running / containers.length * 100 : 0;
+    const memoryProgress = data.memory_limit ? memoryUsed / data.memory_limit * 100 : 0;
+    target.innerHTML = `<div class="hero-rings docker-rings">
+        ${ring({value:running, label:'RUNNING', detail:`${containers.length} total`, progress:runningProgress})}
+        ${ring({value:bytes(memoryUsed), label:'MEMORY', detail:`${memoryProgress.toLocaleString(undefined, {maximumFractionDigits:1})}%`, progress:memoryProgress})}
+      </div>
       ${sectionHeading('Containers')}
-      <div class="container-mini-list">${data.containers.slice(0, 5).map(container => `<div class="container-mini"><i data-running="${container.running}" aria-hidden="true"></i><strong title="${e(container.name)}">${e(container.name)}</strong><span>${e(container.state)}</span></div>`).join('') || empty('No containers')}</div>
-      <a class="utility-open" href="/docker">Manage containers →</a>`;
+      <div class="container-mini-list">${containers.map(container => `<div class="container-mini">
+        <strong title="${e(container.name)}">${e(container.name)}</strong>
+        <button class="container-mini-control ${container.running ? 'stop' : 'start'}" type="button" data-docker-action="${container.running ? 'stop' : 'start'}" data-id="${e(container.id)}" aria-label="${container.running ? 'Stop' : 'Start'} ${e(container.name)}" title="${container.running ? 'Stop' : 'Start'}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2v10"/><path d="M6.3 5.7a8 8 0 1 0 11.4 0"/></svg>
+        </button>
+      </div>`).join('') || empty('No containers')}</div>`;
   } catch (error) {
     target.innerHTML = `<div class="utility-placeholder"><strong>Docker unavailable</strong><span>${e(error.message)}</span><a href="/docker">Open Docker →</a></div>`;
   } finally {
     dockerPanelLoading = false;
+  }
+}
+
+function containerOrder(left, right) {
+  return Number(right.running) - Number(left.running) || left.name.localeCompare(right.name, undefined, {sensitivity:'base'});
+}
+
+function clearDockerConfirmation() {
+  dockerPendingStop = '';
+  clearTimeout(dockerPendingTimer);
+  for (const button of document.querySelectorAll('.container-mini-control.confirm')) {
+    button.classList.remove('confirm');
+    button.title = 'Stop';
+    button.setAttribute('aria-label', `Stop ${button.closest('.container-mini').querySelector('strong').textContent}`);
+  }
+}
+
+async function controlDocker(button) {
+  const {id, dockerAction: action} = button.dataset;
+  if (action === 'stop' && dockerPendingStop !== id) {
+    clearDockerConfirmation();
+    dockerPendingStop = id;
+    button.classList.add('confirm');
+    button.title = 'Tap again to stop';
+    button.setAttribute('aria-label', `Confirm stop ${button.closest('.container-mini').querySelector('strong').textContent}`);
+    dockerPendingTimer = setTimeout(clearDockerConfirmation, 4000);
+    return;
+  }
+  clearDockerConfirmation();
+  dockerControlLoading = true;
+  button.disabled = true;
+  button.classList.add('working');
+  try {
+    await api(`/api/docker/containers/${encodeURIComponent(id)}/${action}`, {method:'POST', timeout:20000});
+    dockerControlLoading = false;
+    await refreshDockerPanel();
+  } catch (error) {
+    dockerControlLoading = false;
+    $('#docker-message').innerHTML = `<p>${e(error.message)}</p>`;
+    button.disabled = false;
+    button.classList.remove('working');
   }
 }
 
@@ -223,6 +296,11 @@ async function openDetail(button) {
 }
 
 $('#overview').addEventListener('click', event => {
+  const dockerButton = event.target.closest('[data-docker-action]');
+  if (dockerButton && !dockerButton.disabled) {
+    controlDocker(dockerButton);
+    return;
+  }
   const button = event.target.closest('[data-id][data-service]');
   if (button) openDetail(button);
 });
@@ -230,10 +308,6 @@ $('#overview').addEventListener('click', event => {
 $('.deck-buttons').addEventListener('click', event => {
   const button = event.target.closest('[data-app]');
   if (!button) return;
-  if (button.dataset.app === 'docker') {
-    window.location.assign('/docker');
-    return;
-  }
   const panel = document.querySelector(`[data-app-panel="${button.dataset.app}"]:not([hidden])`);
   if (panel) panel.querySelector('.channel-arrow').focus();
   else window.location.assign('/settings#dashboard-layout');

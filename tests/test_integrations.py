@@ -161,6 +161,9 @@ def test_dagster_counts_queue_pagination_and_browser_link(monkeypatch):
         assert "mutation" not in query
         if variables:
             return {"runsOrError": {"results": [row("old", now - 300)]}}
+        completed = row("done", now - 500, "SUCCESS")
+        completed["startTime"] = now - 490
+        completed["endTime"] = now - 450
         return {
             "queued": {"__typename": "Runs", "count": 2, "results": [row("new", now - 30)]},
             "running": {
@@ -169,6 +172,11 @@ def test_dagster_counts_queue_pagination_and_browser_link(monkeypatch):
                 "results": [row("r", now - 60, "STARTED")],
             },
             "failed": {"__typename": "Runs", "count": 0, "results": []},
+            "recent": {
+                "__typename": "Runs",
+                "count": 1,
+                "results": [completed],
+            },
         }
 
     monkeypatch.setattr(dagster, "graphql", gql)
@@ -177,6 +185,8 @@ def test_dagster_counts_queue_pagination_and_browser_link(monkeypatch):
     assert data["failed"] == 0
     assert 299 <= data["oldest"] <= 302
     assert data["jobs"][0]["url"] == "http://localhost:8000/runs/r"
+    assert [job["id"] for job in data["jobs"]] == ["r", "new", "done"]
+    assert data["jobs"][2]["duration"] == 40
     assert len(calls) == 2
 
 

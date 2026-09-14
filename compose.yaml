@@ -9,6 +9,11 @@ services:
         source: ${CODEX_HOST_HOME:-${HOME}/.codex}
         target: /host-codex
         read_only: true
+      - type: bind
+        source: ${DOCKER_SOCKET_PATH:-${HOME}/.docker/run/docker.sock}
+        target: /var/run/docker.sock
+    group_add:
+      - ${DOCKER_SOCKET_GID:-0}
     environment:
       CODESTER_CODEX_ACTIVITY_HOME: /host-codex
     extra_hosts:

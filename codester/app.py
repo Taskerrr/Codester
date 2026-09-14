@@ -122,10 +122,23 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     def docker_containers():
         with docker_lock:
             containers = docker_engine.containers()
+            stats = docker_engine.resource_stats(containers)
+            for container in containers:
+                container.update(stats.get(container["id"], {}))
         return jsonify(
             containers=containers,
             running=sum(container["running"] for container in containers),
             total=len(containers),
+            cpu_percent=round(
+                sum(container.get("cpu_percent") or 0 for container in containers), 1
+            ),
+            memory_used=sum(
+                container.get("memory_used") or 0 for container in containers
+            ),
+            memory_limit=max(
+                (container.get("memory_limit") or 0 for container in containers),
+                default=0,
+            ),
         )
 
     @app.post("/api/docker/containers/<container_id>/<action>")

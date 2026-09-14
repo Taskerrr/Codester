@@ -35,12 +35,13 @@ def snapshot(config: dict) -> dict:
                 ("queued", "QUEUED"),
                 ("running", "STARTING, STARTED, CANCELING"),
                 ("failed", "FAILURE"),
+                ("recent", "SUCCESS, FAILURE, CANCELED"),
             ]
         )
         + "}"
     )
     data = graphql(config, query)
-    for name in ("queued", "running", "failed"):
+    for name in ("queued", "running", "failed", "recent"):
         if data.get(name, {}).get("__typename") != "Runs":
             raise IntegrationError(
                 "Dagster could not return runs. Check deployment health and permissions."
@@ -67,12 +68,13 @@ def snapshot(config: dict) -> dict:
         oldest = max(0, now - min(row["creationTime"] for row in rows))
 
     def normalize(row: dict) -> dict:
+        started = row.get("startTime") or row["creationTime"]
         return {
             "id": row["runId"],
             "title": row["jobName"],
             "status": row["status"],
             "timestamp": row.get("endTime") or row.get("startTime") or row["creationTime"],
-            "duration": max(0, now - (row.get("startTime") or row["creationTime"])),
+            "duration": max(0, (row.get("endTime") or now) - started),
             "url": run_link(config, row["runId"]),
         }
 
@@ -82,7 +84,14 @@ def snapshot(config: dict) -> dict:
         "failed": data["failed"]["count"],
         "oldest": oldest,
         "queue": [normalize(r) for r in data["queued"]["results"]],
-        "jobs": [normalize(r) for r in data["running"]["results"]],
+        "jobs": [
+            normalize(r)
+            for r in (
+                data["running"]["results"]
+                + data["queued"]["results"]
+                + data["recent"]["results"]
+            )
+        ],
         "errors": [normalize(r) for r in data["failed"]["results"]],
     }
 

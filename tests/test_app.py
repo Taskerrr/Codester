@@ -132,12 +132,24 @@ def test_docker_page_and_controls(app, client, monkeypatch):
     actions = []
     monkeypatch.setattr("codester.docker_engine.containers", lambda: containers)
     monkeypatch.setattr(
+        "codester.docker_engine.resource_stats",
+        lambda items: {
+            "a" * 64: {
+                "cpu_percent": 1.5,
+                "memory_used": 128,
+                "memory_limit": 1024,
+            }
+        },
+    )
+    monkeypatch.setattr(
         "codester.docker_engine.control",
         lambda container_id, action: actions.append((container_id, action)),
     )
     assert client.get("/docker").status_code == 200
     response = client.get("/api/docker/containers")
     assert response.json["running"] == 1 and response.json["total"] == 1
+    assert response.json["memory_used"] == 128
+    assert response.json["memory_limit"] == 1024
     response = client.post(
         f"/api/docker/containers/{'a' * 64}/stop", headers=csrf(client)
     )

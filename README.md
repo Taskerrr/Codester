@@ -52,7 +52,7 @@ The copied login stays inside the private `codester-data` volume and Codex can r
 
 Compose mounts the host's `~/.codex` directory at `/host-codex` read-only so the optional recent-activity view can see current VS Code thread metadata without changing it. Set `CODEX_HOST_HOME` before running Compose if the host uses a different Codex home. Authentication remains in the separate writable data volume; the app only queries the mounted SQLite thread index and never reads session bodies.
 
-The Docker container-management screen is intended for native Codester startup. It uses the local Docker CLI on Windows/macOS and can fall back to a local Unix socket. The Compose setup deliberately does not mount the Docker control socket into Codester; access to that socket effectively grants control of the host through Docker.
+The Docker container-management screen uses the local Docker CLI during native startup and the Docker socket from Compose. Socket access effectively grants the Codester process control of Docker, so keep the app loopback-only and run only trusted builds. Override `DOCKER_SOCKET_PATH` when the host socket uses a nonstandard path. Docker Desktop presents the mounted socket as group `0`; Linux users whose socket has another group should set `DOCKER_SOCKET_GID` to its numeric group ID. Codester exposes listing, live CPU/memory reads, start, and graceful stop; it cannot control its own container.
 
 Docker still requires host memory for Docker Desktop. Native startup is the lightest option, particularly when using existing localhost tunnels.
 
@@ -77,7 +77,7 @@ Recent activity is opt-in. It reads six unarchived VS Code thread titles, projec
 
 ### Dagster
 
-Targets a self-hosted deployment with no login. Uses `/graphql`, exact queued/running counts, up to 12 displayed rows per group, and recent failed runs. Starting and cancelling runs are included in the running total, with their actual status shown.
+Targets a self-hosted deployment with no login. Uses `/graphql`, exact queued/running counts, up to 12 fetched rows per group, and recent failed runs. The three-row job feed shows running work first, then queued work, then the latest completed runs so it remains useful while idle. Starting and cancelling runs are included in the running total, with their actual status shown.
 
 Oldest queue age follows up to two additional 100-run pages. If that cannot cover the queue, age is shown as unavailable rather than guessed from the newest runs. Details fetch the first 100 log events (up to 32KB displayed); open Dagster if the failure occurred later in a long run. No run configuration or secrets are requested.
 
@@ -99,7 +99,7 @@ The adapters are fixture/schema-tested, but your work-server versions, permissio
 
 ### Docker Desktop
 
-Tap the Docker whale in the left rail to open the container screen. It lists running and stopped containers, image names, status text, and published ports. Start is immediate. Stop requires a second tap within four seconds and asks Docker for a ten-second graceful stop. Requests are bounded, container identifiers are validated against the current local list, and no image removal, container deletion, shell access, or compose operations are exposed.
+When Docker is selected as one of the three dashboard columns, that column shows running and memory gauges plus a scrollable list of power controls. Its header arrow opens the larger container screen with the same controls. Both the gauges and control lists omit Codester because it cannot restart itself after stopping; zero running therefore means no manageable workload containers are active. Controllable containers are ordered with running containers first and then alphabetically within each state. Start is immediate. Stop requires a second tap within four seconds and asks Docker for a ten-second graceful stop. Requests are bounded, resource reads cover at most 50 running containers, and container identifiers are validated against the current local list. No image removal, container deletion, shell access, or compose operations are exposed.
 
 Docker Desktop must be running and the current user must already have permission to use it. Native Windows/macOS startup uses the Docker CLI installed with Docker Desktop. Set `CODESTER_DOCKER_SOCKET` only when a nonstandard Unix socket should be used and the Docker CLI is unavailable.
 
