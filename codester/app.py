@@ -16,6 +16,7 @@ from codester import dagster, demo, docker_engine, signoz
 from codester.poller import INTERVALS, Poller
 from codester.store import METRICS, ConfigurationError, Store
 from codester.transport import IntegrationError
+from codester.tunnels import TunnelManager
 
 
 def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Flask:
@@ -23,9 +24,10 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     app.config.update(MAX_CONTENT_LENGTH=32768, TRUSTED_HOSTS=["localhost", "127.0.0.1", "[::1]"])
     store = Store(data_dir or Path(os.environ.get("CODESTER_DATA_DIR", ".data")))
     poller = Poller(store)
+    tunnel_manager = TunnelManager(store.path.parent, store.read()["tunnels"], autostart=start_poller)
     token = secrets.token_urlsafe(32)
     docker_lock = threading.Lock()
-    app.extensions.update(store=store, poller=poller)
+    app.extensions.update(store=store, poller=poller, tunnel_manager=tunnel_manager)
 
     @app.before_request
     def protect_local_app() -> None:
@@ -90,7 +92,20 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         with poller.lock:
             store.save(request.get_json())
             poller.invalidate()
+            tunnel_manager.configure(store.read()["tunnels"])
         return jsonify(store.public())
+
+    @app.get("/api/tunnels")
+    def tunnel_status():
+        return jsonify(tunnel_manager.status())
+
+    @app.post("/api/tunnels/connect")
+    def tunnel_connect():
+        return jsonify(tunnel_manager.connect())
+
+    @app.post("/api/tunnels/disconnect")
+    def tunnel_disconnect():
+        return jsonify(tunnel_manager.disconnect())
 
     @app.post("/api/connections/<name>/test")
     def connection_test(name: str):
@@ -183,4 +198,5 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     if start_poller:
         poller.start()
         atexit.register(poller.stop)
+        atexit.register(tunnel_manager.stop)
     return app

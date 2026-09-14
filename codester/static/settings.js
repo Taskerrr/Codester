@@ -14,6 +14,25 @@ function updateDashboardOptions() {
   const selected = selects.map(select=>select.value);
   for(const select of selects) for(const option of select.options) option.disabled = option.value !== select.value && selected.includes(option.value);
 }
+function addTunnel(data = {}) {
+  const row = $('#tunnel-template').content.firstElementChild.cloneNode(true);
+  row.dataset.id = data.id || crypto.randomUUID();
+  const defaults = {name:'', ssh_host:'', username:'', ssh_port:22, auth:'agent', password:'', local_port:'', remote_host:'127.0.0.1', remote_port:''};
+  for (const [field, fallback] of Object.entries(defaults)) row.querySelector(`[data-tunnel-field="${field}"]`).value = data[field] ?? fallback;
+  const auth = row.querySelector('[data-tunnel-field="auth"]');
+  const password = row.querySelector('[data-tunnel-field="password"]');
+  const updateAuth = () => {
+    row.querySelector('.tunnel-password').hidden = auth.value !== 'password';
+    password.required = auth.value === 'password' && !data.has_password;
+    password.placeholder = data.has_password ? 'Saved · enter to replace' : 'Enter password';
+  };
+  auth.addEventListener('change', updateAuth);
+  updateAuth();
+  row.querySelector('.tunnel-title').textContent = data.name || 'New forward';
+  row.querySelector('[data-tunnel-field="name"]').addEventListener('input', event => { row.querySelector('.tunnel-title').textContent = event.target.value || 'New forward'; });
+  row.querySelector('.remove-tunnel').addEventListener('click', () => { row.remove(); $('#save-note').textContent='Unsaved changes'; });
+  $('#tunnel-list').append(row);
+}
 function fill(data) {
   $('#demo').checked = data.demo;
   for(let i=0;i<3;i++) $(`#dashboard-app-${i}`).value = data.dashboard_apps[i];
@@ -33,6 +52,8 @@ function fill(data) {
     $(`#panel-${i}-metric`).value = panel?.metric || ['request_rate','error_rate','p95'][i];
   }
   selectService($('#error-service'),data.signoz.error_service);
+  $('#tunnel-list').replaceChildren();
+  for (const tunnel of data.tunnels || []) addTunnel(tunnel);
 }
 function read() {
   const data = {demo:$('#demo').checked,dashboard_apps:Array.from({length:3},(_,i)=>$(`#dashboard-app-${i}`).value),codex:{enabled:$('#codex-enabled').checked, activity:$('#codex-activity').checked}};
@@ -42,6 +63,19 @@ function read() {
   data.signoz.error_service=$('#error-service').value;
   data.signoz.panels=[];
   for(let i=0;i<3;i++) if($(`#panel-${i}-enabled`).checked) data.signoz.panels.push({service:$(`#panel-${i}-service`).value,metric:$(`#panel-${i}-metric`).value});
+  data.tunnels = Array.from(document.querySelectorAll('.tunnel-config')).map(row => ({
+    id:row.dataset.id,
+    name:row.querySelector('[data-tunnel-field="name"]').value,
+    auth:row.querySelector('[data-tunnel-field="auth"]').value,
+    password:row.querySelector('[data-tunnel-field="password"]').value,
+    clear_password:false,
+    ssh_host:row.querySelector('[data-tunnel-field="ssh_host"]').value,
+    username:row.querySelector('[data-tunnel-field="username"]').value,
+    ssh_port:Number(row.querySelector('[data-tunnel-field="ssh_port"]').value),
+    local_port:Number(row.querySelector('[data-tunnel-field="local_port"]').value),
+    remote_host:row.querySelector('[data-tunnel-field="remote_host"]').value,
+    remote_port:Number(row.querySelector('[data-tunnel-field="remote_port"]').value),
+  }));
   return data;
 }
 $('#settings-form').addEventListener('submit', async event => {
@@ -54,6 +88,7 @@ $('#settings-form').addEventListener('submit', async event => {
 });
 $('#settings-form').addEventListener('input',()=> { $('#save-note').textContent='Unsaved changes'; });
 for(let i=0;i<3;i++) $(`#dashboard-app-${i}`).addEventListener('change',updateDashboardOptions);
+$('#add-tunnel').addEventListener('click',()=> { addTunnel(); $('#save-note').textContent='Unsaved changes'; });
 for(const button of document.querySelectorAll('.test')) button.addEventListener('click',async()=> {
   const name=button.dataset.service;
   button.disabled=true;

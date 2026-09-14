@@ -8,9 +8,14 @@
 {% block content %}
 <main id="main" class="deck">
   <p id="connection-warning" class="deck-warning" role="status" hidden></p>
+  <p id="tunnel-warning" class="deck-warning tunnel-warning" role="status" hidden></p>
   <div id="overview" class="deck-layout">
     <aside class="clock-rail" aria-label="Workspace overview">
       <div class="rail-top">
+        <div class="tunnel-control">
+          <button id="tunnels" class="tunnel-toggle" type="button" role="switch" data-state="loading" aria-checked="false" aria-label="Loading SSH tunnel status"><span class="tunnel-track" aria-hidden="true"><span class="tunnel-knob"></span></span></button>
+          <div id="tunnel-tooltip" class="tunnel-tooltip" role="tooltip"><strong>SSH tunnels</strong><span>Loading…</span></div>
+        </div>
         <a href="/settings" class="icon-button" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m9 3-1 3-3 1-2 5 2 5 3 1 1 3h6l1-3 3-1 2-5-2-5-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/></svg></a>
        </div>
       <div class="rail-emblem" aria-hidden="true"><span>&lt;</span><i></i></div>
@@ -24,7 +29,9 @@
         <button class="deck-button docker" data-app="docker" type="button" aria-label="Docker" title="Docker"><img src="{{ url_for('static', filename='docker.svg') }}" alt=""></button>
         <button class="deck-button github" data-app="github" type="button" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-4.1 25.3c.7.1.9-.3.9-.7v-2.5c-3.8.8-4.6-1.6-4.6-1.6-.6-1.6-1.5-2-1.5-2-1.3-.9.1-.9.1-.9 1.4.1 2.2 1.5 2.2 1.5 1.3 2.2 3.4 1.6 4.2 1.2.1-.9.5-1.6.9-2-3-.3-6.2-1.5-6.2-6.4 0-1.4.5-2.6 1.4-3.5-.1-.3-.6-1.7.1-3.5 0 0 1.1-.4 3.6 1.3a12.4 12.4 0 0 1 6.6 0c2.5-1.7 3.6-1.3 3.6-1.3.7 1.8.2 3.2.1 3.5.9.9 1.4 2.1 1.4 3.5 0 5-3.2 6.1-6.2 6.4.5.4.9 1.3.9 2.6v3.9c0 .4.2.8.9.7A13 13 0 0 0 16 3Z"/></svg></button>
       </nav>
-      <div class="rail-bottom"><button id="fullscreen" class="icon-button" type="button" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div>
+      <div class="rail-bottom">
+        <button id="fullscreen" class="icon-button" type="button" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
+      </div>
     </aside>
     {% for name, label, subtitle, icon, route in [('codex', 'Codex', 'USAGE', 'codex.svg', '/settings'), ('dagster', 'Dagster', 'ORCHESTRATION', 'dagster.svg', '/settings'), ('signoz', 'SigNoz', 'OBSERVABILITY', 'signoz.svg', '/settings'), ('postgres', 'PostgreSQL', 'DATABASE', 'postgresql.svg', '/settings#dashboard-layout'), ('server', 'Linux', 'SERVERS', '', '/settings#dashboard-layout'), ('github', 'GitHub', 'REPOSITORY', '', '/settings#dashboard-layout'), ('docker', 'Docker', 'CONTAINERS', 'docker.svg', '/docker')] %}
     <section class="channel {{ name }}" data-app-panel="{{ name }}" aria-label="{{ label }}" {% if name not in ['codex', 'dagster', 'signoz'] %}hidden{% endif %}>

@@ -8,6 +8,7 @@ import re
 import sqlite3
 import subprocess
 import threading
+import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -25,6 +26,7 @@ DEFAULTS: dict = {
         "error_service": "",
         "panels": [{"service": "", "metric": m} for m in ["request_rate", "error_rate", "p95"]],
     },
+    "tunnels": [],
 }
 METRICS = {"request_rate": "Request rate", "error_rate": "Error rate", "p95": "p95 latency"}
 DASHBOARD_APPS = frozenset(
@@ -80,6 +82,36 @@ def service_name(value: object) -> str:
     return value
 
 
+def tunnel_text(value: object, label: str, pattern: str, maximum: int = 200) -> str:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or len(value) > maximum
+        or not re.fullmatch(pattern, value.strip())
+    ):
+        raise ConfigurationError(f"Enter a valid tunnel {label}.")
+    return value.strip()
+
+
+def tunnel_port(value: object, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 65535:
+        raise ConfigurationError(f"Tunnel {label} must be between 1 and 65535.")
+    return value
+
+
+def tunnel_identifier(tunnel: dict) -> str:
+    value = tunnel.get("id")
+    if value is not None:
+        if not isinstance(value, str) or not re.fullmatch(r"[a-f0-9-]{16,64}", value):
+            raise ConfigurationError("Invalid SSH tunnel identifier.")
+        return value
+    basis = "|".join(
+        str(tunnel.get(field, ""))
+        for field in ("name", "ssh_host", "ssh_port", "username", "local_port")
+    )
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"codester:ssh:{basis}").hex
+
+
 def validate(data: object) -> dict:
     if not isinstance(data, dict):
         raise ConfigurationError("Settings must be a JSON object.")
@@ -124,6 +156,52 @@ def validate(data: object) -> dict:
             }
         )
     result["signoz"]["error_service"] = service_name(data["signoz"].get("error_service", ""))
+    tunnels = data.get("tunnels", [])
+    if not isinstance(tunnels, list) or len(tunnels) > 20:
+        raise ConfigurationError("Add no more than 20 SSH tunnels.")
+    result["tunnels"] = []
+    names: set[str] = set()
+    local_ports: set[int] = set()
+    identifiers: set[str] = set()
+    for tunnel in tunnels:
+        if not isinstance(tunnel, dict):
+            raise ConfigurationError("Each SSH tunnel must be an object.")
+        name = tunnel_text(tunnel.get("name"), "name", r"[^\x00-\x1f\x7f]+", 80)
+        identifier = tunnel_identifier(tunnel)
+        auth = tunnel.get("auth", "agent")
+        if auth not in {"agent", "password"}:
+            raise ConfigurationError("Choose SSH agent or password authentication.")
+        ssh_host = tunnel_text(tunnel.get("ssh_host"), "SSH host", r"[A-Za-z0-9._-]+", 253)
+        username = tunnel_text(tunnel.get("username"), "username", r"[A-Za-z0-9._-]+", 64)
+        remote_host = tunnel_text(
+            tunnel.get("remote_host"), "remote host", r"[A-Za-z0-9._-]+", 253
+        )
+        ssh_port = tunnel_port(tunnel.get("ssh_port"), "SSH port")
+        local_port = tunnel_port(tunnel.get("local_port"), "local port")
+        remote_port = tunnel_port(tunnel.get("remote_port"), "remote port")
+        normalized_name = name.casefold()
+        if normalized_name in names:
+            raise ConfigurationError("SSH tunnel names must be different.")
+        if local_port in local_ports:
+            raise ConfigurationError("Each SSH tunnel needs a different local port.")
+        if identifier in identifiers:
+            raise ConfigurationError("Invalid duplicate SSH tunnel identifier.")
+        names.add(normalized_name)
+        local_ports.add(local_port)
+        identifiers.add(identifier)
+        result["tunnels"].append(
+            {
+                "id": identifier,
+                "name": name,
+                "auth": auth,
+                "ssh_host": ssh_host,
+                "ssh_port": ssh_port,
+                "username": username,
+                "local_port": local_port,
+                "remote_host": remote_host,
+                "remote_port": remote_port,
+            }
+        )
     return result
 
 
@@ -155,11 +233,19 @@ class Store:
         with self.lock, sqlite3.connect(self.path) as db:
             data = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()[0])
         data.setdefault("dashboard_apps", list(DEFAULTS["dashboard_apps"]))
+        data.setdefault("tunnels", [])
+        for tunnel in data["tunnels"]:
+            tunnel.setdefault("id", tunnel_identifier(tunnel))
+            tunnel.setdefault("auth", "agent")
         return data
 
     def public(self) -> dict:
         data = self.read()
         data["signoz"]["has_key"] = bool(self.secret("signoz"))
+        for tunnel in data["tunnels"]:
+            tunnel["has_password"] = bool(
+                self.secret(f"tunnel-password:{tunnel_identifier(tunnel)}")
+            )
         return data
 
     def secret(self, name: str) -> str:
@@ -176,8 +262,43 @@ class Store:
             raise ConfigurationError("Invalid API key.")
         if not isinstance(clear, bool):
             raise ConfigurationError("Invalid key removal choice.")
+        raw_tunnels = data.get("tunnels", [])
+        assert isinstance(raw_tunnels, list)
         # Blank means preserve, explicit clear means delete.
         with self.lock, sqlite3.connect(self.path) as db:
+            retained_secrets: set[str] = set()
+            for raw, tunnel in zip(raw_tunnels, settings["tunnels"], strict=True):
+                assert isinstance(raw, dict)
+                password = raw.get("password", "")
+                clear_password = raw.get("clear_password", False)
+                if (
+                    not isinstance(password, str)
+                    or len(password) > 4096
+                    or "\n" in password
+                    or "\r" in password
+                ):
+                    raise ConfigurationError("Invalid SSH password.")
+                if not isinstance(clear_password, bool):
+                    raise ConfigurationError("Invalid SSH password removal choice.")
+                secret_name = f"tunnel-password:{tunnel['id']}"
+                retained_secrets.add(secret_name)
+                existing = db.execute(
+                    "SELECT 1 FROM secrets WHERE name=?", (secret_name,)
+                ).fetchone()
+                if tunnel["auth"] == "password" and not password and (clear_password or not existing):
+                    raise ConfigurationError(f"Enter an SSH password for {tunnel['name']}.")
+                if tunnel["auth"] != "password" or clear_password:
+                    db.execute("DELETE FROM secrets WHERE name=?", (secret_name,))
+                elif password:
+                    db.execute(
+                        "INSERT OR REPLACE INTO secrets VALUES (?, ?)",
+                        (secret_name, self.cipher.encrypt(password.encode())),
+                    )
+            for (secret_name,) in db.execute(
+                "SELECT name FROM secrets WHERE name LIKE 'tunnel-password:%'"
+            ).fetchall():
+                if secret_name not in retained_secrets:
+                    db.execute("DELETE FROM secrets WHERE name=?", (secret_name,))
             db.execute("UPDATE settings SET value=? WHERE id=1", (json.dumps(settings),))
             if clear:
                 db.execute("DELETE FROM secrets WHERE name='signoz'")

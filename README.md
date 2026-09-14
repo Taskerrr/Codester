@@ -56,7 +56,17 @@ The Docker container-management screen uses the local Docker CLI during native s
 
 Docker still requires host memory for Docker Desktop. Native startup is the lightest option, particularly when using existing localhost tunnels.
 
-## Connections through SSH tunnels
+## Managed SSH tunnels
+
+Add each local forward in **Settings → SSH tunnels**, save, then use the tunnel switch beside the Settings button. Codester starts every forward together with OpenSSH keepalives and automatically reconnects a dropped established session with bounded backoff. Hover or focus the switch to inspect each connection. Turn the green switch off to disconnect them all; an initial connection failure stops and displays the OpenSSH error for correction.
+
+Each forward can use either the operating system's SSH agent or a password entered in Settings. Passwords are encrypted in Codester's local secret store and are never returned by its API, written into the OpenSSH command, or logged. A small local askpass helper decrypts the selected password only when OpenSSH requests it. Private keys are never copied into Codester. The first connection records the server key in Codester's private data directory; a changed key is rejected.
+
+Use `http://127.0.0.1:LOCAL_PORT` as a Dagster or SigNoz API URL for a Codester-managed forward. Under Docker, the forward and Flask both run inside the Codester container. A browser cannot open that container-local address directly, so set the service's Browser URL to an address your host browser can reach when source links are needed.
+
+Docker Desktop passes its host SSH agent socket into Codester when agent authentication is selected. Native startup uses the current `SSH_AUTH_SOCK`. Password authentication works without an agent. SSO, MFA prompts, jump-host, and bastion flows are not supported by the managed button; keep using an externally managed tunnel for those setups.
+
+### Externally managed tunnels
 
 | Runtime | API URL example | Browser URL example |
 | --- | --- | --- |
@@ -65,7 +75,7 @@ Docker still requires host memory for Docker Desktop. Native startup is the ligh
 
 These are examples; use your actual forwarded ports. The API URL must be reachable from the process running Flask. The browser URL is only for source links. Base paths are preserved. TLS verification stays enabled and redirects are not followed.
 
-A loopback-only SSH forward is not guaranteed to be reachable from Docker. If a connection test fails, verify the tunnel and try native startup. Do not expose your tunnels to the LAN just to make Docker work. Codester does not create or alter SSH forwarding. Proxy logins and SSO are not supported by these v1 adapters.
+A loopback-only host forward is not guaranteed to be reachable from Docker. If an externally managed connection test fails, verify the tunnel and try native startup. Do not expose your tunnels to the LAN just to make Docker work.
 
 ### Codex
 
@@ -105,9 +115,9 @@ Docker Desktop must be running and the current user must already have permission
 
 ## Storage and privacy
 
-Native storage is `.data/` in the project directory (ignored by Git). Docker storage is `/data`. Override with `CODESTER_DATA_DIR`. SQLite holds preferences; SigNoz keys are encrypted with Fernet using a per-installation `secret.key`. POSIX directories/files use 0700/0600. On Windows, startup removes inherited directory grants and grants the current user access through `icacls`; use a new private directory, since existing explicit grants are not removed. Windows ACL behavior still needs validation on your work machine. Encryption does not protect against someone with access to both database and key. Back up both together and keep them out of Git.
+Native storage is `.data/` in the project directory (ignored by Git). Docker storage is `/data`. Override with `CODESTER_DATA_DIR`. SQLite holds preferences; SigNoz keys and saved SSH passwords are encrypted with Fernet using a per-installation `secret.key`. POSIX directories/files use 0700/0600. On Windows, startup removes inherited directory grants and grants the current user access through `icacls`; use a new private directory, since existing explicit grants are not removed. Windows ACL behavior still needs validation on your work machine. Encryption does not protect against someone with access to both database and key. Back up both together and keep them out of Git.
 
-Blank key fields preserve the saved key; the removal checkbox explicitly deletes it. Credentials are never returned by settings APIs or logged. Live monitoring data is cached in memory, not saved as history. Task titles and source errors may contain work information and are visible on your screen.
+Blank key and saved-password fields preserve their existing secrets. Switching a tunnel back to agent authentication or removing it deletes its saved password. Credentials are never returned by settings APIs or logged. Live monitoring data is cached in memory, not saved as history. Task titles and source errors may contain work information and are visible on your screen.
 
 The server binds to loopback by default. Docker publishes only `127.0.0.1`. Host validation, origin checks, CSRF tokens, response size limits, and a restrictive content security policy protect the local app. This is a single-user local tool with **no multi-user authentication**; do not publish it on a shared network. The process can access configured private URLs by design.
 
@@ -125,6 +135,6 @@ uv run ty check
 uv run python -m codester
 ```
 
-Environment: `CODESTER_PORT` (8765), `CODESTER_HOST` (127.0.0.1), `CODESTER_DATA_DIR`, optional `CODESTER_CODEX_BIN`, `CODEX_HOME`, and `CODESTER_DOCKER_SOCKET`. Both scripts forward `--port` and `--host` arguments. Run one application process per storage directory so pollers and the encryption key are not duplicated.
+Environment: `CODESTER_PORT` (8765), `CODESTER_HOST` (127.0.0.1), `CODESTER_DATA_DIR`, optional `CODESTER_CODEX_BIN`, `CODEX_HOME`, `CODESTER_DOCKER_SOCKET`, and standard `SSH_AUTH_SOCK`. Both scripts forward `--port` and `--host` arguments. Run one application process per storage directory so pollers, managed tunnels, and the encryption key are not duplicated.
 
 See [validation notes](docs/VALIDATION.md), [API and adapter sources](docs/SOURCES.md), and [third-party marks](docs/THIRD_PARTY.md).

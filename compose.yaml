@@ -12,10 +12,14 @@ services:
       - type: bind
         source: ${DOCKER_SOCKET_PATH:-${HOME}/.docker/run/docker.sock}
         target: /var/run/docker.sock
+      - type: bind
+        source: /run/host-services/ssh-auth.sock
+        target: /run/host-services/ssh-auth.sock
     group_add:
       - ${DOCKER_SOCKET_GID:-0}
     environment:
       CODESTER_CODEX_ACTIVITY_HOME: /host-codex
+      SSH_AUTH_SOCK: /run/host-services/ssh-auth.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

@@ -54,7 +54,28 @@
     {% endfor %}
     <label>Recent errors from<select id="error-service" class="service-select"><option value="">All services</option></select></label>
   </fieldset>
-  <details class="network-help"><summary>Using SSH tunnels or Docker?</summary><p>For native startup, use your existing <code>http://localhost:PORT</code> forward. In Docker Desktop, try <code>http://host.docker.internal:PORT</code> as the API URL and keep <code>http://localhost:PORT</code> as the browser URL.</p><p>A tunnel bound only to host loopback may not be reachable from a container. If the test fails, use native startup or ask your administrator for an appropriately scoped forwarding setup. Codester does not modify SSH tunnels.</p></details>
+  <fieldset id="ssh-tunnels" class="settings-section"><legend>SSH tunnels</legend>
+    <p class="help">The link button beside the clock connects every saved forward and automatically reconnects dropped sessions. Choose your system SSH agent or enter a password, which is encrypted in Codester's local secret store.</p>
+    <div id="tunnel-list" class="tunnel-list"></div>
+    <button id="add-tunnel" type="button" class="secondary-button">+ Add tunnel</button>
+  </fieldset>
+  <template id="tunnel-template">
+    <section class="tunnel-config">
+      <div class="tunnel-heading"><strong class="tunnel-title">SSH forward</strong><button type="button" class="quiet-button remove-tunnel" aria-label="Remove tunnel">Remove</button></div>
+      <div class="tunnel-grid">
+        <label>Name<input data-tunnel-field="name" type="text" maxlength="80" placeholder="Dagster" autocomplete="off" required></label>
+        <label>SSH host<input data-tunnel-field="ssh_host" type="text" maxlength="253" placeholder="192.168.1.90" autocomplete="off" required></label>
+        <label>User<input data-tunnel-field="username" type="text" maxlength="64" placeholder="jack" autocomplete="username" required></label>
+        <label>SSH port<input data-tunnel-field="ssh_port" type="number" min="1" max="65535" value="22" inputmode="numeric" required></label>
+        <label>Authentication<select data-tunnel-field="auth"><option value="agent">SSH agent</option><option value="password">Saved password</option></select></label>
+        <label class="tunnel-password" hidden>Password<input data-tunnel-field="password" type="password" maxlength="4096" placeholder="Enter password" autocomplete="new-password"></label>
+        <label>Local port<input data-tunnel-field="local_port" type="number" min="1" max="65535" placeholder="3417" inputmode="numeric" required></label>
+        <label>Remote host<input data-tunnel-field="remote_host" type="text" maxlength="253" value="127.0.0.1" autocomplete="off" required></label>
+        <label>Remote port<input data-tunnel-field="remote_port" type="number" min="1" max="65535" placeholder="3417" inputmode="numeric" required></label>
+      </div>
+    </section>
+  </template>
+  <details class="network-help"><summary>Using managed tunnels with Docker?</summary><p>Use <code>http://127.0.0.1:LOCAL_PORT</code> as the service API URL. The forward runs inside the Codester container, beside Flask. Docker Desktop passes through your host SSH agent.</p><p>Source links open in your browser. Use a browser URL it can reach directly; container-local forwards are only available to Codester.</p></details>
   <div class="save-bar"><span id="save-note">Changes apply after saving.</span><button type="submit" id="save" class="primary-button">Save settings</button></div>
   </form>
 </main>

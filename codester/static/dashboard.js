@@ -14,6 +14,8 @@ let dockerPanelLoading = false;
 let dockerControlLoading = false;
 let dockerPendingStop = '';
 let dockerPendingTimer;
+let tunnelState;
+let tunnelLoading = false;
 
 function ring({value, label, detail = '', progress = 0, live = false}) {
   const safeProgress = live ? 92 : clamp(progress);
@@ -336,6 +338,75 @@ $('#fullscreen').addEventListener('click', async () => {
 });
 document.addEventListener('fullscreenchange', () => $('#fullscreen').setAttribute('aria-label', document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen'));
 
+function showTunnelStatus(data) {
+  tunnelState = data;
+  const button = $('#tunnels');
+  const count = data.tunnels?.length || 0;
+  const connected = data.tunnels?.filter(tunnel => tunnel.state === 'connected').length || 0;
+  const labels = {
+    unconfigured:'Set up SSH tunnels',
+    disconnected:`Connect ${count} SSH tunnel${count === 1 ? '' : 's'}`,
+    connecting:`Connecting ${count} SSH tunnel${count === 1 ? '' : 's'}`,
+    reconnecting:`Reconnecting SSH tunnels`,
+    partial:`${connected} of ${count} SSH tunnels connected`,
+    connected:`Disconnect ${count} SSH tunnel${count === 1 ? '' : 's'}`,
+    error:'Retry SSH tunnels',
+  };
+  const label = labels[data.state] || 'SSH tunnel error';
+  button.dataset.state = data.state;
+  button.setAttribute('aria-label', label);
+  button.setAttribute('aria-checked', String(Boolean(data.desired)));
+  const stateNames = {connected:'Connected',connecting:'Connecting',reconnecting:'Reconnecting',disconnected:'Off',error:'Failed'};
+  const summary = data.state === 'connected'
+    ? `All ${count} connected`
+    : data.state === 'partial'
+      ? `${connected} of ${count} connected`
+      : data.state === 'unconfigured'
+        ? 'No connections configured'
+        : stateNames[data.state] || label;
+  const rows = (data.tunnels || []).map(tunnel => `<li><span title="${e(tunnel.name)}">${e(tunnel.name)}</span><b class="${e(tunnel.state)}">${e(stateNames[tunnel.state] || tunnel.state)}</b></li>`).join('');
+  $('#tunnel-tooltip').innerHTML = `<strong>SSH tunnels</strong><span>${e(summary)}</span>${rows ? `<ul>${rows}</ul>` : ''}`;
+  const problem = data.tunnels?.find(tunnel => tunnel.message)?.message;
+  $('#tunnel-warning').hidden = !problem;
+  $('#tunnel-warning').textContent = problem ? `SSH · ${problem}` : '';
+}
+
+async function refreshTunnels() {
+  try {
+    showTunnelStatus(await api('/api/tunnels', {timeout:5000}));
+  } catch {
+    $('#tunnels').dataset.state = 'error';
+    $('#tunnel-tooltip').innerHTML = '<strong>SSH tunnels</strong><span>Status unavailable</span>';
+    $('#tunnel-warning').textContent = 'Could not read SSH tunnel status';
+    $('#tunnel-warning').hidden = false;
+  } finally {
+    setTimeout(refreshTunnels, document.hidden ? 15000 : 5000);
+  }
+}
+
+$('#tunnels').addEventListener('click', async () => {
+  if (tunnelLoading) return;
+  if (!tunnelState || tunnelState.state === 'unconfigured') {
+    window.location.assign('/settings#ssh-tunnels');
+    return;
+  }
+  tunnelLoading = true;
+  $('#tunnels').dataset.state = 'connecting';
+  try {
+    const retry = ['error','partial'].includes(tunnelState.state);
+    const action = tunnelState.desired && !retry ? 'disconnect' : 'connect';
+    showTunnelStatus(await api(`/api/tunnels/${action}`, {method:'POST', timeout:15000}));
+  } catch (error) {
+    $('#tunnels').dataset.state = 'error';
+    $('#tunnels').setAttribute('aria-label', error.message);
+    $('#tunnel-tooltip').innerHTML = `<strong>SSH tunnels</strong><span>${e(error.message)}</span>`;
+    $('#tunnel-warning').textContent = error.message;
+    $('#tunnel-warning').hidden = false;
+  } finally {
+    tunnelLoading = false;
+  }
+});
+
 function clock() {
   const now = new Date();
   const parts = now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false}).split(':');
@@ -347,3 +418,4 @@ function clock() {
 clock();
 setInterval(clock, 1000);
 refresh();
+refreshTunnels();

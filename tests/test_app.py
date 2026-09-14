@@ -117,6 +117,45 @@ def test_dashboard_layout_persists_and_rejects_duplicates(client):
     assert client.put("/api/settings", json=data, headers=csrf(client)).status_code == 400
 
 
+def test_tunnel_settings_and_controls(app, client, monkeypatch):
+    data = settings()
+    data["tunnels"] = [
+        {
+            "id": "1234567890abcdef",
+            "name": "Dagster",
+            "auth": "password",
+            "password": "ssh-test-super-secret",
+            "ssh_host": "192.168.1.90",
+            "ssh_port": 22,
+            "username": "jack",
+            "local_port": 3417,
+            "remote_host": "127.0.0.1",
+            "remote_port": 3417,
+        }
+    ]
+    assert client.put("/api/settings", json=data, headers=csrf(client)).status_code == 200
+    public = client.get("/api/settings")
+    assert public.json["tunnels"][0]["name"] == "Dagster"
+    assert public.json["tunnels"][0]["has_password"] is True
+    assert "ssh-test-super-secret" not in public.text
+    assert b"ssh-test-super-secret" not in app.extensions["store"].path.read_bytes()
+
+    manager = app.extensions["tunnel_manager"]
+    monkeypatch.setattr(
+        manager,
+        "connect",
+        lambda: {"state": "connecting", "desired": True, "tunnels": []},
+    )
+    monkeypatch.setattr(
+        manager,
+        "disconnect",
+        lambda: {"state": "disconnected", "desired": False, "tunnels": []},
+    )
+    assert client.get("/api/tunnels").status_code == 200
+    assert client.post("/api/tunnels/connect", headers=csrf(client)).json["desired"] is True
+    assert client.post("/api/tunnels/disconnect", headers=csrf(client)).json["desired"] is False
+
+
 def test_docker_page_and_controls(app, client, monkeypatch):
     containers = [
         {
