@@ -5,6 +5,12 @@ services:
       - "127.0.0.1:8765:8765"
     volumes:
       - codester-data:/data
+      - type: bind
+        source: ${CODEX_HOST_HOME:-${HOME}/.codex}
+        target: /host-codex
+        read_only: true
+    environment:
+      CODESTER_CODEX_ACTIVITY_HOME: /host-codex
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

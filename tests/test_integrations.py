@@ -286,6 +286,25 @@ def test_codex_metadata_is_readonly_and_never_claims_running(tmp_path, monkeypat
     assert path.read_bytes() == before
 
 
+def test_codex_activity_home_can_differ_from_auth_home(tmp_path, monkeypatch):
+    activity_home = tmp_path / "activity"
+    activity_home.mkdir()
+    with sqlite3.connect(activity_home / "state_5.sqlite") as db:
+        db.execute(
+            "CREATE TABLE threads (id TEXT,title TEXT,source TEXT,updated_at INTEGER,cwd TEXT,archived INTEGER)"
+        )
+        db.execute(
+            "INSERT INTO threads VALUES (?,?,?,?,?,?)",
+            ("current", "Current task", "vscode", int(time.time()), "/work/repo", 0),
+        )
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "auth"))
+    monkeypatch.setenv("CODESTER_CODEX_ACTIVITY_HOME", str(activity_home))
+
+    tasks, _ = codex.local_activity()
+
+    assert [task["id"] for task in tasks] == ["current"]
+
+
 def test_codex_rpc_lifecycle_and_secret_projection(tmp_path, monkeypatch):
     binary = tmp_path / "codex"
     binary.write_text("""#!/usr/bin/env python3

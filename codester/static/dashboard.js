@@ -39,9 +39,10 @@ function errors(name, rows, limit = 3) {
 function codex(data) {
   const windows = data.windows.slice(0, 2).map(window => {
     const used = Number.isFinite(window.used) ? clamp(window.used) : null;
+    const remaining = used === null ? null : 100 - used;
     const label = window.minutes === 300 ? '5-HOUR' : window.minutes === 10080 ? 'WEEKLY' : 'USAGE';
     const reset = window.resets ? `resets ${duration(window.resets - Date.now() / 1000)}` : 'reset unavailable';
-    return ring({value: used === null ? null : `${Math.round(used)}%`, label, detail: reset, progress: used});
+    return ring({value: remaining === null ? null : `${Math.round(remaining)}%`, label, detail: reset, progress: remaining});
   }).join('');
   const tasks = data.tasks.slice(0, 3).map(task => `<div class="recent-row">
     <div><strong title="${e(task.title)}">${e(task.title)}</strong><small>${e(task.project)}</small></div>

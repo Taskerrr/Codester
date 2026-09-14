@@ -135,7 +135,12 @@ def account_limits() -> dict:
 
 
 def local_activity() -> tuple[list[dict], str]:
-    home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
+    home = Path(
+        os.environ.get(
+            "CODESTER_CODEX_ACTIVITY_HOME",
+            os.environ.get("CODEX_HOME", str(Path.home() / ".codex")),
+        )
+    )
     databases = list(home.glob("state_*.sqlite")) if home.is_dir() else []
     if not databases:
         return (

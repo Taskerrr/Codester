@@ -34,7 +34,23 @@ docker compose up --build -d
 
 Visit the same localhost URL. Settings persist in the `codester-data` volume across container updates. `docker compose down` preserves settings; `docker compose down -v` deletes them. To update, pull changes and run the build command again.
 
-Docker packaging supports Dagster and SigNoz directly. **Codex is optional and unavailable in the default image**: it contains neither your host's Codex executable nor credentials. Use native startup for Codex account and VS Code activity monitoring. Do not mount a macOS/Windows executable into a Linux container or expect it to run. There is no host helper in v1.
+Docker packaging includes the Linux Codex CLI. To reuse the ChatGPT login already held by Codex on your computer, import its local authentication cache once after starting the container:
+
+**macOS / Linux**
+
+```sh
+./scripts/docker-import-codex.sh
+```
+
+**Windows PowerShell**
+
+```powershell
+.\scripts\docker-import-codex.ps1
+```
+
+The copied login stays inside the private `codester-data` volume and Codex can refresh it there. Treat both the source `~/.codex/auth.json` and Docker volume as credentials. The helper never prints the file. If Codex stores credentials only in the operating-system keychain, run `codex login` with file credential storage first or use native Codester startup. Enable Codex monitoring in Settings after importing.
+
+Compose mounts the host's `~/.codex` directory at `/host-codex` read-only so the optional recent-activity view can see current VS Code thread metadata without changing it. Set `CODEX_HOST_HOME` before running Compose if the host uses a different Codex home. Authentication remains in the separate writable data volume; the app only queries the mounted SQLite thread index and never reads session bodies.
 
 The Docker container-management screen is intended for native Codester startup. It uses the local Docker CLI on Windows/macOS and can fall back to a local Unix socket. The Compose setup deliberately does not mount the Docker control socket into Codester; access to that socket effectively grants control of the host through Docker.
 
@@ -57,7 +73,7 @@ Sign into Codex with your **ChatGPT account** on the same machine/user as Codest
 
 If discovery fails, set `CODESTER_CODEX_BIN` to the absolute executable path before starting. It is a path, not a command with flags. Keep sign-in in Codex; Codester has no password/token paste form. The app starts its own short-lived app-server process for account reads and never starts, resumes, cancels, or subscribes to work threads.
 
-Recent activity is opt-in. It reads six unarchived VS Code thread titles, project folder names and update timestamps from `CODEX_HOME/state_*.sqlite` in SQLite read-only mode. Default home: `~/.codex`. It does not read prompts, messages, session bodies, or tool outputs. Database metadata is undocumented and schema-checked. **It does not prove a task is running.** Account limits work without activity access. Remote VS Code / WSL may store state under a different user or operating system; point `CODEX_HOME` at the correct local home or run Codester there. Do not change an actively used Codex home to troubleshoot this app.
+Recent activity is opt-in. It reads six unarchived VS Code thread titles, project folder names and update timestamps from `CODESTER_CODEX_ACTIVITY_HOME/state_*.sqlite`, falling back to `CODEX_HOME/state_*.sqlite`, in SQLite read-only mode. Default native home: `~/.codex`. It does not read prompts, messages, session bodies, or tool outputs. Database metadata is undocumented and schema-checked. **It does not prove a task is running.** Account limits work without activity access. Remote VS Code / WSL may store state under a different user or operating system; point `CODESTER_CODEX_ACTIVITY_HOME` at the correct local home or run Codester there. Do not change an actively used Codex home to troubleshoot this app.
 
 ### Dagster
 
