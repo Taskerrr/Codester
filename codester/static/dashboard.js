@@ -1,4 +1,4 @@
-import {$, api, escape as e, duration, ago} from './common.js';
+import {$, api, escape as e, duration, ago, compactTime} from './common.js';
 
 let latest;
 let detailTrigger;
@@ -18,8 +18,10 @@ let tunnelState;
 let tunnelLoading = false;
 let repositoryOperations = new Map();
 let repositoriesLoading = false;
+let codexActivitySignature = '';
+let liveCodexActivity;
 
-function ring({value, label, detail = '', progress = 0, live = false}) {
+function ring({value, label, detail = '', insideDetail = '', progress = 0, live = false}) {
   const safeProgress = live ? 92 : clamp(progress);
   const display = value === null || value === undefined ? '—' : e(value);
   return `<div class="metric-ring ${live ? 'reading-ring' : ''}">
@@ -28,7 +30,7 @@ function ring({value, label, detail = '', progress = 0, live = false}) {
         <circle class="ring-track" cx="60" cy="60" r="51" pathLength="100"/>
         <circle class="ring-progress" cx="60" cy="60" r="51" pathLength="100" stroke-dasharray="${safeProgress} 100"/>
       </svg>
-      <div class="ring-value"><strong>${display}</strong><span>${e(label)}</span></div>
+      <div class="ring-value"><strong>${display}</strong><span>${e(label)}</span>${insideDetail ? `<small class="ring-reset">${e(insideDetail)}</small>` : ''}</div>
     </div>
     <small>${e(detail)}</small>
   </div>`;
@@ -39,7 +41,7 @@ function errors(name, rows, limit = 3) {
   return `<div class="deck-errors">${rows.slice(0, limit).map(row => `<button class="deck-error" type="button" data-service="${name}" data-id="${e(row.id)}">
     <span class="failure-mark" aria-label="Failed">!</span>
     <span class="error-title">${e(row.title)}</span>
-    <time>${ago(row.timestamp)}</time>
+    <time title="${ago(row.timestamp)}">${compactTime(row.timestamp)}</time>
   </button>`).join('')}</div>`;
 }
 
@@ -48,12 +50,13 @@ function codex(data) {
     const used = Number.isFinite(window.used) ? clamp(window.used) : null;
     const remaining = used === null ? null : 100 - used;
     const label = window.minutes === 300 ? '5-HOUR' : window.minutes === 10080 ? 'WEEKLY' : 'USAGE';
-    const reset = window.resets ? `resets ${duration(window.resets - Date.now() / 1000)}` : 'reset unavailable';
-    return ring({value: remaining === null ? null : `${Math.round(remaining)}%`, label, detail: reset, progress: remaining});
+    const reset = window.resets ? duration(window.resets - Date.now() / 1000) : '—';
+    return ring({value: remaining === null ? null : `${Math.round(remaining)}%`, label, insideDetail: reset, progress: remaining});
   }).join('');
-  const tasks = data.tasks.slice(0, 3).map(task => `<div class="recent-row">
-    <div><strong title="${e(task.title)}">${e(task.title)}</strong><small>${e(task.project)}</small></div>
-    <time>${ago(task.timestamp)}</time>
+  const tasks = data.tasks.slice(0, 3).map(task => `<div class="recent-row codex-task ${task.inferred_active ? 'active' : ''}">
+    <span class="codex-task-marker">${task.inferred_active ? spinner('Active Codex turn') : task.activity_state === 'stopped' ? '<span class="state-mark stopped" aria-label="Stopped">–</span>' : '<span class="state-mark success" aria-label="Idle">✓</span>'}</span>
+    <div><strong title="${e(task.project)}">${e(task.project)}</strong><small title="${e(task.title)}">${e(task.title)}</small></div>
+    ${task.inferred_active ? '' : `<time title="${ago(task.timestamp)}">${compactTime(task.timestamp)}</time>`}
   </div>`).join('');
   return `<div class="hero-rings codex-rings">${windows || empty('Usage unavailable')}</div>
     ${sectionHeading('Recent activity')}
@@ -130,16 +133,25 @@ function sparkline(values) {
 function github(data) {
   const days = (data.days || []).slice(-182);
   const peak = Math.max(...days.map(day => number(day.count)), 1);
-  const activeDays = days.filter(day => number(day.count) > 0).length;
-  const activity = days.length ? Math.round(activeDays / days.length * 100) : 0;
   const calendar = days.map(day => {
     const count = number(day.count);
     const level = count ? Math.max(1, Math.ceil(count / peak * 4)) : 0;
     return `<span class="contribution-day level-${level}" title="${e(day.date)} · ${count} contribution${count === 1 ? '' : 's'}" aria-label="${e(day.date)}: ${count} contributions"></span>`;
   }).join('');
-  const calendarLabel = data.calendar_source === 'repository_commits'
-    ? `26 WEEKS · ${number(data.calendar_repository_count)} REPOS${data.calendar_limited ? ' +' : ''}`
-    : '26 WEEKS';
+  let previousMonth = '';
+  const monthStarts = days.map((day, index) => {
+    const date = new Date(`${day.date}T00:00:00Z`);
+    const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`;
+    if (key === previousMonth) return null;
+    previousMonth = key;
+    return {date, index};
+  }).filter(Boolean);
+  if (monthStarts.length > 1 && monthStarts[1].index < 21) monthStarts.shift();
+  const monthColumns = new Map(monthStarts.map(({date, index}) => [Math.floor(index / 7), date]));
+  const months = Array.from({length:26}, (_, column) => {
+    const date = monthColumns.get(column);
+    return date ? `<span title="${date.toLocaleString([], {month:'long', year:'numeric', timeZone:'UTC'})}">${date.toLocaleString([], {month:'short', timeZone:'UTC'})}</span>` : '<span></span>';
+  }).join('');
   const repositories = (data.repositories || []).slice(0, 3).map(repository => {
     const local = repositoryOperations.get(repository.name.toLowerCase()) || repository.local;
     const action = local?.action || {state:'idle'};
@@ -151,20 +163,15 @@ function github(data) {
       <button type="button" class="deploy ${local.deploy_state === 'needed' ? 'needed' : ''} ${local.demo ? 'demo-preview' : ''}" data-repository-action="deploy" data-id="${e(local.id)}" ${local.demo || running || !local.deploy_configured || local.deploy_state === 'current' ? 'disabled' : ''} aria-label="Deploy ${e(repository.name)}" title="${local.deploy_configured ? local.deploy_state === 'current' ? 'Already deployed' : 'Deploy current commit' : 'No deploy command'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M14 4c3-1 5-1 6-1 0 1 0 3-1 6l-6 6-4-4 5-7Z"/><path d="m9 11-4 1-2 2 6 1m4 0-1 4-2 2-1-6"/><path d="M6 18c-2 0-3 1-3 3 2 0 3-1 3-3Z"/></svg></button>
     </div>` : '';
     return `<div class="repo-row ${running ? 'working' : ''}">
-      <a class="repo-copy" href="${e(repository.url)}" target="_blank" rel="noopener noreferrer"><strong title="${e(repository.name)}">${e(repository.name)}</strong><small title="${e(statusText)}">${e(statusText)}</small></a>
+      <a class="repo-copy" href="${e(repository.url)}" target="_blank" rel="noopener noreferrer" title="${e(statusText)}"><strong title="${e(repository.name)}">${e(repository.name)}</strong>${local ? `<small>${e(statusText)}</small>` : ''}</a>
       ${sparkline(repository.commits || [])}
       <b>${(repository.commits || []).reduce((total, count) => total + number(count), 0)}</b>
+      <time class="repo-time" title="${ago(repository.pushed_at)}">${compactTime(repository.pushed_at)}</time>
       ${controls}
     </div>`;
   }).join('');
   return `<div class="github-hero">
-      <div class="github-total">
-        <div class="github-donut" title="${activeDays} active days">
-          <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="github-donut-track" cx="50" cy="50" r="42"/><circle class="github-donut-progress" cx="50" cy="50" r="42" pathLength="100" stroke-dasharray="${activity} ${100 - activity}"/></svg>
-          <div><strong>${number(data.total).toLocaleString()}</strong><span>COMMITS</span></div>
-        </div>
-      </div>
-      <div class="contribution-wrap"><span class="contribution-period">${calendarLabel}</span><div class="contribution-grid">${calendar}</div><div class="contribution-key"><span>Less</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>More</span></div></div>
+      <div class="contribution-wrap"><div class="contribution-months">${months}</div><div class="contribution-grid">${calendar}</div></div>
     </div>
     ${sectionHeading('Recent repositories', data.login || '')}
     <div class="repo-list">${repositories || empty('No repositories')}</div>`;
@@ -319,6 +326,10 @@ function render(snapshot) {
   const layout = snapshot.layout || ['codex', 'dagster', 'signoz'];
   applyLayout(layout);
   for (const [name, state] of Object.entries(snapshot.services)) {
+    if (name === 'codex' && state.data && liveCodexActivity) {
+      state.data.tasks = liveCodexActivity.tasks;
+      state.data.activity_note = liveCodexActivity.note;
+    }
     const status = $(`#${name}-status`);
     const channel = status.closest('.channel');
     channel.dataset.state = state.status;
@@ -360,6 +371,22 @@ async function refresh() {
   } finally {
     setTimeout(refresh, document.hidden ? 15000 : 5000);
   }
+}
+
+async function refreshCodexActivity() {
+  try {
+    const activity = await api('/api/codex/activity', {timeout:3000});
+    liveCodexActivity = activity;
+    const signature = JSON.stringify(activity.tasks.map(task => [task.id, task.timestamp, task.activity_state, task.inferred_active]));
+    const state = latest?.services?.codex;
+    if (state?.data && signature !== codexActivitySignature) {
+      codexActivitySignature = signature;
+      state.data.tasks = activity.tasks;
+      state.data.activity_note = activity.note;
+      if ($('#detail').hidden && (latest.layout || []).includes('codex')) $('#codex-content').innerHTML = codex(state.data);
+    }
+  } catch { /* The normal dashboard status handles unavailable local activity. */ }
+  finally { setTimeout(refreshCodexActivity, document.hidden ? 10000 : 500); }
 }
 
 async function wakeUpstream() {
@@ -526,6 +553,7 @@ setInterval(clock, 1000);
 await wakeUpstream();
 refresh();
 refreshTunnels();
+refreshCodexActivity();
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) wakeUpstream();
 });

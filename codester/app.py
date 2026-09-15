@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from flask import Flask, abort, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 
-from codester import dagster, demo, docker_engine, signoz
+from codester import codex, dagster, demo, docker_engine, signoz
 from codester.poller import INTERVALS, Poller
 from codester.repositories import RepositoryManager
 from codester.store import METRICS, ConfigurationError, Store
@@ -88,13 +88,29 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
 
     @app.get("/api/dashboard")
     def dashboard():
-        return jsonify(poller.snapshot())
+        result = poller.snapshot()
+        settings = store.read()
+        codex_data = result["services"]["codex"].get("data")
+        if not result["demo"] and settings["codex"]["activity"] and codex_data is not None:
+            codex_data["tasks"], codex_data["activity_note"] = codex.local_activity()
+        return jsonify(result)
 
     @app.post("/api/refresh")
     def refresh_services():
         for wake in poller.wakes.values():
             wake.set()
         return jsonify(ok=True)
+
+    @app.get("/api/codex/activity")
+    def codex_activity():
+        settings = store.read()
+        if settings["demo"]:
+            sample = demo.snapshot("codex")
+            return jsonify(tasks=sample["tasks"], note=sample["activity_note"])
+        if not settings["codex"]["enabled"] or not settings["codex"]["activity"]:
+            return jsonify(tasks=[], note="Local activity is off.")
+        tasks, note = codex.local_activity()
+        return jsonify(tasks=tasks, note=note)
 
     @app.get("/api/settings")
     def settings_read():

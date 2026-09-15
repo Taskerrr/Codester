@@ -24,3 +24,12 @@ export function epoch(value) {
   return Number.isFinite(number) ? number : null;
 }
 export function ago(value) { const stamp = epoch(value); return stamp == null ? 'Time unavailable' : `${duration(Date.now()/1000 - stamp)} ago`; }
+export function compactTime(value) {
+  const stamp = epoch(value);
+  if (stamp == null) return '—';
+  const date = new Date(stamp * 1000);
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false});
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${day} ${date.toLocaleString([], {month:'short'})}`;
+}

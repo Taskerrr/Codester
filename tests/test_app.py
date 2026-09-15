@@ -98,6 +98,8 @@ def test_demo_details_and_unknown_ids(app, client):
     assert client.get("/api/errors/dagster/arbitrary").status_code == 404
     assert client.get("/api/errors/codex/demo-dagster-1").status_code == 404
     assert client.get("/api/dashboard").json["demo"] is True
+    activity = client.get("/api/codex/activity").json
+    assert activity["tasks"][0]["id"] == "demo-task-1"
 
 
 def test_security_headers(client):

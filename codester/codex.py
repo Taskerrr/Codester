@@ -12,9 +12,75 @@ from pathlib import Path
 
 from codester.transport import IntegrationError
 
+ACTIVE_ACTIVITY_SECONDS = 180
+ROLLOUT_MAX_SCAN_BYTES = 32 * 1024 * 1024
+ROLLOUT_TAIL_BYTES = 131_072
+
 
 def modified_time(path: Path) -> float:
     return path.stat().st_mtime
+
+
+def _lifecycle_event(line: bytes) -> str | None:
+    if b'"event_msg"' not in line:
+        return None
+    try:
+        item = json.loads(line)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not isinstance(item, dict):
+        return None
+    payload = item.get("payload")
+    if item.get("type") != "event_msg" or not isinstance(payload, dict):
+        return None
+    return {
+        "task_started": "active",
+        "task_complete": "idle",
+        "turn_aborted": "stopped",
+    }.get(payload.get("type"))
+
+
+def _read_rollout_state(path: Path) -> str | None:
+    # Read backwards from this open file's EOF on every poll. A cached state can
+    # miss completion when intervening output pushes the event outside the tail.
+    with path.open("rb") as stream:
+        end = stream.seek(0, os.SEEK_END)
+        lower_bound = max(0, end - ROLLOUT_MAX_SCAN_BYTES)
+        fragment = b""
+        while end > lower_bound:
+            start = max(lower_bound, end - ROLLOUT_TAIL_BYTES)
+            stream.seek(start)
+            lines = (stream.read(end - start) + fragment).split(b"\n")
+            # Preserve a record crossing a chunk boundary, including large
+            # task_complete records that embed the final assistant message.
+            fragment = lines[0] if start else b""
+            for line in reversed(lines[1:] if start else lines):
+                state = _lifecycle_event(line)
+                if state is not None:
+                    return state
+            end = start
+    return None
+
+
+def rollout_activity(home: Path, stored_path: object) -> str | None:
+    if not isinstance(stored_path, str) or not stored_path:
+        return None
+    candidates = [Path(stored_path)]
+    normalized = stored_path.replace("\\", "/")
+    if "/.codex/" in normalized:
+        candidates.append(home / normalized.split("/.codex/", 1)[1])
+    root = home.resolve()
+    for candidate in candidates:
+        try:
+            if not candidate.is_file():
+                continue
+            resolved = candidate.resolve()
+            if not resolved.is_relative_to(root) or not resolved.is_file():
+                continue
+            return _read_rollout_state(resolved)
+        except OSError:
+            continue
+    return None
 
 
 def executable() -> str | None:
@@ -157,20 +223,41 @@ def local_activity() -> tuple[list[dict], str]:
                     [],
                     "Local Codex database schema is unsupported. Account usage remains available.",
                 )
+            rollout_column = ",rollout_path" if "rollout_path" in fields else ""
             rows = db.execute(
-                "SELECT id,title,updated_at,cwd FROM threads WHERE source='vscode' "
+                f"SELECT id,title,updated_at,cwd{rollout_column} "
+                "FROM threads WHERE source='vscode' "
                 "AND archived=0 ORDER BY updated_at DESC LIMIT 6"
             ).fetchall()
-        return [
-            {
-                "id": row[0],
-                "title": row[1][:160],
-                "timestamp": row[2],
-                "project": Path(row[3]).name,
-                "status": "Recent activity",
-            }
-            for row in rows
-        ], "Local VS Code history; updated time is not proof a task is running."
+        observed_at = time.time()
+        tasks = []
+        for row in rows:
+            event_state = rollout_activity(home, row[4]) if len(row) > 4 else None
+            inferred_active = 0 <= observed_at - row[2] <= ACTIVE_ACTIVITY_SECONDS
+            active = event_state == "active" or (event_state is None and inferred_active)
+            tasks.append(
+                {
+                    "id": row[0],
+                    "title": row[1][:160],
+                    "timestamp": row[2],
+                    "project": Path(row[3]).name,
+                    "inferred_active": active,
+                    "activity_state": event_state or ("active" if active else "idle"),
+                    "activity_source": "rollout" if event_state is not None else "recency",
+                    "status": (
+                        "Active"
+                        if event_state == "active"
+                        else "Active (inferred)"
+                        if active
+                        else "Stopped"
+                        if event_state == "stopped"
+                        else "Idle"
+                    ),
+                }
+            )
+        return tasks, (
+            "Turn state comes from local Codex lifecycle events; older schemas use inferred recency."
+        )
     except (sqlite3.Error, OSError) as exc:
         return [], "Local activity unavailable (database locked or unreadable): " + type(
             exc

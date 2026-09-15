@@ -381,7 +381,7 @@ def test_non_json_response(monkeypatch):
         post_json("http://localhost", {})
 
 
-def test_codex_metadata_is_readonly_and_never_claims_running(tmp_path, monkeypatch):
+def test_codex_metadata_is_readonly_and_infers_recent_activity(tmp_path, monkeypatch):
     path = tmp_path / "state_5.sqlite"
     with sqlite3.connect(path) as db:
         db.execute(
@@ -391,15 +391,52 @@ def test_codex_metadata_is_readonly_and_never_claims_running(tmp_path, monkeypat
             "INSERT INTO threads VALUES (?,?,?,?,?,?)",
             [
                 ("v", "Task", "vscode", int(time.time()), "/work/repo", 0),
+                ("old", "Old task", "vscode", int(time.time()) - 181, "/work/repo", 0),
                 ("c", "CLI", "cli", 1, "/work", 0),
             ],
         )
     before = path.read_bytes()
     monkeypatch.setenv("CODEX_HOME", str(tmp_path))
     tasks, note = codex.local_activity()
-    assert len(tasks) == 1 and tasks[0]["status"] == "Recent activity"
-    assert "not proof" in note
+    assert len(tasks) == 2
+    assert tasks[0]["status"] == "Active (inferred)"
+    assert tasks[0]["inferred_active"] is True
+    assert tasks[1]["status"] == "Idle"
+    assert tasks[1]["inferred_active"] is False
+    assert "inferred" in note
     assert path.read_bytes() == before
+
+
+def test_codex_rollout_lifecycle_overrides_timestamp_guess(tmp_path, monkeypatch):
+    rollout = tmp_path / "sessions" / "rollout.jsonl"
+    rollout.parent.mkdir()
+    rollout.write_text(
+        '{"type":"event_msg","payload":{"type":"task_started"}}\n'
+        + json.dumps({"type": "response_item", "payload": {"text": "x" * 300_000}})
+        + "\n"
+    )
+    database = tmp_path / "state_5.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute(
+            "CREATE TABLE threads (id TEXT,title TEXT,source TEXT,updated_at INTEGER,cwd TEXT,"
+            "archived INTEGER,rollout_path TEXT)"
+        )
+        db.execute(
+            "INSERT INTO threads VALUES (?,?,?,?,?,?,?)",
+            ("v", "Task", "vscode", int(time.time()), "/work/repo", 0, str(rollout)),
+        )
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+
+    active, _ = codex.local_activity()
+    with rollout.open("a") as stream:
+        stream.write('{"type":"event_msg","payload":{"type":"task_complete"}}\n')
+    idle, _ = codex.local_activity()
+
+    assert active[0]["activity_state"] == "active"
+    assert active[0]["inferred_active"] is True
+    assert idle[0]["activity_state"] == "idle"
+    assert idle[0]["inferred_active"] is False
+    assert idle[0]["activity_source"] == "rollout"
 
 
 def test_codex_activity_home_can_differ_from_auth_home(tmp_path, monkeypatch):
@@ -473,3 +510,42 @@ def test_signoz_partial_result_is_not_reported_healthy(monkeypatch):
     )
     with pytest.raises(IntegrationError, match="incomplete"):
         signoz.query(CONFIG, "key", [])
+
+
+@pytest.mark.parametrize("event,expected", [("task_complete", "idle"), ("turn_aborted", "stopped")])
+def test_codex_completion_before_tail_is_not_hidden_by_cached_start(tmp_path, event, expected):
+    rollout = tmp_path / "rollout.jsonl"
+    rollout.write_text(
+        '{"type":"event_msg","payload":{"type":"task_started"}}\n', encoding="utf-8"
+    )
+    assert codex.rollout_activity(tmp_path, str(rollout)) == "active"
+    with rollout.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps({"type": "event_msg", "payload": {"type": event}}) + "\n")
+        stream.write(json.dumps({"type": "response_item", "payload": "x" * 300_000}) + "\n")
+    assert codex.rollout_activity(tmp_path, str(rollout)) == expected
+
+
+def test_codex_large_completion_record_and_partial_write(tmp_path):
+    rollout = tmp_path / "rollout.jsonl"
+    rollout.write_text(
+        '{"type":"event_msg","payload":{"type":"task_started"}}\n', encoding="utf-8"
+    )
+    completion = json.dumps(
+        {"type": "event_msg", "payload": {"type": "task_complete", "last_agent_message": "x" * 300_000}}
+    )
+    with rollout.open("a", encoding="utf-8") as stream:
+        stream.write(completion[:-2])
+    assert codex.rollout_activity(tmp_path, str(rollout)) == "active"
+    with rollout.open("a", encoding="utf-8") as stream:
+        stream.write(completion[-2:] + "\n")
+    assert codex.rollout_activity(tmp_path, str(rollout)) == "idle"
+
+
+def test_codex_rollout_replacement_does_not_reuse_active_state(tmp_path):
+    rollout = tmp_path / "rollout.jsonl"
+    rollout.write_text(
+        '{"type":"event_msg","payload":{"type":"task_started"}}\n', encoding="utf-8"
+    )
+    assert codex.rollout_activity(tmp_path, str(rollout)) == "active"
+    rollout.write_text('{"type":"session_meta","payload":{}}\n', encoding="utf-8")
+    assert codex.rollout_activity(tmp_path, str(rollout)) is None

@@ -19,7 +19,8 @@ def snapshot(service: str) -> dict:
                     "title": "Add incremental sync to the customer pipeline",
                     "project": "data-platform",
                     "timestamp": now - 84,
-                    "status": "Recent activity",
+                    "inferred_active": True,
+                    "status": "Active (inferred)",
                 },
                 {
                     "id": "demo-task-2",
@@ -36,7 +37,7 @@ def snapshot(service: str) -> dict:
                     "status": "Recent activity",
                 },
             ],
-            "activity_note": "Recent activity is not a confirmed running state.",
+            "activity_note": "Active is inferred from a local update within the last three minutes.",
         }
     if service == "dagster":
         return {
