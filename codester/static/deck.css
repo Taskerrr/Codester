@@ -42,8 +42,8 @@
 .deck-button.github { color:oklch(97% .006 240); }
 .deck-button.docker { color:#2496ed; }
 .deck-button.selected { border-color:color-mix(in oklch,currentColor,transparent 40%); box-shadow:inset 0 0 0 1px color-mix(in oklch,currentColor,transparent 70%),0 7px 14px #0005; }
-.postgres-mark { width:40px; height:40px; display:grid; place-items:center; border-radius:50%; background:#4169e1; }
-.deck-button.database .postgres-mark img { width:29px; height:29px; filter:grayscale(1) brightness(0) invert(1); }
+.postgres-mark { width:40px; height:40px; display:grid; place-items:center; }
+.deck-button.database .postgres-mark img { width:36px; height:36px; }
 .deck-button.server svg { fill:oklch(28% .022 235); stroke:currentColor; stroke-width:.8; }
 .deck-button.server .terminal-cutout { fill:none; stroke:oklch(81% .19 150); stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; }
 .deck-button:hover { border-color:currentColor; background:oklch(18% .02 232); }
@@ -263,7 +263,7 @@
   .deck-buttons { grid-template-columns:repeat(4,47px); gap:8px; margin-top:12px; }
   .deck-button img,.deck-button svg { width:25px; height:25px; }
   .postgres-mark { width:32px; height:32px; }
-  .deck-button.database .postgres-mark img { width:23px; height:23px; }
+  .deck-button.database .postgres-mark img { width:29px; height:29px; }
   .mini-heading { min-height:39px; }
   .recent-row,.compact-row,.deck-error,.app-row { min-height:49px; }
   .repo-row { min-height:49px; grid-template-columns:minmax(0,1fr) 58px 24px 40px auto; gap:6px; }

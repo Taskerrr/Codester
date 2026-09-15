@@ -170,3 +170,59 @@ def test_installer_enables_live_activity_without_changing_account_login(tmp_path
     settings = Store(tmp_path).read()
     assert settings["demo"] is False
     assert settings["codex"] == {"enabled": True, "activity": True}
+
+
+@pytest.mark.parametrize("state", ["limited", "error", "idle", "stopped"])
+def test_terminal_rollout_recovers_missing_stop_hook(tmp_path, monkeypatch, state):
+    monkeypatch.setattr("codester.codex_events.time.time", lambda: 100.0)
+    events = ActivityEvents(tmp_path)
+    events.record(event("UserPromptSubmit"))
+    terminal = {
+        "id": "first",
+        "title": "Task",
+        "project": "project-one",
+        "timestamp": 100,
+        "activity_state": state,
+        "inferred_active": False,
+        "activity_source": "rollout",
+        "activity_turn_id": "turn-1",
+        "activity_timestamp": 110.0,
+        "status": "Usage limit reached" if state == "limited" else state,
+    }
+    task = events.merge([terminal], "")[0][0]
+    assert task["activity_state"] == state
+    assert task["inferred_active"] is False
+    assert task["timestamp"] == 110.0
+    # A newly submitted turn must not be stopped by that older failure.
+    events.record(event("UserPromptSubmit", turn="turn-2"))
+    assert events.merge([terminal], "")[0][0]["activity_state"] == "active"
+    # A continuation in the same turn also outranks an earlier terminal record.
+    monkeypatch.setattr("codester.codex_events.time.time", lambda: 120.0)
+    events.record(event("UserPromptSubmit"))
+    assert events.merge([terminal], "")[0][0]["activity_state"] == "active"
+
+
+def test_usage_limit_error_in_real_rollout_shape(tmp_path):
+    rollout = tmp_path / "rollout.jsonl"
+    rollout.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-09-15T15:04:40.740Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "task_complete",
+                    "turn_id": "failed-turn",
+                    "last_agent_message": None,
+                    "error": {
+                        "message": "You've hit your usage limit.",
+                        "codex_error_info": "usage_limit_exceeded",
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = codex.rollout_event(tmp_path, str(rollout))
+    assert result == {"state": "limited", "turn_id": "failed-turn", "timestamp": 1789484680.740}
+    assert codex.rollout_activity(tmp_path, str(rollout)) == "limited"

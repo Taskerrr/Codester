@@ -49,3 +49,10 @@ The display removes the header/footer and explanatory copy, adds a clock rail, r
 - Re-running the installer preserves identical hook configuration bytes, avoiding unnecessary trust changes. Existing unrelated handlers are preserved in regression tests.
 - Full suite: 79 passing tests. Ruff and focused type checks pass. The pre-existing full-project type error in `codester/demo.py` is outside this change.
 - Windows installer is provided but has not been executed on Windows. Remote SSH/WSL sessions and platform-specific approval flows remain unverified.
+
+## Usage-limit recovery and PostgreSQL logo — 15 September 2026
+
+- Confirmed the real rollout ended at 15:04:40.740 UTC (16:04:40 London) with `task_complete.error.codex_error_info = usage_limit_exceeded`.
+- Added same-turn terminal reconciliation so a missing Stop hook cannot permanently mask a visible completion. New turns and later continuations remain active. No hook configuration change or renewed approval is needed.
+- 84 tests pass, including actual failure-payload shape and all terminal states. Browser checks show the usage-limit label without a spinner through the dashboard refresh. Docker file synchronization can still delay fallback detection.
+- Replaced the PostgreSQL outline/circular treatment with the official three-color SVG. Checked launcher and settings image loading in Playwright.

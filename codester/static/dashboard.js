@@ -54,8 +54,8 @@ function codex(data) {
     return ring({value: remaining === null ? null : `${Math.round(remaining)}%`, label, insideDetail: reset, progress: remaining});
   }).join('');
   const tasks = data.tasks.slice(0, 3).map(task => `<div class="recent-row codex-task ${task.inferred_active ? 'active' : ''}">
-    <span class="codex-task-marker">${task.inferred_active ? spinner('Active Codex turn') : task.activity_state === 'stopped' ? '<span class="state-mark stopped" aria-label="Stopped">–</span>' : '<span class="state-mark success" aria-label="Idle">✓</span>'}</span>
-    <div><strong title="${e(task.project)}">${e(task.project)}</strong><small title="${e(task.title)}">${e(task.title)}</small></div>
+    <span class="codex-task-marker">${task.inferred_active ? spinner('Active Codex turn') : ['limited', 'error'].includes(task.activity_state) ? `<span class="state-mark stopped" aria-label="${e(task.status)}">!</span>` : task.activity_state === 'stopped' ? '<span class="state-mark stopped" aria-label="Stopped">–</span>' : '<span class="state-mark success" aria-label="Idle">✓</span>'}</span>
+    <div><strong title="${e(task.project)}">${e(task.project)}</strong><small title="${e(task.title)}">${e(task.title)}</small>${['limited', 'error'].includes(task.activity_state) ? `<small class="task-failure">${e(task.status)}</small>` : ''}</div>
     ${task.inferred_active ? '' : `<time title="${ago(task.timestamp)}">${compactTime(task.timestamp)}</time>`}
   </div>`).join('');
   return `<div class="hero-rings codex-rings">${windows || empty('Usage unavailable')}</div>

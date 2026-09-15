@@ -8,6 +8,7 @@ import sqlite3
 import subprocess
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 from codester.transport import IntegrationError
@@ -21,7 +22,7 @@ def modified_time(path: Path) -> float:
     return path.stat().st_mtime
 
 
-def _lifecycle_event(line: bytes) -> str | None:
+def _lifecycle_event(line: bytes) -> dict | None:
     if b'"event_msg"' not in line:
         return None
     try:
@@ -33,14 +34,26 @@ def _lifecycle_event(line: bytes) -> str | None:
     payload = item.get("payload")
     if item.get("type") != "event_msg" or not isinstance(payload, dict):
         return None
-    return {
+    state = {
         "task_started": "active",
         "task_complete": "idle",
         "turn_aborted": "stopped",
     }.get(payload.get("type"))
+    if state is None:
+        return None
+    error = payload.get("error")
+    if payload.get("type") == "task_complete" and isinstance(error, dict):
+        state = "limited" if error.get("codex_error_info") == "usage_limit_exceeded" else "error"
+    timestamp = None
+    if isinstance(item.get("timestamp"), str):
+        try:
+            timestamp = datetime.fromisoformat(item["timestamp"]).timestamp()
+        except ValueError:
+            pass
+    return {"state": state, "turn_id": payload.get("turn_id"), "timestamp": timestamp}
 
 
-def _read_rollout_state(path: Path) -> str | None:
+def _read_rollout_event(path: Path) -> dict | None:
     # Read backwards from this open file's EOF on every poll. A cached state can
     # miss completion when intervening output pushes the event outside the tail.
     with path.open("rb") as stream:
@@ -62,7 +75,7 @@ def _read_rollout_state(path: Path) -> str | None:
     return None
 
 
-def rollout_activity(home: Path, stored_path: object) -> str | None:
+def rollout_event(home: Path, stored_path: object) -> dict | None:
     if not isinstance(stored_path, str) or not stored_path:
         return None
     candidates = [Path(stored_path)]
@@ -77,10 +90,15 @@ def rollout_activity(home: Path, stored_path: object) -> str | None:
             resolved = candidate.resolve()
             if not resolved.is_relative_to(root) or not resolved.is_file():
                 continue
-            return _read_rollout_state(resolved)
+            return _read_rollout_event(resolved)
         except OSError:
             continue
     return None
+
+
+def rollout_activity(home: Path, stored_path: object) -> str | None:
+    event = rollout_event(home, stored_path)
+    return event["state"] if event else None
 
 
 def executable() -> str | None:
@@ -232,7 +250,8 @@ def local_activity() -> tuple[list[dict], str]:
         observed_at = time.time()
         tasks = []
         for row in rows:
-            event_state = rollout_activity(home, row[4]) if len(row) > 4 else None
+            event = rollout_event(home, row[4]) if len(row) > 4 else None
+            event_state = event["state"] if event else None
             inferred_active = 0 <= observed_at - row[2] <= ACTIVE_ACTIVITY_SECONDS
             active = event_state == "active" or (event_state is None and inferred_active)
             tasks.append(
@@ -244,11 +263,17 @@ def local_activity() -> tuple[list[dict], str]:
                     "inferred_active": active,
                     "activity_state": event_state or ("active" if active else "idle"),
                     "activity_source": "rollout" if event_state is not None else "recency",
+                    "activity_turn_id": event["turn_id"] if event else None,
+                    "activity_timestamp": event["timestamp"] if event else None,
                     "status": (
                         "Active"
                         if event_state == "active"
                         else "Active (inferred)"
                         if active
+                        else "Usage limit reached"
+                        if event_state == "limited"
+                        else "Turn failed"
+                        if event_state == "error"
                         else "Stopped"
                         if event_state == "stopped"
                         else "Idle"

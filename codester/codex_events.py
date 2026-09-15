@@ -63,15 +63,27 @@ class ActivityEvents:
     def merge(self, tasks: list[dict], note: str) -> tuple[list[dict], str]:
         with sqlite3.connect(self.path, timeout=2) as db:
             rows = db.execute(
-                "SELECT session_id,event,project,observed_at FROM activity "
+                "SELECT session_id,event,project,observed_at,turn_id FROM activity "
                 "ORDER BY observed_at DESC LIMIT 100"
             ).fetchall()
         if not rows:
             return tasks, note
         merged = {task["id"]: dict(task) for task in tasks}
-        for session, event, project, observed_at in rows:
+        for session, event, project, observed_at, turn_id in rows:
             state = EVENT_STATES[event]
             task = merged.setdefault(session, {"id": session, "title": "Codex session"})
+            # Stop hooks are not guaranteed on failures. A terminal rollout for
+            # this exact turn, after this delivery, is stronger than a start hook.
+            terminal_at = task.get("activity_timestamp")
+            if (
+                task.get("activity_turn_id") == turn_id
+                and turn_id
+                and task.get("activity_state") in {"idle", "stopped", "limited", "error"}
+                and isinstance(terminal_at, (float, int))
+                and terminal_at >= observed_at
+            ):
+                task["timestamp"] = terminal_at
+                continue
             task.update(
                 project=project,
                 timestamp=observed_at,
