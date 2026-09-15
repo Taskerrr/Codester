@@ -6,6 +6,7 @@ All routes are private to the local single-user app. JSON responses are `no-stor
 | --- | --- | --- |
 | GET | `/api/health` | Process health, independent of upstream services |
 | GET | `/api/dashboard` | Cached normalized snapshots, per-service status/message/last_success/data and demo/revision flags |
+| GET | `/api/codex/activity` | Recent tasks with `activity_source` (`hook`, `rollout`, or `recency`); direct-event integration status and last receipt time |
 | GET | `/api/settings` | Saved preferences and `signoz.has_key`; never the key |
 | PUT | `/api/settings` | Replace validated preferences; optional `signoz.api_key` replaces key, blank preserves, `clear_key: true` removes |
 | POST | `/api/connections/{codex,dagster,signoz}/test` | Test saved real connection even in demo mode |
@@ -21,3 +22,9 @@ Settings use `demo` plus `codex` (`enabled`, `activity`), `dagster` (`enabled`, 
 Snapshot status is one of `loading`, `disabled`, `demo`, `connected`, `stale`, `error`. Last-success timestamps use Unix seconds. A stale snapshot retains the previous data, with its original timestamp. Changing settings invalidates all snapshots and wakes polling workers. Unknown or expired error IDs return 404; settings changes during a detail fetch return 409.
 
 The dashboard `revision` changes when local settings change; clients use it to discard chart observations from previous connections. It is process-local, not a persisted configuration version.
+
+## Codex event delivery
+
+`python -m codester.codex_hook` accepts Codex hook JSON on stdin and stores allowed lifecycle metadata in `CODESTER_DATA_DIR/codex-activity.sqlite`. For Docker installs, the global hook runs it with `docker exec -i`; there is no new public ingestion endpoint. Delivery requires the user's existing permission to access Docker. Both dashboard and activity routes merge these deliveries over mounted history. A completion for an older turn cannot stop a newer recorded turn. Activity settings disable recording as well as display. Only the latest event per session is retained, up to 100 sessions.
+
+`integration.connected` means at least one valid event has been received; it is not a current heartbeat or proof that hooks remain trusted. Check `last_received_at` and a new start/stop pair when validating a connection. Existing local-history titles are retained; a new session without readable history initially displays “Codex session” and its project name.

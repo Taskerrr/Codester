@@ -114,6 +114,10 @@ meter::-moz-meter-bar { background:var(--accent); }
 .muted { color:var(--muted); }
 .notice { padding:12px 16px; background:var(--raised); border:1px solid var(--line); border-radius:6px; margin-bottom:16px; color:var(--accent); font-size:.9rem; }
 .error-notice { color:var(--danger); }
+.codex-trust-notice { margin:8px 0 16px; padding:12px; border-left:3px solid var(--warning); background:var(--raised); font-size:.85rem; line-height:1.5; }
+.codex-trust-notice strong { color:var(--warning); }
+.codex-trust-notice p { margin:4px 0; }
+.codex-trust-notice small { color:var(--muted); }
 .settings-main { max-width:1120px; margin:auto; padding:42px 32px 96px; }
 .settings-intro { margin-bottom:28px; }
 .settings-intro h1 { margin:6px 0 8px; font-size:2rem; }

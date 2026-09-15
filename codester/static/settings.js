@@ -1,7 +1,17 @@
-import {$, api} from './common.js';
+import {$, api, codexTrustNotice} from './common.js';
 let saved;
 let dashboardApps = [];
 let editingSlot = null;
+async function refreshCodexTrustNotice() {
+  try {
+    const activity = await api('/api/codex/activity', {timeout:3000});
+    const target = $('#codex-hook-notice');
+    const markup = codexTrustNotice(activity.integration);
+    if (target.innerHTML !== markup) target.innerHTML = markup;
+  } catch { /* Connection errors are handled by the settings connection test. */ }
+  finally { setTimeout(refreshCodexTrustNotice, 3000); }
+}
+refreshCodexTrustNotice();
 function message(text, error = false) {
   $('#settings-status').textContent = text;
   $('#settings-status').hidden = false;

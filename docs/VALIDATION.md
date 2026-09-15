@@ -40,3 +40,12 @@ Local screenshots are in ignored `artifacts/` so work screenshots cannot acciden
 ## Display redesign
 
 The display removes the header/footer and explanatory copy, adds a clock rail, radial service summaries, split activity lists, and five-minute SigNoz traffic rankings. Settings and error-detail flows remain available. Current screenshots are `artifacts/codester-new-2560x720.png` and `artifacts/codester-scaled-1707x480.png`.
+
+## Codex lifecycle integration — 15 September 2026
+
+- Added Docker installers for macOS/Linux and PowerShell; Python and runtime libraries remain in the existing container.
+- Verified on macOS with the VS Code extension's `codex-cli 0.154.0-alpha.6.2`. Its `hooks/list` API discovers all four user hooks with no warnings or errors. Trust approval is still required; this is not yet proof of a completed real VS Code turn.
+- Exact installed hook command → Docker event store → live API → Playwright: simulated completion stored in 114 ms and rendered as a tick in 911 ms. A second project remained active; interruption rendered correctly; the tick remained through the next five-second dashboard refresh. Temporary verification sessions were removed afterward.
+- Re-running the installer preserves identical hook configuration bytes, avoiding unnecessary trust changes. Existing unrelated handlers are preserved in regression tests.
+- Full suite: 79 passing tests. Ruff and focused type checks pass. The pre-existing full-project type error in `codester/demo.py` is outside this change.
+- Windows installer is provided but has not been executed on Windows. Remote SSH/WSL sessions and platform-specific approval flows remain unverified.

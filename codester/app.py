@@ -13,6 +13,7 @@ from flask import Flask, abort, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 
 from codester import codex, dagster, demo, docker_engine, signoz
+from codester.codex_events import ActivityEvents
 from codester.poller import INTERVALS, Poller
 from codester.repositories import RepositoryManager
 from codester.store import METRICS, ConfigurationError, Store
@@ -24,6 +25,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     app = Flask(__name__)
     app.config.update(MAX_CONTENT_LENGTH=32768, TRUSTED_HOSTS=["localhost", "127.0.0.1", "[::1]"])
     store = Store(data_dir or Path(os.environ.get("CODESTER_DATA_DIR", ".data")))
+    activity_events = ActivityEvents(store.path.parent)
     poller = Poller(store)
     tunnel_manager = TunnelManager(store.path.parent, store.read()["tunnels"], autostart=start_poller)
     repository_manager = RepositoryManager(store)
@@ -34,6 +36,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         poller=poller,
         tunnel_manager=tunnel_manager,
         repository_manager=repository_manager,
+        codex_activity_events=activity_events,
     )
 
     @app.before_request
@@ -91,8 +94,14 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         result = poller.snapshot()
         settings = store.read()
         codex_data = result["services"]["codex"].get("data")
-        if not result["demo"] and settings["codex"]["activity"] and codex_data is not None:
-            codex_data["tasks"], codex_data["activity_note"] = codex.local_activity()
+        if not result["demo"] and settings["codex"]["enabled"] and settings["codex"]["activity"]:
+            if codex_data is None:
+                codex_data = {"windows": []}
+                result["services"]["codex"]["data"] = codex_data
+            codex_data["tasks"], codex_data["activity_note"] = activity_events.merge(
+                *codex.local_activity()
+            )
+            codex_data["integration"] = activity_events.status()
         return jsonify(result)
 
     @app.post("/api/refresh")
@@ -109,8 +118,8 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
             return jsonify(tasks=sample["tasks"], note=sample["activity_note"])
         if not settings["codex"]["enabled"] or not settings["codex"]["activity"]:
             return jsonify(tasks=[], note="Local activity is off.")
-        tasks, note = codex.local_activity()
-        return jsonify(tasks=tasks, note=note)
+        tasks, note = activity_events.merge(*codex.local_activity())
+        return jsonify(tasks=tasks, note=note, integration=activity_events.status())
 
     @app.get("/api/settings")
     def settings_read():

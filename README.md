@@ -24,6 +24,28 @@ The server uses Waitress, not Flask's development server. No JavaScript build or
 
 Move the browser onto your secondary display and use the expand icon below the clock or your browser's fullscreen command. The settings cog is in the top-right corner. Touch errors to read details, then open the source service if needed. Browser tab placement is managed by your OS, not Codester. Monitor/touch-driver compatibility, particularly on macOS, is separate from this web app.
 
+## Install with live Codex activity
+
+With Docker Desktop running, use the installer from this checkout:
+
+```sh
+# macOS / Linux
+./scripts/install.sh
+```
+
+```powershell
+# Windows PowerShell
+.\scripts\install.ps1
+```
+
+The installer builds and starts Codester, bundles Python and its libraries in the container, and registers user-level Codex hooks for all local projects. It preserves other hooks and backs up an existing `hooks.json` before changing it. Re-running it keeps the same hook definitions when the Docker executable and container name are unchanged.
+
+**One-time approval:** in the Codex VS Code extension, open Settings → Hooks, select **All projects**, reload hooks if needed, and trust the four **User config** commands containing `codester.codex_hook`. The Codex CLI also provides `/hooks`. Start a new turn after approval. Changed hook definitions require another approval; ordinary project switches do not. Codester does not modify Codex's trust records.
+
+Codex invokes a short command in the existing Codester container on prompt submission, stop, interruption, and session end. Direct deliveries override mounted rollout files, avoiding Docker file-sharing delays. No host Python installation, API key, or background helper is needed. The hook command stays the same when application code is updated. A stopped container makes the hook a silent no-op; events while it is stopped are not replayed. Windows installation is included but has not yet been verified on Windows. Remote SSH/WSL Codex environments require installation where that Codex runtime runs.
+
+The dashboard remains at `http://127.0.0.1:8765`. The installer enables live activity; account usage is a separate connection described below. You can disable activity in Settings. Hook input may contain prompt or response text, but Codester stores only session ID, turn ID, project folder name, event type, and receipt time in its private data volume. No prompt or response bodies are logged or persisted. The activity API's `integration` field reports whether an event has been delivered and when; an installed hook alone is not proof of a working connection.
+
 ## Docker
 
 With Docker Desktop running:

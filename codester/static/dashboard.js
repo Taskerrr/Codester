@@ -1,4 +1,4 @@
-import {$, api, escape as e, duration, ago, compactTime} from './common.js';
+import {$, api, escape as e, duration, ago, compactTime, codexTrustNotice} from './common.js';
 
 let latest;
 let detailTrigger;
@@ -60,6 +60,7 @@ function codex(data) {
   </div>`).join('');
   return `<div class="hero-rings codex-rings">${windows || empty('Usage unavailable')}</div>
     ${sectionHeading('Recent activity')}
+    ${codexTrustNotice(data.integration)}
     <div class="recent-list">${tasks || empty('No recent activity')}</div>`;
 }
 
@@ -329,6 +330,7 @@ function render(snapshot) {
     if (name === 'codex' && state.data && liveCodexActivity) {
       state.data.tasks = liveCodexActivity.tasks;
       state.data.activity_note = liveCodexActivity.note;
+      state.data.integration = liveCodexActivity.integration;
     }
     const status = $(`#${name}-status`);
     const channel = status.closest('.channel');
@@ -377,12 +379,13 @@ async function refreshCodexActivity() {
   try {
     const activity = await api('/api/codex/activity', {timeout:3000});
     liveCodexActivity = activity;
-    const signature = JSON.stringify(activity.tasks.map(task => [task.id, task.timestamp, task.activity_state, task.inferred_active]));
+    const signature = JSON.stringify([activity.integration?.connected, activity.tasks.map(task => [task.id, task.timestamp, task.activity_state, task.inferred_active])]);
     const state = latest?.services?.codex;
     if (state?.data && signature !== codexActivitySignature) {
       codexActivitySignature = signature;
       state.data.tasks = activity.tasks;
       state.data.activity_note = activity.note;
+      state.data.integration = activity.integration;
       if ($('#detail').hidden && (latest.layout || []).includes('codex')) $('#codex-content').innerHTML = codex(state.data);
     }
   } catch { /* The normal dashboard status handles unavailable local activity. */ }

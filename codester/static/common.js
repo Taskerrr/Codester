@@ -1,4 +1,8 @@
 export const $ = (selector) => document.querySelector(selector);
+export function codexTrustNotice(integration) {
+  if (integration?.connected !== false) return '';
+  return '<div class="codex-trust-notice" role="status"><strong>Finish connecting Codex</strong><p>Go to Codex Settings → Hooks → trust all Codester hooks.</p><small>Then send a message in Codex to verify the connection.</small></div>';
+}
 export const escape = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function api(path, options = {}) {
   const {timeout = 90000, ...fetchOptions} = options;
