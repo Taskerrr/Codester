@@ -96,6 +96,50 @@ def test_github_requires_token_and_rejects_graphql_errors(monkeypatch):
         github.snapshot({"api_url": "https://api.github.com"}, "secret")
 
 
+def test_github_uses_visible_repository_commits_when_private_calendar_is_empty(monkeypatch):
+    today = datetime.now(UTC).date().isoformat()
+    monkeypatch.setattr(
+        github,
+        "post_json",
+        lambda *args: {
+            "data": {
+                "viewer": {
+                    "login": "jack",
+                    "contributionsCollection": {
+                        "contributionCalendar": {
+                            "totalContributions": 0,
+                            "weeks": [
+                                {
+                                    "contributionDays": [
+                                        {"date": today, "contributionCount": 0}
+                                    ]
+                                }
+                            ],
+                        }
+                    },
+                }
+            }
+        },
+    )
+
+    def get(url, headers, params):
+        if url.endswith("/user/repos"):
+            return [{"full_name": "jack/private", "private": True}]
+        return [{"commit": {"author": {"date": f"{today}T12:00:00Z"}}}]
+
+    monkeypatch.setattr(github, "get_json", get)
+    result = github.snapshot(
+        {"api_url": "https://api.github.com", "browser_url": "https://github.com"},
+        "secret",
+    )
+
+    assert result["total"] == 1
+    assert result["days"] == [{"date": today, "count": 1}]
+    assert result["calendar_source"] == "repository_commits"
+    assert result["calendar_repository_count"] == 1
+    assert result["calendar_limited"] is False
+
+
 def test_signoz_v5_values_filters_and_units(monkeypatch):
     requests = []
 

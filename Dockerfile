@@ -11,7 +11,7 @@ RUN apt-get update \
 
 FROM python:3.12-slim
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends openssh-client \
+    && apt-get install --yes --no-install-recommends git openssh-client \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.12.3 /uv /usr/local/bin/uv
 COPY --from=codex-cli /opt/codex /opt/codex

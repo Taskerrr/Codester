@@ -30,6 +30,7 @@ DEFAULTS: dict = {
         "enabled": False,
         "api_url": "https://api.github.com",
         "browser_url": "https://github.com",
+        "repositories": [],
     },
     "tunnels": [],
 }
@@ -117,6 +118,28 @@ def tunnel_identifier(tunnel: dict) -> str:
     return uuid.uuid5(uuid.NAMESPACE_URL, f"codester:ssh:{basis}").hex
 
 
+def repository_identifier(repository: dict) -> str:
+    value = repository.get("id")
+    if value is not None:
+        if not isinstance(value, str) or not re.fullmatch(r"[a-f0-9-]{16,64}", value):
+            raise ConfigurationError("Invalid repository identifier.")
+        return value
+    return uuid.uuid5(
+        uuid.NAMESPACE_URL, f"codester:repository:{repository.get('repo', '')}"
+    ).hex
+
+
+def repository_text(value: object, label: str, maximum: int) -> str:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or len(value) > maximum
+        or any(ord(character) < 32 for character in value)
+    ):
+        raise ConfigurationError(f"Enter a valid repository {label}.")
+    return value.strip()
+
+
 def validate(data: object) -> dict:
     if not isinstance(data, dict):
         raise ConfigurationError("Settings must be a JSON object.")
@@ -161,6 +184,44 @@ def validate(data: object) -> dict:
             }
         )
     result["signoz"]["error_service"] = service_name(data["signoz"].get("error_service", ""))
+    repositories = data["github"].get("repositories", [])
+    if not isinstance(repositories, list) or len(repositories) > 3:
+        raise ConfigurationError("Add no more than three GitHub repositories.")
+    result["github"]["repositories"] = []
+    repo_names: set[str] = set()
+    repo_ids: set[str] = set()
+    for repository in repositories:
+        if not isinstance(repository, dict):
+            raise ConfigurationError("Each repository must be an object.")
+        identifier = repository_identifier(repository)
+        repo = repository_text(repository.get("repo"), "name", 200)
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+            raise ConfigurationError("Use a GitHub repository name like owner/project.")
+        path = repository_text(repository.get("path"), "checkout path", 4096)
+        if not Path(path).is_absolute():
+            raise ConfigurationError("Repository checkout paths must be absolute.")
+        command = repository.get("deploy_command", "")
+        if (
+            not isinstance(command, str)
+            or len(command) > 2000
+            or "\n" in command
+            or "\r" in command
+            or "\x00" in command
+        ):
+            raise ConfigurationError("Use a single-line deploy command under 2000 characters.")
+        normalized = repo.casefold()
+        if normalized in repo_names or identifier in repo_ids:
+            raise ConfigurationError("GitHub repositories must be different.")
+        repo_names.add(normalized)
+        repo_ids.add(identifier)
+        result["github"]["repositories"].append(
+            {
+                "id": identifier,
+                "repo": repo,
+                "path": path,
+                "deploy_command": command.strip(),
+            }
+        )
     tunnels = data.get("tunnels", [])
     if not isinstance(tunnels, list) or len(tunnels) > 20:
         raise ConfigurationError("Add no more than 20 SSH tunnels.")
@@ -230,6 +291,10 @@ class Store:
         with sqlite3.connect(self.path) as db:
             db.execute("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, value TEXT)")
             db.execute("CREATE TABLE IF NOT EXISTS secrets (name TEXT PRIMARY KEY, value BLOB)")
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS repository_state "
+                "(id TEXT PRIMARY KEY, deployed_head TEXT NOT NULL)"
+            )
             db.execute("INSERT OR IGNORE INTO settings VALUES (1, ?)", (json.dumps(DEFAULTS),))
         if os.name != "nt":
             self.path.chmod(0o600)
@@ -240,6 +305,7 @@ class Store:
         data.setdefault("dashboard_apps", list(DEFAULTS["dashboard_apps"]))
         data.setdefault("tunnels", [])
         data.setdefault("github", copy.deepcopy(DEFAULTS["github"]))
+        data["github"].setdefault("repositories", [])
         for tunnel in data["tunnels"]:
             tunnel.setdefault("id", tunnel_identifier(tunnel))
             tunnel.setdefault("auth", "agent")
@@ -332,3 +398,17 @@ class Store:
                     "INSERT OR REPLACE INTO secrets VALUES ('github', ?)",
                     (self.cipher.encrypt(github_token.strip().encode()),),
                 )
+
+    def deployed_head(self, identifier: str) -> str:
+        with self.lock, sqlite3.connect(self.path) as db:
+            row = db.execute(
+                "SELECT deployed_head FROM repository_state WHERE id=?", (identifier,)
+            ).fetchone()
+            return row[0] if row else ""
+
+    def set_deployed_head(self, identifier: str, head: str) -> None:
+        with self.lock, sqlite3.connect(self.path) as db:
+            db.execute(
+                "INSERT OR REPLACE INTO repository_state VALUES (?, ?)",
+                (identifier, head),
+            )

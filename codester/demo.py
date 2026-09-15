@@ -88,9 +88,9 @@ def snapshot(service: str) -> dict:
     if service == "github":
         counts = [0, 1, 0, 3, 2, 0, 0, 1, 4, 2, 0, 1, 0, 0, 2, 1, 5, 3, 0, 0, 1]
         days = []
-        for offset in range(83, -1, -1):
+        for offset in range(181, -1, -1):
             day = time.localtime(now - offset * 86400)
-            count = counts[(83 - offset) % len(counts)]
+            count = counts[(181 - offset) % len(counts)]
             days.append(
                 {
                     "date": time.strftime("%Y-%m-%d", day),
@@ -99,7 +99,7 @@ def snapshot(service: str) -> dict:
             )
         return {
             "login": "taskerrr",
-            "total": sum(counts) * 4,
+            "total": sum(day["count"] for day in days),
             "days": days,
             "url": "https://github.com/Taskerrr",
             "repositories": [
@@ -110,6 +110,18 @@ def snapshot(service: str) -> dict:
                     "pushed_at": now - 420,
                     "commits": [0, 1, 0, 2, 1, 0, 3, 2, 0, 1, 4, 1, 2, 3],
                     "url": "https://github.com/Taskerrr/Codester",
+                    "local": {
+                        "id": "demo-repository-1",
+                        "branch": "main",
+                        "changes": 2,
+                        "ahead": 1,
+                        "behind": 0,
+                        "needs_push": True,
+                        "deploy_configured": True,
+                        "deploy_state": "needed",
+                        "action": {"state": "idle", "message": ""},
+                        "demo": True,
+                    },
                 },
                 {
                     "name": "Taskerrr/data-platform",
@@ -118,6 +130,18 @@ def snapshot(service: str) -> dict:
                     "pushed_at": now - 7400,
                     "commits": [1, 0, 1, 0, 3, 1, 0, 0, 2, 1, 1, 0, 2, 1],
                     "url": "https://github.com/Taskerrr/data-platform",
+                    "local": {
+                        "id": "demo-repository-2",
+                        "branch": "main",
+                        "changes": 0,
+                        "ahead": 0,
+                        "behind": 0,
+                        "needs_push": False,
+                        "deploy_configured": True,
+                        "deploy_state": "current",
+                        "action": {"state": "idle", "message": ""},
+                        "demo": True,
+                    },
                 },
                 {
                     "name": "Taskerrr/internal-tools",
@@ -126,6 +150,18 @@ def snapshot(service: str) -> dict:
                     "pushed_at": now - 86400,
                     "commits": [0, 0, 2, 1, 0, 0, 1, 0, 0, 1, 0, 2, 0, 1],
                     "url": "https://github.com/Taskerrr/internal-tools",
+                    "local": {
+                        "id": "demo-repository-3",
+                        "branch": "develop",
+                        "changes": 0,
+                        "ahead": 0,
+                        "behind": 1,
+                        "needs_push": False,
+                        "deploy_configured": False,
+                        "deploy_state": "unavailable",
+                        "action": {"state": "idle", "message": ""},
+                        "demo": True,
+                    },
                 },
             ],
         }

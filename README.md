@@ -52,6 +52,14 @@ The copied login stays inside the private `codester-data` volume and Codex can r
 
 Compose mounts the host's `~/.codex` directory at `/host-codex` read-only so the optional recent-activity view can see current VS Code thread metadata without changing it. Set `CODEX_HOST_HOME` before running Compose if the host uses a different Codex home. Authentication remains in the separate writable data volume; the app only queries the mounted SQLite thread index and never reads session bodies.
 
+Compose also mounts `CODESTER_REPOS_PATH` at `/repos` for repository actions. It defaults to the Codester checkout. Set it to the parent directory containing your checkouts before starting Compose, then use paths such as `/repos/Codester` in Settings:
+
+```sh
+CODESTER_REPOS_PATH=/Users/you/Documents/GitHub docker compose up --build -d
+```
+
+On Windows PowerShell, set it first with `$env:CODESTER_REPOS_PATH = "C:\\Users\\you\\Documents\\GitHub"`. Native startup uses each repository's normal absolute path.
+
 The Docker container-management screen uses the local Docker CLI during native startup and the Docker socket from Compose. Socket access effectively grants the Codester process control of Docker, so keep the app loopback-only and run only trusted builds. Override `DOCKER_SOCKET_PATH` when the host socket uses a nonstandard path. Docker Desktop presents the mounted socket as group `0`; Linux users whose socket has another group should set `DOCKER_SOCKET_GID` to its numeric group ID. Codester exposes listing, live CPU/memory reads, start, and graceful stop; it cannot control its own container.
 
 Docker still requires host memory for Docker Desktop. Native startup is the lightest option, particularly when using existing localhost tunnels.
@@ -109,7 +117,11 @@ Top apps ranks the three services with the most incoming SERVER spans over the l
 
 ### GitHub
 
-Choose GitHub in one of the three dashboard slots, then enable it in Settings and save a personal access token. The panel shows the last 12 weeks of contributions and the three most recently pushed repositories, with a 14-day commit sparkline for each. It refreshes every five minutes.
+Choose GitHub in one of the three dashboard slots, then enable it in Settings and save a personal access token. The panel shows the last 12 weeks of contributions and three repository rows, with a 14-day commit sparkline for each. Without configured repositories these are the three most recently pushed repositories. Add local checkouts to pin the rows and enable repository actions.
+
+Each local checkout reports its branch, uncommitted file count, and commits ahead of or behind its currently recorded upstream. The arrow button runs `git push` for committed changes. The rocket runs the repository's saved deploy command in that checkout, asynchronously, with a ten-minute limit. Codester records the commit after a successful deploy and marks a later commit or working-tree change as needing deployment. The first deploy state is unknown because Codester has no history for deployments launched elsewhere.
+
+Deploy commands are trusted local configuration and can run anything available to the Codester process. Keep credentials in the SSH agent, environment, operating-system credential store, or the deployment tool itself; do not paste secrets into commands. Docker runs commands inside the Codester container and can use its forwarded SSH agent. Native startup can use locally installed deployment tools. Ahead/behind uses the checkout's existing remote-tracking ref and does not automatically fetch.
 
 For private repositories, give a fine-grained token access to the repositories you want to display with **Metadata: read** and **Contents: read**. The token is encrypted in Codester's local data directory and is never returned to the browser after saving.
 
@@ -123,15 +135,15 @@ Docker Desktop must be running and the current user must already have permission
 
 ## Storage and privacy
 
-Native storage is `.data/` in the project directory (ignored by Git). Docker storage is `/data`. Override with `CODESTER_DATA_DIR`. SQLite holds preferences; SigNoz keys and saved SSH passwords are encrypted with Fernet using a per-installation `secret.key`. POSIX directories/files use 0700/0600. On Windows, startup removes inherited directory grants and grants the current user access through `icacls`; use a new private directory, since existing explicit grants are not removed. Windows ACL behavior still needs validation on your work machine. Encryption does not protect against someone with access to both database and key. Back up both together and keep them out of Git.
+Native storage is `.data/` in the project directory (ignored by Git). Docker storage is `/data`. Override with `CODESTER_DATA_DIR`. SQLite holds preferences and successful deployment commit markers; GitHub/SigNoz keys and saved SSH passwords are encrypted with Fernet using a per-installation `secret.key`. POSIX directories/files use 0700/0600. On Windows, startup removes inherited directory grants and grants the current user access through `icacls`; use a new private directory, since existing explicit grants are not removed. Windows ACL behavior still needs validation on your work machine. Encryption does not protect against someone with access to both database and key. Back up both together and keep them out of Git.
 
 Blank key and saved-password fields preserve their existing secrets. Switching a tunnel back to agent authentication or removing it deletes its saved password. Credentials are never returned by settings APIs or logged. Live monitoring data is cached in memory, not saved as history. Task titles and source errors may contain work information and are visible on your screen.
 
 The server binds to loopback by default. Docker publishes only `127.0.0.1`. Host validation, origin checks, CSRF tokens, response size limits, and a restrictive content security policy protect the local app. This is a single-user local tool with **no multi-user authentication**; do not publish it on a shared network. The process can access configured private URLs by design.
 
-The display has a clock/launcher rail and three configurable app channels. Settings stores three unique choices and their left-to-right order. Codex, Dagster, and SigNoz have live overview renderers; Docker has a compact container summary and a full management screen. PostgreSQL, Linux servers, and GitHub currently provide selectable placeholders for later integrations. Dagster spinners stop on stale connections or when reduced motion is enabled.
+The display has a clock/launcher rail and three configurable app channels. Settings stores three unique choices and their left-to-right order. Codex, Dagster, SigNoz, and GitHub have live overview renderers; Docker has a compact container summary and a full management screen. PostgreSQL and Linux servers remain selectable placeholders. Dagster spinners stop on stale connections or when reduced motion is enabled.
 
-Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results. Demo data is never used as a fallback for a failed live connection.
+Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s, and GitHub 5 minutes. Local checkout status is cached centrally for four seconds. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results. Demo data is never used as a fallback for a failed live connection.
 
 ## Development and checks
 
@@ -143,6 +155,6 @@ uv run ty check
 uv run python -m codester
 ```
 
-Environment: `CODESTER_PORT` (8765), `CODESTER_HOST` (127.0.0.1), `CODESTER_DATA_DIR`, optional `CODESTER_CODEX_BIN`, `CODEX_HOME`, `CODESTER_DOCKER_SOCKET`, and standard `SSH_AUTH_SOCK`. Both scripts forward `--port` and `--host` arguments. Run one application process per storage directory so pollers, managed tunnels, and the encryption key are not duplicated.
+Environment: `CODESTER_PORT` (8765), `CODESTER_HOST` (127.0.0.1), `CODESTER_DATA_DIR`, optional `CODESTER_CODEX_BIN`, `CODEX_HOME`, `CODESTER_DOCKER_SOCKET`, `CODESTER_REPOS_PATH` for Compose, and standard `SSH_AUTH_SOCK`. Both scripts forward `--port` and `--host` arguments. Run one application process per storage directory so pollers, managed tunnels, and the encryption key are not duplicated.
 
 See [validation notes](docs/VALIDATION.md), [API and adapter sources](docs/SOURCES.md), and [third-party marks](docs/THIRD_PARTY.md).

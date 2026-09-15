@@ -36,7 +36,7 @@ def snapshot(config: dict, token: str) -> dict:
     api_url = config["api_url"].rstrip("/")
     browser_url = (config.get("browser_url") or "https://github.com").rstrip("/")
     now = datetime.now(UTC)
-    calendar_start = (now - timedelta(days=83)).date().isoformat() + "T00:00:00Z"
+    calendar_start = (now - timedelta(days=181)).date().isoformat() + "T00:00:00Z"
     graph = post_json(
         graphql_url(api_url),
         {
@@ -72,7 +72,7 @@ def snapshot(config: dict, token: str) -> dict:
     if isinstance(total, bool) or not isinstance(total, int) or total < 0:
         raise IntegrationError("GitHub returned an unsupported contribution calendar.")
     normalized_days = []
-    for day in days[-84:]:
+    for day in days[-182:]:
         if not isinstance(day, dict) or not isinstance(day.get("date"), str):
             raise IntegrationError("GitHub returned an unsupported contribution calendar.")
         count = day.get("contributionCount")
@@ -80,31 +80,55 @@ def snapshot(config: dict, token: str) -> dict:
             raise IntegrationError("GitHub returned an unsupported contribution calendar.")
         normalized_days.append({"date": day["date"], "count": count})
 
-    repositories = get_json(
-        api_url + "/user/repos",
-        request_headers,
-        {
-            "sort": "pushed",
-            "direction": "desc",
-            "per_page": 3,
-            "affiliation": "owner,collaborator,organization_member",
-        },
-    )
+    configured = config.get("repositories", [])
+    if configured:
+        repositories = [
+            get_json(
+                api_url + "/repos/" + quote(repository["repo"], safe="/"),
+                request_headers,
+            )
+            for repository in configured[:3]
+        ]
+    else:
+        repositories = get_json(
+            api_url + "/user/repos",
+            request_headers,
+            {
+                "sort": "pushed",
+                "direction": "desc",
+                "per_page": 3,
+                "affiliation": "owner,collaborator,organization_member",
+            },
+        )
     if not isinstance(repositories, list):
         raise IntegrationError("GitHub returned an unsupported repository response.")
     spark_start = now - timedelta(days=13)
+    commit_counts_by_date: dict[str, int] = {}
+    commit_results_limited = False
     repos = []
     for repository in repositories[:3]:
         if not isinstance(repository, dict) or not isinstance(repository.get("full_name"), str):
             raise IntegrationError("GitHub returned an unsupported repository response.")
         full_name = repository["full_name"]
-        commits = get_json(
-            api_url + "/repos/" + quote(full_name, safe="/") + "/commits",
-            request_headers,
-            {"author": login, "since": spark_start.isoformat(), "per_page": 100},
-        )
-        if not isinstance(commits, list):
-            raise IntegrationError("GitHub returned an unsupported commit response.")
+        commits = []
+        for page in range(1, 4):
+            batch = get_json(
+                api_url + "/repos/" + quote(full_name, safe="/") + "/commits",
+                request_headers,
+                {
+                    "author": login,
+                    "since": calendar_start,
+                    "per_page": 100,
+                    "page": page,
+                },
+            )
+            if not isinstance(batch, list):
+                raise IntegrationError("GitHub returned an unsupported commit response.")
+            commits.extend(batch)
+            if len(batch) < 100:
+                break
+        else:
+            commit_results_limited = True
         counts = [0] * 14
         for commit in commits:
             try:
@@ -113,6 +137,10 @@ def snapshot(config: dict, token: str) -> dict:
                 )
             except (KeyError, TypeError, ValueError, AttributeError):
                 continue
+            committed_date = committed.date().isoformat()
+            commit_counts_by_date[committed_date] = (
+                commit_counts_by_date.get(committed_date, 0) + 1
+            )
             index = (committed.date() - spark_start.date()).days
             if 0 <= index < len(counts):
                 counts[index] += 1
@@ -126,10 +154,21 @@ def snapshot(config: dict, token: str) -> dict:
                 "url": browser_url + "/" + quote(full_name, safe="/"),
             }
         )
+    calendar_source = "github"
+    if total == 0 and any(commit_counts_by_date.values()):
+        normalized_days = [
+            {"date": day["date"], "count": commit_counts_by_date.get(day["date"], 0)}
+            for day in normalized_days
+        ]
+        total = sum(day["count"] for day in normalized_days)
+        calendar_source = "repository_commits"
     return {
         "login": login,
         "total": total,
         "days": normalized_days,
+        "calendar_source": calendar_source,
+        "calendar_limited": calendar_source == "repository_commits" and commit_results_limited,
+        "calendar_repository_count": len(repos),
         "repositories": repos,
         "url": browser_url + "/" + quote(login, safe=""),
     }

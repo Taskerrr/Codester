@@ -48,6 +48,21 @@ function addTunnel(data = {}) {
   row.querySelector('.test-tunnel').addEventListener('click', () => testTunnel(row));
   $('#tunnel-list').append(row);
 }
+function addRepository(data = {}) {
+  const row = $('#repository-template').content.firstElementChild.cloneNode(true);
+  row.dataset.id = data.id || crypto.randomUUID();
+  for (const field of ['repo','path','deploy_command']) row.querySelector(`[data-repository-field="${field}"]`).value = data[field] || '';
+  const updateTitle = () => { row.querySelector('.repository-title').textContent = row.querySelector('[data-repository-field="repo"]').value || 'New repository'; };
+  row.querySelector('[data-repository-field="repo"]').addEventListener('input', updateTitle);
+  updateTitle();
+  row.querySelector('.remove-repository').addEventListener('click', () => { row.remove(); updateRepositoryLimit(); $('#save-note').textContent='Unsaved changes'; });
+  row.querySelector('.test-repository').addEventListener('click', () => testRepository(row));
+  $('#repository-list').append(row);
+  updateRepositoryLimit();
+}
+function updateRepositoryLimit() {
+  $('#add-repository').disabled = document.querySelectorAll('.repository-config').length >= 3;
+}
 function fill(data) {
   $('#demo').checked = data.demo;
   dashboardApps = [...data.dashboard_apps];
@@ -65,6 +80,9 @@ function fill(data) {
   $('#github-token').value = '';
   $('#clear-github-token').checked = false;
   $('#github-token-note').textContent = data.github.has_token ? 'Token saved · leave blank to keep it.' : 'No token saved.';
+  $('#repository-list').replaceChildren();
+  for (const repository of data.github.repositories || []) addRepository(repository);
+  updateRepositoryLimit();
   for(let i=0;i<3;i++) {
     const panel = data.signoz.panels[i];
     $(`#panel-${i}-enabled`).checked = Boolean(panel);
@@ -98,6 +116,12 @@ function read() {
   }));
   data.github.token=$('#github-token').value;
   data.github.clear_token=$('#clear-github-token').checked;
+  data.github.repositories=Array.from(document.querySelectorAll('.repository-config')).map(row => ({
+    id:row.dataset.id,
+    repo:row.querySelector('[data-repository-field="repo"]').value,
+    path:row.querySelector('[data-repository-field="path"]').value,
+    deploy_command:row.querySelector('[data-repository-field="deploy_command"]').value,
+  }));
   return data;
 }
 async function saveSettings(refill = true) {
@@ -148,6 +172,7 @@ for (const choice of document.querySelectorAll('[data-app-choice]')) choice.addE
   $('#save-note').textContent='Unsaved changes';
 });
 $('#add-tunnel').addEventListener('click',()=> { addTunnel(); $('#save-note').textContent='Unsaved changes'; });
+$('#add-repository').addEventListener('click',()=> { addRepository(); $('#save-note').textContent='Unsaved changes'; });
 async function testTunnel(row) {
   const button = row.querySelector('.test-tunnel');
   const result = row.querySelector('.tunnel-test');
@@ -163,6 +188,20 @@ async function testTunnel(row) {
   } finally {
     button.disabled = false;
   }
+}
+async function testRepository(row) {
+  const button=row.querySelector('.test-repository');
+  const result=row.querySelector('.repository-test');
+  if (!$('#settings-form').reportValidity()) return;
+  button.disabled=true;
+  result.textContent='Checking…';
+  try {
+    await saveSettings(false);
+    const data=await api('/api/github/repositories',{timeout:10000});
+    const repository=data.repositories.find(item=>item.id === row.dataset.id);
+    result.textContent=!repository ? 'Repository check unavailable' : repository.error || `${repository.branch} · ${repository.changes} changes · ${repository.ahead ?? 'no'} ahead`;
+  } catch(error) { result.textContent=error.message; }
+  finally { button.disabled=false; }
 }
 for(const button of document.querySelectorAll('.test')) button.addEventListener('click',async()=> {
   const name=button.dataset.service;

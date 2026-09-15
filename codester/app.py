@@ -14,6 +14,7 @@ from werkzeug.exceptions import HTTPException
 
 from codester import dagster, demo, docker_engine, signoz
 from codester.poller import INTERVALS, Poller
+from codester.repositories import RepositoryManager
 from codester.store import METRICS, ConfigurationError, Store
 from codester.transport import IntegrationError
 from codester.tunnels import TunnelManager
@@ -25,9 +26,15 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     store = Store(data_dir or Path(os.environ.get("CODESTER_DATA_DIR", ".data")))
     poller = Poller(store)
     tunnel_manager = TunnelManager(store.path.parent, store.read()["tunnels"], autostart=start_poller)
+    repository_manager = RepositoryManager(store)
     token = secrets.token_urlsafe(32)
     docker_lock = threading.Lock()
-    app.extensions.update(store=store, poller=poller, tunnel_manager=tunnel_manager)
+    app.extensions.update(
+        store=store,
+        poller=poller,
+        tunnel_manager=tunnel_manager,
+        repository_manager=repository_manager,
+    )
 
     @app.before_request
     def protect_local_app() -> None:
@@ -83,6 +90,12 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     def dashboard():
         return jsonify(poller.snapshot())
 
+    @app.post("/api/refresh")
+    def refresh_services():
+        for wake in poller.wakes.values():
+            wake.set()
+        return jsonify(ok=True)
+
     @app.get("/api/settings")
     def settings_read():
         return jsonify(store.public())
@@ -92,6 +105,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         with poller.lock:
             store.save(request.get_json())
             poller.invalidate()
+            repository_manager.invalidate()
             tunnel_manager.configure(store.read()["tunnels"])
         return jsonify(store.public())
 
@@ -125,8 +139,16 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
                 key = store.secret(name) if name in {"signoz", "github"} else ""
             if name != "codex" and not config[name]["api_url"]:
                 raise ConfigurationError("Save a connection URL first.")
-            poller.fetch(name, config, key)
-        return jsonify(ok=True, message="Connection and dashboard queries succeeded.")
+            data = poller.fetch(name, config, key)
+        message = "Connection and dashboard queries succeeded."
+        if name == "github":
+            message = (
+                "Connected · full GitHub contribution calendar."
+                if data.get("calendar_source") == "github"
+                else "Connected · repo commits shown. For the full calendar, use a classic "
+                "token with read:user."
+            )
+        return jsonify(ok=True, message=message)
 
     @app.post("/api/signoz/services")
     def service_list():
@@ -172,6 +194,19 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         with docker_lock:
             docker_engine.control(container_id, action)
         return jsonify(ok=True)
+
+    @app.get("/api/github/repositories")
+    def github_repositories():
+        return jsonify(repository_manager.snapshot())
+
+    @app.post("/api/github/repositories/<identifier>/<action>")
+    def github_repository_action(identifier: str, action: str):
+        if not re.fullmatch(r"[a-f0-9-]{16,64}", identifier) or action not in {
+            "push",
+            "deploy",
+        }:
+            abort(404)
+        return jsonify(repository_manager.start(identifier, action)), 202
 
     @app.get("/api/errors/<name>/<identifier>")
     def error_detail(name: str, identifier: str):

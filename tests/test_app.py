@@ -107,6 +107,16 @@ def test_security_headers(client):
     assert response.headers["Referrer-Policy"] == "no-referrer"
 
 
+def test_refresh_endpoint_wakes_upstream_workers(app, client):
+    poller = app.extensions["poller"]
+    assert all(not wake.is_set() for wake in poller.wakes.values())
+
+    response = client.post("/api/refresh", headers=csrf(client))
+
+    assert response.status_code == 200
+    assert all(wake.is_set() for wake in poller.wakes.values())
+
+
 def test_settings_invalid_panels(client):
     data = settings()
     data["signoz"]["panels"] = [{"service": "api", "metric": "unknown"}]

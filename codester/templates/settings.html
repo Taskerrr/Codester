@@ -63,8 +63,24 @@
     <p id="github-token-note" class="help">No token saved.</p>
     <label class="toggle"><input id="clear-github-token" type="checkbox"> Remove saved token</label>
     <button type="button" class="secondary-button test" data-service="github">Test connection</button><p id="github-test" role="status" class="test-result"></p>
-    <p class="help">Repository metadata + contents read access.</p>
+    <p class="help">Full calendar: classic token with <code>read:user</code>. Fine-grained tokens use visible repository commits.</p>
+    <h3>Repository actions</h3>
+    <p class="help">Up to three local checkouts. Push uses Git; Deploy runs the saved command from that checkout.</p>
+    <div id="repository-list" class="repository-list"></div>
+    <button id="add-repository" type="button" class="secondary-button">+ Add repository</button>
   </fieldset>
+  <template id="repository-template">
+    <section class="repository-config">
+      <div class="tunnel-heading"><strong class="repository-title">New repository</strong><div class="button-row"><button type="button" class="secondary-button test-repository">Check</button><button type="button" class="quiet-button remove-repository">Remove</button></div></div>
+      <div class="repository-grid">
+        <label>GitHub repository<input data-repository-field="repo" type="text" maxlength="200" placeholder="Taskerrr/Codester" autocomplete="off" required></label>
+        <label>Checkout path<input data-repository-field="path" type="text" maxlength="4096" placeholder="/repos/Codester" autocomplete="off" required></label>
+        <label class="repository-command">Deploy command <span class="optional">optional</span><input data-repository-field="deploy_command" type="text" maxlength="2000" placeholder="docker compose up -d --build" autocomplete="off"></label>
+      </div>
+      <p class="help">Use SSH agent, environment variables, or your platform credential store for access. Do not put passwords in the command.</p>
+      <p class="test-result repository-test" role="status"></p>
+    </section>
+  </template>
   <fieldset id="ssh-tunnels" class="settings-section"><legend>SSH tunnels</legend>
     <p class="help">Use the SSH switch on the dashboard. Dropped sessions reconnect automatically; saved passwords are encrypted locally.</p>
     <div id="tunnel-list" class="tunnel-list"></div>

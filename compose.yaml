@@ -13,6 +13,9 @@ services:
         source: ${DOCKER_SOCKET_PATH:-${HOME}/.docker/run/docker.sock}
         target: /var/run/docker.sock
       - type: bind
+        source: ${CODESTER_REPOS_PATH:-.}
+        target: /repos
+      - type: bind
         source: /run/host-services/ssh-auth.sock
         target: /run/host-services/ssh-auth.sock
     group_add:

@@ -16,6 +16,8 @@ let dockerPendingStop = '';
 let dockerPendingTimer;
 let tunnelState;
 let tunnelLoading = false;
+let repositoryOperations = new Map();
+let repositoriesLoading = false;
 
 function ring({value, label, detail = '', progress = 0, live = false}) {
   const safeProgress = live ? 92 : clamp(progress);
@@ -126,25 +128,57 @@ function sparkline(values) {
 }
 
 function github(data) {
-  const days = (data.days || []).slice(-84);
+  const days = (data.days || []).slice(-182);
   const peak = Math.max(...days.map(day => number(day.count)), 1);
+  const activeDays = days.filter(day => number(day.count) > 0).length;
+  const activity = days.length ? Math.round(activeDays / days.length * 100) : 0;
   const calendar = days.map(day => {
     const count = number(day.count);
     const level = count ? Math.max(1, Math.ceil(count / peak * 4)) : 0;
     return `<span class="contribution-day level-${level}" title="${e(day.date)} · ${count} contribution${count === 1 ? '' : 's'}" aria-label="${e(day.date)}: ${count} contributions"></span>`;
   }).join('');
-  const weekly = days.slice(-7).reduce((total, day) => total + number(day.count), 0);
-  const repositories = (data.repositories || []).slice(0, 3).map(repository => `<a class="repo-row" href="${e(repository.url)}" target="_blank" rel="noopener noreferrer">
-    <div class="repo-copy"><strong title="${e(repository.name)}">${e(repository.name)}</strong><small>${repository.private ? 'PRIVATE' : 'PUBLIC'} · ${ago(repository.pushed_at)}</small></div>
-    ${sparkline(repository.commits || [])}
-    <b>${(repository.commits || []).reduce((total, count) => total + number(count), 0)}<small>14d</small></b>
-  </a>`).join('');
+  const calendarLabel = data.calendar_source === 'repository_commits'
+    ? `26 WEEKS · ${number(data.calendar_repository_count)} REPOS${data.calendar_limited ? ' +' : ''}`
+    : '26 WEEKS';
+  const repositories = (data.repositories || []).slice(0, 3).map(repository => {
+    const local = repositoryOperations.get(repository.name.toLowerCase()) || repository.local;
+    const action = local?.action || {state:'idle'};
+    const running = action.state === 'running';
+    const meta = local ? repositoryMeta(local) : ago(repository.pushed_at);
+    const statusText = running ? action.message : ['success','error'].includes(action.state) ? `${action.message} · ${meta}` : meta;
+    const controls = local ? `<div class="repo-actions">
+      <button type="button" class="${local.demo ? 'demo-preview' : ''}" data-repository-action="push" data-id="${e(local.id)}" ${local.demo || running || !local.needs_push ? 'disabled' : ''} aria-label="Push ${e(repository.name)}" title="${local.needs_push ? 'Push committed changes' : 'Nothing to push'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V3m0 0L7 8m5-5 5 5"/><path d="M5 14v5h14v-5"/></svg></button>
+      <button type="button" class="deploy ${local.deploy_state === 'needed' ? 'needed' : ''} ${local.demo ? 'demo-preview' : ''}" data-repository-action="deploy" data-id="${e(local.id)}" ${local.demo || running || !local.deploy_configured || local.deploy_state === 'current' ? 'disabled' : ''} aria-label="Deploy ${e(repository.name)}" title="${local.deploy_configured ? local.deploy_state === 'current' ? 'Already deployed' : 'Deploy current commit' : 'No deploy command'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M14 4c3-1 5-1 6-1 0 1 0 3-1 6l-6 6-4-4 5-7Z"/><path d="m9 11-4 1-2 2 6 1m4 0-1 4-2 2-1-6"/><path d="M6 18c-2 0-3 1-3 3 2 0 3-1 3-3Z"/></svg></button>
+    </div>` : '';
+    return `<div class="repo-row ${running ? 'working' : ''}">
+      <a class="repo-copy" href="${e(repository.url)}" target="_blank" rel="noopener noreferrer"><strong title="${e(repository.name)}">${e(repository.name)}</strong><small title="${e(statusText)}">${e(statusText)}</small></a>
+      ${sparkline(repository.commits || [])}
+      <b>${(repository.commits || []).reduce((total, count) => total + number(count), 0)}</b>
+      ${controls}
+    </div>`;
+  }).join('');
   return `<div class="github-hero">
-      <div class="github-total"><strong>${number(data.total).toLocaleString()}</strong><span>12 WEEKS</span><small>${weekly} · 7 DAYS</small></div>
-      <div class="contribution-wrap"><div class="contribution-grid">${calendar}</div><div class="contribution-key"><span>Less</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>More</span></div></div>
+      <div class="github-total">
+        <div class="github-donut" title="${activeDays} active days">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="github-donut-track" cx="50" cy="50" r="42"/><circle class="github-donut-progress" cx="50" cy="50" r="42" pathLength="100" stroke-dasharray="${activity} ${100 - activity}"/></svg>
+          <div><strong>${number(data.total).toLocaleString()}</strong><span>COMMITS</span></div>
+        </div>
+      </div>
+      <div class="contribution-wrap"><span class="contribution-period">${calendarLabel}</span><div class="contribution-grid">${calendar}</div><div class="contribution-key"><span>Less</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>More</span></div></div>
     </div>
     ${sectionHeading('Recent repositories', data.login || '')}
     <div class="repo-list">${repositories || empty('No repositories')}</div>`;
+}
+
+function repositoryMeta(local) {
+  if (local.error) return 'CHECKOUT UNAVAILABLE';
+  const parts = [local.branch || 'detached'];
+  if (local.changes) parts.push(`${local.changes} change${local.changes === 1 ? '' : 's'}`);
+  if (local.ahead) parts.push(`↑${local.ahead}`);
+  if (local.behind) parts.push(`↓${local.behind}`);
+  if (local.deploy_state === 'needed') parts.push('deploy');
+  if (local.deploy_state === 'unknown') parts.push('deploy ?');
+  return parts.join(' · ');
 }
 
 const renderers = {codex, dagster, signoz, github};
@@ -210,6 +244,33 @@ async function refreshDockerPanel() {
     target.innerHTML = `<div class="utility-placeholder"><strong>Docker unavailable</strong><span>${e(error.message)}</span><a href="/docker">Open Docker →</a></div>`;
   } finally {
     dockerPanelLoading = false;
+  }
+}
+
+async function refreshGithubRepositories() {
+  const channel = document.querySelector('[data-app-panel="github"]');
+  if (!channel || channel.hidden || repositoriesLoading || latest?.demo) return;
+  repositoriesLoading = true;
+  try {
+    const data = await api('/api/github/repositories', {timeout:10000});
+    repositoryOperations = new Map(data.repositories.map(repository => [repository.repo.toLowerCase(), repository]));
+    const githubData = latest?.services?.github?.data;
+    if (githubData && $('#detail').hidden) $('#github-content').innerHTML = github(githubData);
+  } catch {
+    // The GitHub API panel remains useful when a local checkout is unavailable.
+  } finally {
+    repositoriesLoading = false;
+  }
+}
+
+async function controlRepository(button) {
+  button.disabled = true;
+  try {
+    await api(`/api/github/repositories/${encodeURIComponent(button.dataset.id)}/${button.dataset.repositoryAction}`, {method:'POST',timeout:10000});
+    setTimeout(refreshGithubRepositories, 300);
+  } catch (error) {
+    $('#github-message').innerHTML = `<p>${e(error.message)}</p>`;
+    button.disabled = false;
   }
 }
 
@@ -285,6 +346,7 @@ function render(snapshot) {
     $(`#${name}-content`).innerHTML = utilityPlaceholder(name);
   }
   if (layout.includes('docker')) refreshDockerPanel();
+  if (layout.includes('github')) refreshGithubRepositories();
 }
 
 async function refresh() {
@@ -298,6 +360,11 @@ async function refresh() {
   } finally {
     setTimeout(refresh, document.hidden ? 15000 : 5000);
   }
+}
+
+async function wakeUpstream() {
+  try { await api('/api/refresh', {method:'POST', timeout:3000}); }
+  catch { /* The normal dashboard poll reports connection failures. */ }
 }
 
 async function openDetail(button) {
@@ -332,6 +399,11 @@ async function openDetail(button) {
 }
 
 $('#overview').addEventListener('click', event => {
+  const repositoryButton = event.target.closest('[data-repository-action]');
+  if (repositoryButton && !repositoryButton.disabled) {
+    controlRepository(repositoryButton);
+    return;
+  }
   const dockerButton = event.target.closest('[data-docker-action]');
   if (dockerButton && !dockerButton.disabled) {
     controlDocker(dockerButton);
@@ -451,5 +523,12 @@ function clock() {
 
 clock();
 setInterval(clock, 1000);
+await wakeUpstream();
 refresh();
 refreshTunnels();
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) wakeUpstream();
+});
+setInterval(() => {
+  if (!document.hidden) refreshGithubRepositories();
+}, 5000);
