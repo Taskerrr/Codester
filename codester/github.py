@@ -37,10 +37,14 @@ def snapshot(config: dict, token: str) -> dict:
     browser_url = (config.get("browser_url") or "https://github.com").rstrip("/")
     now = datetime.now(UTC)
     calendar_start = (now - timedelta(days=181)).date().isoformat() + "T00:00:00Z"
-    graph = post_json(
-        graphql_url(api_url),
-        {
-            "query": """
+    organization = config.get("organization", "")
+    graph = (
+        organization_calendar(api_url, request_headers, now)
+        if organization
+        else post_json(
+            graphql_url(api_url),
+            {
+                "query": """
               query CodesterActivity($from: DateTime!, $to: DateTime!) {
                 viewer {
                   login
@@ -53,9 +57,10 @@ def snapshot(config: dict, token: str) -> dict:
                 }
               }
             """,
-            "variables": {"from": calendar_start, "to": now.isoformat()},
-        },
-        request_headers,
+                "variables": {"from": calendar_start, "to": now.isoformat()},
+            },
+            request_headers,
+        )
     )
     if graph.get("errors"):
         raise IntegrationError("GitHub could not read contribution history. Check token access.")
@@ -81,7 +86,39 @@ def snapshot(config: dict, token: str) -> dict:
         normalized_days.append({"date": day["date"], "count": count})
 
     configured = config.get("repositories", [])
-    if configured:
+    repository_results_limited = False
+    if organization:
+        repositories = []
+        for page in range(1, 11):
+            batch = get_json(
+                api_url + "/orgs/" + quote(organization, safe="") + "/repos",
+                request_headers,
+                {
+                    "type": "all",
+                    "sort": "pushed",
+                    "direction": "desc",
+                    "per_page": 100,
+                    "page": page,
+                },
+            )
+            if not isinstance(batch, list):
+                raise IntegrationError("GitHub returned an unsupported repository response.")
+            # Enforce the owner boundary even if an upstream response is unexpected.
+            for repository in batch:
+                if (
+                    not isinstance(repository, dict)
+                    or not isinstance(repository.get("full_name"), str)
+                    or repository["full_name"].split("/")[0].casefold() != organization.casefold()
+                ):
+                    raise IntegrationError(
+                        "GitHub returned a repository outside the chosen organisation."
+                    )
+            repositories.extend(batch)
+            if len(batch) < 100:
+                break
+        else:
+            repository_results_limited = True
+    elif configured:
         repositories = [
             get_json(
                 api_url + "/repos/" + quote(repository["repo"], safe="/"),
@@ -106,7 +143,7 @@ def snapshot(config: dict, token: str) -> dict:
     commit_counts_by_date: dict[str, int] = {}
     commit_results_limited = False
     repos = []
-    for repository in repositories[:3]:
+    for repository in repositories:
         if not isinstance(repository, dict) or not isinstance(repository.get("full_name"), str):
             raise IntegrationError("GitHub returned an unsupported repository response.")
         full_name = repository["full_name"]
@@ -121,6 +158,7 @@ def snapshot(config: dict, token: str) -> dict:
                     "per_page": 100,
                     "page": page,
                 },
+                allow_empty_repository=True,
             )
             if not isinstance(batch, list):
                 raise IntegrationError("GitHub returned an unsupported commit response.")
@@ -138,9 +176,7 @@ def snapshot(config: dict, token: str) -> dict:
             except (KeyError, TypeError, ValueError, AttributeError):
                 continue
             committed_date = committed.date().isoformat()
-            commit_counts_by_date[committed_date] = (
-                commit_counts_by_date.get(committed_date, 0) + 1
-            )
+            commit_counts_by_date[committed_date] = commit_counts_by_date.get(committed_date, 0) + 1
             index = (committed.date() - spark_start.date()).days
             if 0 <= index < len(counts):
                 counts[index] += 1
@@ -155,7 +191,7 @@ def snapshot(config: dict, token: str) -> dict:
             }
         )
     calendar_source = "github"
-    if total == 0 and any(commit_counts_by_date.values()):
+    if organization or (total == 0 and any(commit_counts_by_date.values())):
         normalized_days = [
             {"date": day["date"], "count": commit_counts_by_date.get(day["date"], 0)}
             for day in normalized_days
@@ -167,8 +203,40 @@ def snapshot(config: dict, token: str) -> dict:
         "total": total,
         "days": normalized_days,
         "calendar_source": calendar_source,
-        "calendar_limited": calendar_source == "repository_commits" and commit_results_limited,
+        "calendar_limited": calendar_source == "repository_commits"
+        and (commit_results_limited or repository_results_limited),
         "calendar_repository_count": len(repos),
-        "repositories": repos,
+        "organization": organization,
+        "repositories": repos[:3],
         "url": browser_url + "/" + quote(login, safe=""),
+    }
+
+
+def organization_calendar(api_url: str, request_headers: dict, now: datetime) -> dict:
+    """Start a commit-only calendar without fetching account-wide contributions."""
+    viewer = get_json(api_url + "/user", request_headers)
+    if not isinstance(viewer, dict) or not isinstance(viewer.get("login"), str):
+        raise IntegrationError("GitHub returned an unsupported user response.")
+    return {
+        "data": {
+            "viewer": {
+                "login": viewer["login"],
+                "contributionsCollection": {
+                    "contributionCalendar": {
+                        "totalContributions": 0,
+                        "weeks": [
+                            {
+                                "contributionDays": [
+                                    {
+                                        "date": (now - timedelta(days=offset)).date().isoformat(),
+                                        "contributionCount": 0,
+                                    }
+                                    for offset in range(181, -1, -1)
+                                ]
+                            }
+                        ],
+                    }
+                },
+            }
+        }
     }

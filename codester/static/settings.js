@@ -88,6 +88,7 @@ function fill(data) {
   $('#clear-key').checked = false;
   $('#key-note').textContent = data.signoz.has_key ? 'A key is saved. Leave blank to keep it, or enter a replacement.' : 'No key saved. Use a query API key, not an ingestion key.';
   $('#github-token').value = '';
+  $('#github-organization').value = data.github.organization || '';
   $('#clear-github-token').checked = false;
   $('#github-token-note').textContent = data.github.has_token ? 'Token saved · leave blank to keep it.' : 'No token saved.';
   $('#repository-list').replaceChildren();
@@ -125,6 +126,7 @@ function read() {
     remote_port:Number(row.querySelector('[data-tunnel-field="remote_port"]').value),
   }));
   data.github.token=$('#github-token').value;
+  data.github.organization=$('#github-organization').value.trim();
   data.github.clear_token=$('#clear-github-token').checked;
   data.github.repositories=Array.from(document.querySelectorAll('.repository-config')).map(row => ({
     id:row.dataset.id,

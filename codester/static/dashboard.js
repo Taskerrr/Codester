@@ -1,4 +1,4 @@
-import {$, api, escape as e, duration, ago, compactTime, codexTrustNotice} from './common.js';
+import {$, api, escape as e, duration, ago, compactTime} from './common.js';
 
 let latest;
 let detailTrigger;
@@ -60,7 +60,6 @@ function codex(data) {
   </div>`).join('');
   return `<div class="hero-rings codex-rings">${windows || empty('Usage unavailable')}</div>
     ${sectionHeading('Recent activity')}
-    ${codexTrustNotice(data.integration)}
     <div class="recent-list">${tasks || empty('No recent activity')}</div>`;
 }
 
@@ -174,7 +173,7 @@ function github(data) {
   return `<div class="github-hero">
       <div class="contribution-wrap"><div class="contribution-months">${months}</div><div class="contribution-grid">${calendar}</div></div>
     </div>
-    ${sectionHeading('Recent repositories', data.login || '')}
+    ${sectionHeading('Recent repositories', data.organization || data.login || '')}
     <div class="repo-list">${repositories || empty('No repositories')}</div>`;
 }
 

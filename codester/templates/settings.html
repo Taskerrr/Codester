@@ -60,11 +60,13 @@
     <label class="toggle"><input id="github-enabled" type="checkbox"> Monitor GitHub</label>
     <div class="form-grid"><label>API base URL<input id="github-api_url" type="url" placeholder="https://api.github.com" autocomplete="off"></label>
     <label>Browser base URL<input id="github-browser_url" type="url" placeholder="https://github.com" autocomplete="off"></label></div>
+    <label>Organisation <span class="optional">optional</span><input id="github-organization" type="text" maxlength="39" placeholder="TMPlant" autocomplete="off"></label>
+    <p class="help">Set an organisation to count your default-branch commits across its token-visible repositories. Personal repositories are excluded. The three latest repositories get charts. Leave blank for your account calendar and three selected or recent repositories.</p>
     <label>Personal access token<input id="github-token" type="password" placeholder="github_pat_…" autocomplete="new-password"></label>
     <p id="github-token-note" class="help">No token saved.</p>
     <label class="toggle"><input id="clear-github-token" type="checkbox"> Remove saved token</label>
     <button type="button" class="secondary-button test" data-service="github">Test connection</button><p id="github-test" role="status" class="test-result"></p>
-    <p class="help">Full calendar: classic token with <code>read:user</code>. Fine-grained tokens use visible repository commits.</p>
+    <p class="help">Organisation mode needs repository Contents read access. Account calendar: classic token with <code>read:user</code>; when empty, visible repository commits are used. Only repositories accessible to the saved token can be counted.</p>
     <h3>Repository actions</h3>
     <p class="help">Up to three local checkouts. Push uses Git; Deploy runs the saved command from that checkout.</p>
     <div id="repository-list" class="repository-list"></div>

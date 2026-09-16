@@ -1,5 +1,14 @@
 # Codester
 
+GitHub settings include an optional **Organisation** name. When set, the calendar counts
+your authored default-branch commits over 182 days across repositories visible to the token
+in that organisation, excluding personal repositories. The three most recently pushed
+repositories have charts; local repository actions do not limit the organisation calendar.
+Empty repositories count as zero activity. Queries are capped at 1,000 repositories and
+300 commits per repository; reaching either cap marks the results as partial. This is a
+commit calendar, not GitHub's full contribution calendar (issues, reviews and pull requests).
+The token needs access to the organisation's repositories and Contents read permission.
+
 A private, local dashboard for Codex subscription usage, Dagster runs, SigNoz service health, and local Docker containers. Designed for a 2560 × 720 touchscreen, with responsive layouts for other screens. Each developer runs their own instance and saves their own connections.
 
 ## Start locally

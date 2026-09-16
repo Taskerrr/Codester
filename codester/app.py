@@ -173,6 +173,14 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
                 else "Connected · repo commits shown. For the full calendar, use a classic "
                 "token with read:user."
             )
+            if data.get("organization"):
+                message = (
+                    f"Connected to {data['organization']}: your commits across "
+                    f"{data['calendar_repository_count']} token-visible repositories. "
+                    "Personal repositories excluded; three latest shown."
+                )
+            if data.get("calendar_limited"):
+                message += " Results are partial: a repository or commit query limit was reached."
         return jsonify(ok=True, message=message)
 
     @app.post("/api/signoz/services")

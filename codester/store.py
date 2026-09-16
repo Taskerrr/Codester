@@ -30,6 +30,7 @@ DEFAULTS: dict = {
         "enabled": False,
         "api_url": "https://api.github.com",
         "browser_url": "https://github.com",
+        "organization": "",
         "repositories": [],
     },
     "tunnels": [],
@@ -184,6 +185,12 @@ def validate(data: object) -> dict:
             }
         )
     result["signoz"]["error_service"] = service_name(data["signoz"].get("error_service", ""))
+    organization = data["github"].get("organization", "")
+    if not isinstance(organization, str) or (
+        organization.strip() and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}", organization.strip())
+    ):
+        raise ConfigurationError("Enter a GitHub organisation name, not a URL.")
+    result["github"]["organization"] = organization.strip()
     repositories = data["github"].get("repositories", [])
     if not isinstance(repositories, list) or len(repositories) > 3:
         raise ConfigurationError("Add no more than three GitHub repositories.")
@@ -306,6 +313,7 @@ class Store:
         data.setdefault("tunnels", [])
         data.setdefault("github", copy.deepcopy(DEFAULTS["github"]))
         data["github"].setdefault("repositories", [])
+        data["github"].setdefault("organization", "")
         for tunnel in data["tunnels"]:
             tunnel.setdefault("id", tunnel_identifier(tunnel))
             tunnel.setdefault("auth", "agent")

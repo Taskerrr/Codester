@@ -62,7 +62,7 @@ def test_github_activity_and_repository_sparklines(monkeypatch):
     )
     calls = []
 
-    def get(url, headers, params):
+    def get(url, headers, params, **kwargs):
         calls.append((url, params))
         if url.endswith("/user/repos"):
             return [
@@ -122,7 +122,7 @@ def test_github_uses_visible_repository_commits_when_private_calendar_is_empty(m
         },
     )
 
-    def get(url, headers, params):
+    def get(url, headers, params, **kwargs):
         if url.endswith("/user/repos"):
             return [{"full_name": "jack/private", "private": True}]
         return [{"commit": {"author": {"date": f"{today}T12:00:00Z"}}}]
@@ -240,6 +240,19 @@ def test_signoz_missing_values_never_become_zero():
         signoz.scalar([], "missing")
     with pytest.raises(IntegrationError):
         signoz.table_rows({"data": [["mismatch"]], "columns": []})
+
+
+@pytest.mark.parametrize("rows", [None, []])
+def test_signoz_empty_raw_results_are_not_connection_failures(rows):
+    result = {"queryName": "errors", "nextCursor": "", "rows": rows}
+    assert signoz.table_rows(result) == []
+    assert signoz.error_rows(CONFIG, [result]) == []
+
+
+@pytest.mark.parametrize("rows", [{}, "invalid", [None], [{"data": None}]])
+def test_signoz_malformed_raw_results_still_fail(rows):
+    with pytest.raises(IntegrationError, match="invalid raw rows"):
+        signoz.table_rows({"rows": rows})
 
 
 def test_signoz_requires_query_key():

@@ -59,6 +59,9 @@ def table_rows(result: dict) -> list[dict]:
     """Decode native v5 scalar columns/data and raw timestamp/data rows."""
     if "rows" in result:
         rows = result["rows"]
+        # SigNoz serializes an empty raw result's row slice as JSON null.
+        if rows is None:
+            return []
         if not isinstance(rows, list) or any(
             not isinstance(r, dict) or not isinstance(r.get("data"), dict) for r in rows
         ):
