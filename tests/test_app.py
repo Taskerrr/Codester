@@ -253,7 +253,8 @@ def test_private_permissions(tmp_path):
         pytest.skip("POSIX modes do not describe Windows ACLs")
     Store(tmp_path)
     assert (tmp_path.stat().st_mode & 0o777) == 0o700
-    assert ((tmp_path / "secret.key").stat().st_mode & 0o777) == 0o600
+    assert ((tmp_path / "settings.sqlite").stat().st_mode & 0o777) == 0o600
+    assert not (tmp_path / "secret.key").exists()
 
 
 def test_service_discovery_uses_saved_real_connection(app, client, monkeypatch):

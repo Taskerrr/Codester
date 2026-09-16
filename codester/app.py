@@ -14,6 +14,7 @@ from werkzeug.exceptions import HTTPException
 
 from codester import codex, dagster, demo, docker_engine, signoz
 from codester.codex_events import ActivityEvents
+from codester.credentials import CredentialStoreError
 from codester.poller import INTERVALS, Poller
 from codester.repositories import RepositoryManager
 from codester.store import METRICS, ConfigurationError, Store
@@ -69,6 +70,8 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
             return jsonify(error=str(exc)), 502
         if isinstance(exc, ConfigurationError):
             return jsonify(error=str(exc)), 400
+        if isinstance(exc, CredentialStoreError):
+            return jsonify(error=str(exc)), 503
         return jsonify(
             error="Request failed. Check local configuration and integration compatibility."
         ), 500

@@ -1,5 +1,7 @@
 # Codester design
 
+Settings uses labelled icon tabs for Display, Codex, Dagster, SigNoz, GitHub, Docker, PostgreSQL and SSH tunnels. On tablets and desktop, tabs form a left rail; below 650px they form two compact rows above the selected panel. Only the selected panel scrolls. Navigation and the shared Save settings action stay visible. Display keeps the three ordered dashboard app choices together with visible app names. Switching tabs preserves edits, and validation reveals the section containing an invalid field. All tab targets are at least 44px and support arrow keys, Home and End.
+
 The dashboard is a full-height ultrawide instrument display with a narrow clock/launcher rail on the left and three configurable app channels. There is no dashboard header, marketing text, or freshness footer. Settings sits at the top of the overview rail.
 
 Use a nearly black neutral background with subtle vertical dividers. Vibrant mint/cyan Codex data, purple Dagster data, and orange SigNoz data. Color belongs on graphs, meters, and activity indicators, not large panel backgrounds. Service logos carry identity. Clock and numbers have monospaced/tabular typography. Minimal labels identify units, usage windows, recent tasks, and errors. Stale and offline states remain explicit. Demo mode is managed from Settings without adding a label to the display.
@@ -7,3 +9,5 @@ Use a nearly black neutral background with subtle vertical dividers. Vibrant min
 At 2560 × 720 and equivalent scaled viewports, fill the display without page scroll. Settings chooses three unique apps and their left-to-right order; Codex, Dagster, and SigNoz are the defaults. Codex uses two quota rings and a three-row activity list. Dagster uses running/queued rings above recent jobs and errors. SigNoz uses two current readings above five-minute Top apps and errors. Docker can show a compact overview and opens a dedicated container-management screen. Individual channels can scroll. On mobile, the clock rail becomes a horizontal summary above stacked channels. Touch targets remain at least 44px, keyboard focus is visible, and reduced-motion preferences stop spinners. Spinners indicate confirmed Dagster execution only; Codex local history remains labelled Recent activity.
 
 Top apps uses incoming SERVER-span request rates from the last five minutes. Tapping an error expands details across the display with Back and a source link.
+
+SSH tunnels use collapsible rows with name, server, forwarding ports and live SSH status. Saved rows start closed; new and duplicated rows open for editing. Test, Duplicate and Delete stay accessible while collapsed. Duplication reuses credentials securely and selects a different local port. Expanding or duplicating a row does not initiate a connection.

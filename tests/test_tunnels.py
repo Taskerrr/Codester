@@ -1,10 +1,31 @@
 import copy
+import os
+from unittest.mock import Mock
 
 import pytest
 
 from codester.store import DEFAULTS, ConfigurationError, validate
 from codester.transport import IntegrationError
-from codester.tunnels import TunnelManager
+from codester.tunnels import TunnelManager, password_helper
+
+
+def test_helper_found_without_environment_activation(monkeypatch, tmp_path):
+    scripts = tmp_path / "Scripts with spaces"
+    scripts.mkdir()
+    helper = scripts / ("codester-askpass.exe" if os.name == "nt" else "codester-askpass")
+    helper.write_text("test helper")
+    helper.chmod(0o700)
+    monkeypatch.setattr("codester.tunnels.sysconfig.get_path", lambda name: str(scripts))
+    monkeypatch.setattr("codester.tunnels.shutil.which", lambda name: None)
+    assert password_helper() == str(helper.resolve())
+
+
+def test_helper_uses_path_only_when_local_entry_is_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr("codester.tunnels.sysconfig.get_path", lambda name: str(tmp_path))
+    monkeypatch.setattr("codester.tunnels.shutil.which", lambda name: "/installed/helper")
+    assert password_helper() == "/installed/helper"
+    monkeypatch.setattr("codester.tunnels.shutil.which", lambda name: None)
+    assert password_helper() is None
 
 
 def tunnel(**changes):
@@ -65,6 +86,7 @@ def test_manager_builds_loopback_forward_and_stops(monkeypatch, tmp_path):
 
     status = manager.connect()
     assert status["desired"] is True
+    assert status["tunnels"][0]["id"] == tunnel()["id"]
     command, options = commands[0]
     assert "BatchMode=yes" in command
     assert "ServerAliveInterval=30" in command
@@ -165,3 +187,25 @@ def test_connection_test_reports_openssh_failure(monkeypatch, tmp_path):
     manager.askpass = "/app/.venv/bin/codester-askpass"
     with pytest.raises(IntegrationError, match="Permission denied"):
         manager.test("1234567890abcdef")
+
+
+def test_editing_tunnels_preserves_unmodified_connections(tmp_path):
+    first = tunnel()
+    second = tunnel(id="abcdef1234567890", name="Database", local_port=15432)
+    manager = TunnelManager(tmp_path, [first], autostart=False)
+    process = Mock()
+    process.poll.return_value = None
+    manager.items[first["name"]]["process"] = process
+    manager.items[first["name"]]["ever_connected"] = True
+    manager.configure([first, second])
+    process.terminate.assert_not_called()
+    assert manager.items[first["name"]]["process"] is process
+    assert manager.items[first["name"]]["ever_connected"] is True
+    manager.configure([dict(first, local_port=3418), second])
+    process.terminate.assert_called_once()
+    assert manager.items[first["name"]]["process"] is None
+    replacement = Mock()
+    replacement.poll.return_value = None
+    manager.items[second["name"]]["process"] = replacement
+    manager.configure([dict(first, local_port=3418)])
+    replacement.terminate.assert_called_once()

@@ -2,6 +2,61 @@ import {$, api, codexTrustNotice} from './common.js';
 let saved;
 let dashboardApps = [];
 let editingSlot = null;
+let tunnelStatusRows = null;
+let tunnelStatusLoading = false;
+const tabs = [...document.querySelectorAll('[data-settings-tab]')];
+const tabAliases = {'dashboard-layout':'display', 'ssh-tunnels':'tunnels'};
+function showTab(name, focus = false) {
+  name = tabAliases[name] || name;
+  if (!tabs.some(tab => tab.dataset.settingsTab === name)) name = 'display';
+  for (const tab of tabs) {
+    const selected = tab.dataset.settingsTab === name;
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    document.getElementById(tab.getAttribute('aria-controls')).hidden = !selected;
+    if (selected && focus) tab.focus();
+  }
+  history.replaceState(null, '', `#${name}`);
+  if (name === 'tunnels') refreshTunnelStatus();
+}
+for (const tab of tabs) {
+  tab.addEventListener('click', () => showTab(tab.dataset.settingsTab));
+  tab.addEventListener('keydown', event => {
+    const horizontal = document.querySelector('.settings-tabs').getAttribute('aria-orientation') === 'horizontal';
+    const forward = horizontal ? 'ArrowRight' : 'ArrowDown';
+    const back = horizontal ? 'ArrowLeft' : 'ArrowUp';
+    if (![forward, back, 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+      : (tabs.indexOf(tab) + (event.key === forward ? 1 : -1) + tabs.length) % tabs.length;
+    showTab(tabs[index].dataset.settingsTab, true);
+  });
+}
+const narrowSettings = matchMedia('(max-width: 650px)');
+function orientTabs() {
+  document.querySelector('.settings-tabs').setAttribute('aria-orientation', narrowSettings.matches ? 'horizontal' : 'vertical');
+}
+narrowSettings.addEventListener('change', orientTabs);
+orientTabs();
+showTab(location.hash.slice(1));
+window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
+for (const button of document.querySelectorAll('[data-open-settings]')) {
+  button.addEventListener('click', () => showTab(button.dataset.openSettings, true));
+}
+function validateSettings() {
+  const invalid = [...$('#settings-form').elements].find(field => field.willValidate && !field.validity.valid);
+  if (!invalid) return true;
+  const panel = invalid.closest('[role="tabpanel"]');
+  if (panel) showTab(panel.id.replace('settings-', ''));
+  const tunnel = invalid.closest('.tunnel-config');
+  if (tunnel) expandTunnel(tunnel, true);
+  for (let parent = invalid.parentElement; parent; parent = parent.parentElement) {
+    if (parent.tagName === 'DETAILS') parent.open = true;
+  }
+  invalid.focus();
+  invalid.reportValidity();
+  return false;
+}
 async function refreshCodexTrustNotice() {
   try {
     const activity = await api('/api/codex/activity', {timeout:3000});
@@ -28,6 +83,7 @@ function renderDashboardApps() {
     const source = app ? document.querySelector(`[data-app-choice="${app}"]`) : null;
     const glyph = slot.querySelector('.slot-glyph');
     glyph.replaceChildren(source ? source.firstElementChild.cloneNode(true) : document.createTextNode('+'));
+    slot.querySelector('.slot-label').textContent = source ? source.textContent.trim() : 'Choose app';
     slot.classList.toggle('editing', editingSlot === index);
     slot.title = source ? source.textContent.trim() : 'Choose an app';
     slot.setAttribute('aria-label', `Column ${index + 1}: ${source ? source.textContent.trim() : 'empty'}`);
@@ -38,25 +94,149 @@ function renderDashboardApps() {
     choice.disabled = selectedAt >= 0 && selectedAt !== editingSlot;
   }
 }
+function expandTunnel(row, open) {
+  row.querySelector('.tunnel-editor').hidden = !open;
+  row.querySelector('.tunnel-expand').setAttribute('aria-expanded', String(open));
+}
+function renderTunnelStatus(row) {
+  const badge = row.querySelector('.tunnel-live-status');
+  const original = saved?.tunnels.find(item => item.id === row.dataset.id);
+  const fields = ['ssh_host', 'ssh_port', 'username', 'auth', 'local_port', 'remote_host', 'remote_port'];
+  const changed = original && (fields.some(field => String(original[field]) !== row.querySelector(`[data-tunnel-field="${field}"]`).value)
+    || row.querySelector('[data-tunnel-field="password"]').value || row.dataset.credentialSource);
+  const live = tunnelStatusRows?.find(item => item.id === row.dataset.id);
+  const labels = {connected:'Connected', connecting:'Connecting', reconnecting:'Reconnecting', disconnected:'Disconnected', error:'Connection failed'};
+  badge.textContent = !original ? 'Not saved' : changed ? 'Unsaved changes' : tunnelStatusRows === null ? 'Status unavailable' : labels[live?.state] || 'Checking connection';
+  badge.dataset.state = !original || changed ? 'draft' : live?.state || 'unknown';
+  badge.title = !original || changed ? 'Save to apply this tunnel configuration.' : live?.message || 'SSH session status; does not measure traffic or database activity.';
+}
+async function refreshTunnelStatus() {
+  if (tunnelStatusLoading || document.hidden || $('#settings-tunnels').hidden) return;
+  tunnelStatusLoading = true;
+  try {
+    const state = await api('/api/tunnels', {timeout:4000});
+    if (!Array.isArray(state.tunnels)) throw new Error('Invalid tunnel status');
+    tunnelStatusRows = state.tunnels;
+  } catch { tunnelStatusRows = null; }
+  finally {
+    tunnelStatusLoading = false;
+    for (const row of document.querySelectorAll('.tunnel-config')) renderTunnelStatus(row);
+  }
+}
+setInterval(refreshTunnelStatus, 5000);
+function refreshServerChoices() {
+  for (const row of document.querySelectorAll('.tunnel-config')) {
+    const choice = row.querySelector('.tunnel-server-choice');
+    const selected = choice.value;
+    choice.replaceChildren(new Option('Choose a server', ''));
+    for (const source of saved?.tunnels || []) {
+      if (source.id === row.dataset.id || (source.auth === 'password' && !source.has_password)) continue;
+      choice.add(new Option(`${source.name} · ${source.username}@${source.ssh_host}`, source.id));
+    }
+    choice.value = selected;
+    row.querySelector('.tunnel-server-picker').hidden = choice.options.length === 1;
+  }
+}
 function addTunnel(data = {}) {
   const row = $('#tunnel-template').content.firstElementChild.cloneNode(true);
   row.dataset.id = data.id || crypto.randomUUID();
-  const defaults = {name:'', ssh_host:'', username:'', ssh_port:22, auth:'agent', password:'', local_port:'', remote_host:'127.0.0.1', remote_port:''};
+  row.dataset.hasPassword = String(Boolean(data.has_password));
+  if (data.credential_source) row.dataset.credentialSource = data.credential_source;
+  const defaults = {name:'', ssh_host:'', username:'', ssh_port:22, auth:'password', password:'', local_port:'', remote_host:'localhost', remote_port:''};
   for (const [field, fallback] of Object.entries(defaults)) row.querySelector(`[data-tunnel-field="${field}"]`).value = data[field] ?? fallback;
+  const fieldInput = name => row.querySelector(`[data-tunnel-field="${name}"]`);
+  row.querySelector('.tunnel-editor').id = `tunnel-editor-${row.dataset.id}`;
+  row.querySelector('.tunnel-expand').setAttribute('aria-controls', row.querySelector('.tunnel-editor').id);
+  row.querySelector('.tunnel-expand').addEventListener('click', () => expandTunnel(row, row.querySelector('.tunnel-editor').hidden));
+  expandTunnel(row, !data.id);
+  row.querySelector('.tunnel-advanced').open = Number(fieldInput('ssh_port').value) !== 22;
+  const shortcuts = [...row.querySelectorAll('[data-fill-field]')];
+  const updateShortcuts = () => {
+    for (const button of shortcuts) {
+      const source = button.dataset.copyField;
+      button.disabled = Boolean(source && (!fieldInput(source).value || !fieldInput(source).validity.valid));
+    }
+  };
+  for (const button of shortcuts) button.addEventListener('click', () => {
+    const target = fieldInput(button.dataset.fillField);
+    target.value = button.dataset.copyField ? fieldInput(button.dataset.copyField).value : button.dataset.fillValue;
+    target.dispatchEvent(new Event('input', {bubbles:true}));
+    target.focus();
+  });
+  row.addEventListener('input', updateShortcuts);
+  updateShortcuts();
   const auth = row.querySelector('[data-tunnel-field="auth"]');
   const password = row.querySelector('[data-tunnel-field="password"]');
   const updateAuth = () => {
     row.querySelector('.tunnel-password').hidden = auth.value !== 'password';
-    password.required = auth.value === 'password' && !data.has_password;
-    password.placeholder = data.has_password ? 'Saved · enter to replace' : 'Enter password';
+    row.querySelector('.tunnel-agent-note').hidden = auth.value !== 'agent';
+    row.querySelector('.tunnel-auth-fields').classList.toggle('with-password', auth.value === 'password');
+    const hasPassword = row.dataset.hasPassword === 'true' || Boolean(row.dataset.credentialSource);
+    password.required = auth.value === 'password' && !hasPassword;
+    password.placeholder = row.dataset.credentialSource ? 'Using saved server password' : hasPassword ? 'Saved · enter to replace' : 'Enter password';
   };
+  const serverChoice = row.querySelector('.tunnel-server-choice');
+  for (const field of ['ssh_host', 'ssh_port', 'username', 'auth']) {
+    fieldInput(field).addEventListener('input', () => {
+      delete row.dataset.credentialSource;
+      serverChoice.value = '';
+      updateAuth();
+    });
+  }
   auth.addEventListener('change', updateAuth);
+  row.addEventListener('credential-saved', updateAuth);
+  serverChoice.addEventListener('change', () => {
+    const source = saved?.tunnels.find(item => item.id === serverChoice.value);
+    delete row.dataset.credentialSource;
+    if (source) {
+      for (const field of ['ssh_host', 'ssh_port', 'username', 'auth']) fieldInput(field).value = source[field];
+      password.value = '';
+      if (source.auth === 'password' && source.has_password) row.dataset.credentialSource = source.id;
+      row.querySelector('.tunnel-advanced').open = Number(source.ssh_port) !== 22;
+      $('#save-note').textContent='Unsaved changes';
+    }
+    updateAuth();
+    updateSummary();
+  });
   updateAuth();
-  row.querySelector('.tunnel-title').textContent = data.name || 'New forward';
-  row.querySelector('[data-tunnel-field="name"]').addEventListener('input', event => { row.querySelector('.tunnel-title').textContent = event.target.value || 'New forward'; });
+  const updateSummary = () => {
+    const name = fieldInput('name').value || 'unnamed tunnel';
+    row.setAttribute('aria-label', name);
+    row.querySelector('.tunnel-summary-name').textContent = fieldInput('name').value || 'New tunnel';
+    row.querySelector('.tunnel-summary-route').textContent = `${fieldInput('ssh_host').value || 'Choose host'}:${fieldInput('ssh_port').value || '22'} · :${fieldInput('local_port').value || '…'} → ${fieldInput('remote_host').value || 'localhost'}:${fieldInput('remote_port').value || '…'}`;
+    row.querySelector('.test-tunnel').setAttribute('aria-label', `Test connection: ${name}`);
+    row.querySelector('.duplicate-tunnel').setAttribute('aria-label', `Duplicate tunnel: ${name}`);
+    row.querySelector('.remove-tunnel').setAttribute('aria-label', `Delete tunnel: ${name}`);
+    renderTunnelStatus(row);
+  };
+  row.addEventListener('input', updateSummary);
+  updateSummary();
+  row.querySelector('.duplicate-tunnel').addEventListener('click', () => {
+    if (document.querySelectorAll('.tunnel-config').length >= 20) { message('You can save up to 20 tunnels.', true); return; }
+    const copy = {};
+    for (const field of Object.keys(defaults)) copy[field] = fieldInput(field).value;
+    const names = new Set([...document.querySelectorAll('[data-tunnel-field="name"]')].map(input => input.value.toLowerCase()));
+    const base = (copy.name || 'Tunnel').slice(0, 65);
+    copy.name = `${base} copy`;
+    for (let n = 2; names.has(copy.name.toLowerCase()); n++) copy.name = `${base} copy ${n}`;
+    const ports = new Set([...document.querySelectorAll('[data-tunnel-field="local_port"]')].map(input => Number(input.value)));
+    let port = Number(copy.local_port) || 1023;
+    do { port = port >= 65535 ? 1024 : port + 1; } while (ports.has(port));
+    copy.local_port = port;
+    const sourceId = row.dataset.credentialSource || row.dataset.id;
+    const source = saved?.tunnels.find(item => item.id === sourceId);
+    if (copy.auth === 'password' && !copy.password && source?.has_password
+      && ['ssh_host', 'ssh_port', 'username', 'auth'].every(field => String(source[field]) === String(copy[field]))) copy.credential_source = source.id;
+    const duplicate = addTunnel(copy);
+    row.after(duplicate);
+    duplicate.querySelector('[data-tunnel-field="name"]').focus();
+    $('#save-note').textContent='Unsaved changes';
+  });
   row.querySelector('.remove-tunnel').addEventListener('click', () => { row.remove(); $('#save-note').textContent='Unsaved changes'; });
   row.querySelector('.test-tunnel').addEventListener('click', () => testTunnel(row));
   $('#tunnel-list').append(row);
+  refreshServerChoices();
+  return row;
 }
 function addRepository(data = {}) {
   const row = $('#repository-template').content.firstElementChild.cloneNode(true);
@@ -120,6 +300,7 @@ function read() {
     auth:row.querySelector('[data-tunnel-field="auth"]').value,
     password:row.querySelector('[data-tunnel-field="password"]').value,
     clear_password:false,
+    credential_source:row.dataset.credentialSource || '',
     ssh_host:row.querySelector('[data-tunnel-field="ssh_host"]').value,
     username:row.querySelector('[data-tunnel-field="username"]').value,
     ssh_port:Number(row.querySelector('[data-tunnel-field="ssh_port"]').value),
@@ -139,23 +320,36 @@ function read() {
   return data;
 }
 async function saveSettings(refill = true) {
+  if (!validateSettings()) throw new Error('Check the highlighted field before saving.');
   $('#save').disabled = true;
   $('#save').textContent = 'Saving…';
   try {
     saved=await api('/api/settings',{method:'PUT',body:JSON.stringify(read())});
-    if (refill) fill(saved);
+    tunnelStatusRows = null;
+    $('#settings-status').hidden = true;
+    if (refill) {
+      const expanded = new Set([...document.querySelectorAll('.tunnel-config')].filter(row => !row.querySelector('.tunnel-editor').hidden).map(row => row.dataset.id));
+      fill(saved);
+      for (const row of document.querySelectorAll('.tunnel-config')) expandTunnel(row, expanded.has(row.dataset.id));
+    }
     else {
       $('#signoz-key').value='';
       $('#github-token').value='';
       for (const row of document.querySelectorAll('.tunnel-config')) {
         const input=row.querySelector('[data-tunnel-field="password"]');
         const tunnel=saved.tunnels.find(item=>item.id === row.dataset.id);
+        row.dataset.hasPassword = String(Boolean(tunnel?.has_password));
+        delete row.dataset.credentialSource;
+        row.querySelector('.tunnel-server-choice').value = '';
+        row.dispatchEvent(new Event('credential-saved'));
         input.value='';
         input.required=row.querySelector('[data-tunnel-field="auth"]').value === 'password' && !tunnel?.has_password;
         input.placeholder=tunnel?.has_password ? 'Saved · enter to replace' : 'Enter password';
       }
+      refreshServerChoices();
     }
     $('#save-note').textContent='Saved';
+    refreshTunnelStatus();
     return saved;
   } finally {
     $('#save').disabled=false;
@@ -180,17 +374,34 @@ for (const choice of document.querySelectorAll('[data-app-choice]')) choice.addE
   const existing = dashboardApps.indexOf(app);
   if (existing >= 0 && existing !== editingSlot) [dashboardApps[editingSlot], dashboardApps[existing]] = [dashboardApps[existing], dashboardApps[editingSlot]];
   else dashboardApps[editingSlot] = app;
+  const chosenSlot = editingSlot;
   editingSlot = null;
   $('#app-picker').hidden = true;
   renderDashboardApps();
+  document.querySelector(`[data-slot="${chosenSlot}"]`).focus();
   $('#save-note').textContent='Unsaved changes';
 });
 $('#add-tunnel').addEventListener('click',()=> { addTunnel(); $('#save-note').textContent='Unsaved changes'; });
+$('#add-postgres-tunnel').addEventListener('click', () => {
+  showTab('tunnels');
+  const used = new Set([...document.querySelectorAll('[data-tunnel-field="local_port"]')].map(input => Number(input.value)));
+  let localPort = 15432;
+  while (used.has(localPort) && localPort < 65535) localPort++;
+  const names = new Set([...document.querySelectorAll('[data-tunnel-field="name"]')].map(input => input.value.toLowerCase()));
+  let name = 'PostgreSQL';
+  for (let suffix = 2; names.has(name.toLowerCase()); suffix++) name = `PostgreSQL ${suffix}`;
+  addTunnel({name, local_port:localPort, remote_port:5432});
+  const row = $('#tunnel-list').lastElementChild;
+  row.scrollIntoView({block:'start'});
+  row.querySelector('[data-tunnel-field="ssh_host"]').focus();
+  $('#save-note').textContent='Unsaved changes';
+});
 $('#add-repository').addEventListener('click',()=> { addRepository(); $('#save-note').textContent='Unsaved changes'; });
 async function testTunnel(row) {
   const button = row.querySelector('.test-tunnel');
   const result = row.querySelector('.tunnel-test');
-  if (!$('#settings-form').reportValidity()) return;
+  if (!validateSettings()) return;
+  expandTunnel(row, true);
   button.disabled = true;
   result.textContent = 'Testing…';
   try {
@@ -206,7 +417,7 @@ async function testTunnel(row) {
 async function testRepository(row) {
   const button=row.querySelector('.test-repository');
   const result=row.querySelector('.repository-test');
-  if (!$('#settings-form').reportValidity()) return;
+  if (!validateSettings()) return;
   button.disabled=true;
   result.textContent='Checking…';
   try {

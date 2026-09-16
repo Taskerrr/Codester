@@ -4,6 +4,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sysconfig
 import threading
 import time
 from pathlib import Path
@@ -11,6 +12,15 @@ from typing import Any
 
 from codester.store import ConfigurationError
 from codester.transport import IntegrationError
+
+
+def password_helper() -> str | None:
+    """Direct launches need not activate the environment or modify PATH."""
+    filename = "codester-askpass.exe" if os.name == "nt" else "codester-askpass"
+    installed = Path(sysconfig.get_path("scripts")) / filename
+    if installed.is_file() and os.access(installed, os.X_OK):
+        return str(installed.resolve())
+    return shutil.which("codester-askpass")
 
 
 class TunnelManager:
@@ -22,7 +32,7 @@ class TunnelManager:
             self.directory.chmod(0o700)
         self.known_hosts = self.directory / "known_hosts"
         self.ssh = shutil.which("ssh")
-        self.askpass = shutil.which("codester-askpass")
+        self.askpass = password_helper()
         self.lock = threading.RLock()
         self.wake = threading.Event()
         self.stopping = threading.Event()
@@ -38,9 +48,16 @@ class TunnelManager:
         with self.lock:
             if [item["config"] for item in self.items.values()] == tunnels:
                 return
-            self._stop_processes()
+            previous = {item["config"]["id"]: item for item in self.items.values()}
+            unchanged = {
+                tunnel["id"] for tunnel in tunnels
+                if tunnel["id"] in previous and previous[tunnel["id"]]["config"] == tunnel
+            }
+            for identifier, item in previous.items():
+                if identifier not in unchanged:
+                    self._stop_process(item)
             self.items = {
-                tunnel["name"]: {
+                tunnel["name"]: previous[tunnel["id"]] if tunnel["id"] in unchanged else {
                     "config": tunnel.copy(),
                     "process": None,
                     "started": None,
@@ -157,6 +174,7 @@ class TunnelManager:
                     state = "reconnecting"
                 rows.append(
                     {
+                        "id": item["config"]["id"],
                         "name": item["config"]["name"],
                         "local_port": item["config"]["local_port"],
                         "state": state,
@@ -244,7 +262,7 @@ class TunnelManager:
                 SSH_ASKPASS=self.askpass,
                 SSH_ASKPASS_REQUIRE="force",
                 DISPLAY=environment.get("DISPLAY", "codester"),
-                CODESTER_DATA_DIR=str(self.data_directory),
+                CODESTER_DATA_DIR=str(self.data_directory.resolve()),
                 CODESTER_SSH_SECRET=f"tunnel-password:{config['id']}",
             )
         return environment

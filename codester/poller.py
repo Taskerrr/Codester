@@ -5,6 +5,7 @@ import threading
 import time
 
 from codester import codex, dagster, demo, signoz
+from codester.credentials import CredentialStoreError
 from codester.github_activity import GitHubActivity
 from codester.store import Store
 from codester.transport import IntegrationError
@@ -40,7 +41,11 @@ class Poller:
         config = self.store.read()
         if config["demo"] or not config["github"]["enabled"]:
             return
-        saved = self.github_activity.cached(config["github"], self.store.secret("github"))
+        try:
+            saved = self.github_activity.cached(config["github"], self.store.secret("github"))
+        except CredentialStoreError as exc:
+            self.state["github"].update(status="error", message=str(exc))
+            return
         if saved is not None:
             self.state["github"].update(
                 status="stale",
@@ -93,7 +98,6 @@ class Poller:
             with self.lock:
                 generation = self.generation
                 config = self.store.read()
-                key = self.store.secret(name) if name in {"signoz", "github"} else ""
                 self.state[name].update(refreshing=True, next_refresh=None)
             result = {
                 "status": "disabled",
@@ -111,6 +115,7 @@ class Poller:
                         "data": demo.snapshot(name),
                     }
                 elif config[name]["enabled"]:
+                    key = self.store.secret(name) if name in {"signoz", "github"} else ""
                     data = self.fetch(name, config, key)
                     result = {
                         "status": "connected",
@@ -123,7 +128,7 @@ class Poller:
                 success = False
                 message = (
                     str(exc)
-                    if isinstance(exc, IntegrationError)
+                    if isinstance(exc, (IntegrationError, CredentialStoreError))
                     else "Unexpected response. Check integration compatibility."
                 )
                 with self.lock:

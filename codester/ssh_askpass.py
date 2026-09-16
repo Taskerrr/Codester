@@ -1,4 +1,4 @@
-"""Minimal OpenSSH askpass bridge into Codester's encrypted local secret store."""
+"""Minimal OpenSSH askpass bridge into Codester's configured credential store."""
 
 import os
 from pathlib import Path
