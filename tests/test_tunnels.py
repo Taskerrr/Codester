@@ -209,3 +209,62 @@ def test_editing_tunnels_preserves_unmodified_connections(tmp_path):
     manager.items[second["name"]]["process"] = replacement
     manager.configure([dict(first, local_port=3418)])
     replacement.terminate.assert_called_once()
+
+
+def test_individual_tunnels_remain_independent_through_reconcile_and_save(monkeypatch, tmp_path):
+    first = tunnel()
+    second = tunnel(id="abcdef1234567890", name="Database", local_port=15432)
+    processes = []
+
+    def popen(*args, **kwargs):
+        process = Mock()
+        process.poll.return_value = None
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr("codester.tunnels.subprocess.Popen", popen)
+    manager = TunnelManager(tmp_path, [first, second], autostart=False)
+    manager.ssh = "/usr/bin/ssh"
+    status = manager.connect(first["id"])
+    assert [row["desired"] for row in status["tunnels"]] == [True, False]
+    assert len(processes) == 1
+    manager.connect(second["id"])
+    manager.disconnect(first["id"])
+    processes[0].terminate.assert_called_once()
+    processes[1].terminate.assert_not_called()
+    manager._reconcile()
+    manager.configure([dict(first, name="Renamed"), second])
+    status = manager.status()
+    assert [row["desired"] for row in status["tunnels"]] == [False, True]
+    assert len(processes) == 2
+    assert status["desired"] is True
+    manager.disconnect()
+    assert not manager.status()["desired"]
+    manager._reconcile()
+    assert len(processes) == 2
+    manager.connect()
+    assert all(row["desired"] for row in manager.status()["tunnels"])
+    with pytest.raises(ConfigurationError, match="no longer exists"):
+        manager.disconnect("missing")
+
+
+def test_failed_individual_tunnel_does_not_retry_or_stop_other_tunnels(monkeypatch, tmp_path):
+    first = tunnel()
+    second = tunnel(id="abcdef1234567890", name="Database", local_port=15432)
+    failed = Mock(returncode=255)
+    failed.poll.return_value = 255
+    failed.communicate.return_value = (b"", b"Permission denied")
+    healthy = Mock()
+    healthy.poll.return_value = None
+    popen = Mock(side_effect=[failed, healthy])
+    monkeypatch.setattr("codester.tunnels.subprocess.Popen", popen)
+    manager = TunnelManager(tmp_path, [first, second], autostart=False)
+    manager.ssh = "/usr/bin/ssh"
+    manager.connect()
+    manager._reconcile()
+    manager._reconcile()
+    rows = manager.status()["tunnels"]
+    assert rows[0]["state"] == "error" and not rows[0]["desired"]
+    assert rows[1]["desired"]
+    assert popen.call_count == 2
+    healthy.terminate.assert_not_called()

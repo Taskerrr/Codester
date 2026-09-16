@@ -66,21 +66,33 @@ class TunnelManager:
                     "message": "",
                     "ever_connected": False,
                     "blocked": False,
+                    "desired": previous[tunnel["id"]]["desired"] if tunnel["id"] in previous else self.desired,
                 }
                 for tunnel in tunnels
             }
+            self.desired = any(item["desired"] for item in self.items.values())
         self.wake.set()
 
-    def connect(self) -> dict:
+    def _selected(self, identifier: str | None) -> list[dict[str, Any]]:
+        if identifier is None:
+            return list(self.items.values())
+        selected = [item for item in self.items.values() if item["config"]["id"] == identifier]
+        if not selected:
+            raise ConfigurationError("This SSH tunnel no longer exists. Refresh and try again.")
+        return selected
+
+    def connect(self, identifier: str | None = None) -> dict:
         with self.lock:
+            selected = self._selected(identifier)
             if not self.items:
                 raise ConfigurationError("Add and save at least one SSH tunnel first.")
             if not self.ssh:
                 raise ConfigurationError("OpenSSH is not installed or is not available on PATH.")
-            if any(item["config"]["auth"] == "password" for item in self.items.values()) and not self.askpass:
+            if any(item["config"]["auth"] == "password" for item in selected) and not self.askpass:
                 raise ConfigurationError("The Codester SSH password helper is unavailable.")
             self.desired = True
-            for item in self.items.values():
+            for item in selected:
+                item["desired"] = True
                 item["retry_at"] = 0.0
                 item["message"] = ""
                 item["blocked"] = False
@@ -89,10 +101,12 @@ class TunnelManager:
         self.wake.set()
         return result
 
-    def disconnect(self) -> dict:
+    def disconnect(self, identifier: str | None = None) -> dict:
         with self.lock:
-            self.desired = False
-            self._stop_processes()
+            for item in self._selected(identifier):
+                item["desired"] = False
+                self._stop_process(item)
+            self.desired = any(item["desired"] for item in self.items.values())
             return self.status()
 
     def test(self, identifier: str) -> dict:
@@ -164,7 +178,7 @@ class TunnelManager:
                 settled = alive and item["started"] is not None and now - item["started"] >= 12
                 if item["blocked"]:
                     state = "error"
-                elif not self.desired:
+                elif not item["desired"]:
                     state = "disconnected"
                 elif settled:
                     state = "connected"
@@ -177,6 +191,7 @@ class TunnelManager:
                         "id": item["config"]["id"],
                         "name": item["config"]["name"],
                         "local_port": item["config"]["local_port"],
+                        "desired": item["desired"],
                         "state": state,
                         "message": item["message"],
                     }
@@ -316,16 +331,17 @@ class TunnelManager:
                     f"SSH exited ({code}). Check the host, network, and {auth_hint}."
                 )
             if (
-                self.desired
+                item["desired"]
                 and not item["blocked"]
                 and item["process"] is None
                 and now >= item["retry_at"]
             ):
                 self._launch(item, now)
-            elif not self.desired and item["process"] is not None:
+            elif not item["desired"] and item["process"] is not None:
                 self._stop_process(item)
-        if self.items and all(item["blocked"] for item in self.items.values()):
-            self.desired = False
+            if item["blocked"]:
+                item["desired"] = False
+        self.desired = any(item["desired"] for item in self.items.values())
 
     def _stop_process(self, item: dict[str, Any]) -> None:
         process = item["process"]
@@ -345,6 +361,7 @@ class TunnelManager:
 
     def _stop_processes(self) -> None:
         for item in self.items.values():
+            item["desired"] = False
             self._stop_process(item)
 
     def _run(self) -> None:

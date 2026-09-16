@@ -18,6 +18,7 @@ let dockerPendingStop = '';
 let dockerPendingTimer;
 let tunnelState;
 let tunnelLoading = false;
+let tunnelMutation = 0;
 let repositoryOperations = new Map();
 let repositoriesLoading = false;
 let codexActivitySignature = '';
@@ -36,6 +37,30 @@ function ring({value, label, detail = '', insideDetail = '', progress = 0, live 
     </div>
     <small>${e(detail)}</small>
   </div>`;
+}
+
+// Preserve SVG nodes and in-flight animations across snapshot/activity renders.
+function renderMetrics(target, html) {
+  const previous = [...target.querySelectorAll('.ring-progress')].map(circle => ({
+    circle, label: circle.closest('.metric-ring').querySelector('.ring-value span').textContent,
+    progress: getComputedStyle(circle).strokeDasharray,
+  }));
+  target.innerHTML = html;
+  target.querySelectorAll('.ring-progress').forEach((circle, index) => {
+    const old = previous[index];
+    if (!old || old.label !== circle.closest('.metric-ring').querySelector('.ring-value span').textContent) return;
+    const next = circle.getAttribute('stroke-dasharray');
+    const changed = next !== old.circle.getAttribute('stroke-dasharray');
+    circle.replaceWith(old.circle);
+    if (!changed) return;
+    old.circle.getAnimations().forEach(animation => animation.cancel());
+    old.circle.setAttribute('stroke-dasharray', next);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      old.circle.animate([
+        {strokeDasharray: old.progress}, {strokeDasharray: next},
+      ], {duration: 750, easing: 'cubic-bezier(.22, 1, .36, 1)'});
+    }
+  });
 }
 
 function errors(name, rows, limit = 3) {
@@ -239,7 +264,7 @@ async function refreshDockerPanel() {
     const memoryUsed = containers.reduce((total, container) => total + (Number(container.memory_used) || 0), 0);
     const runningProgress = containers.length ? running / containers.length * 100 : 0;
     const memoryProgress = data.memory_limit ? memoryUsed / data.memory_limit * 100 : 0;
-    target.innerHTML = `<div class="hero-rings docker-rings">
+    renderMetrics(target, `<div class="hero-rings docker-rings">
         ${ring({value:running, label:'RUNNING', detail:`${containers.length} total`, progress:runningProgress})}
         ${ring({value:bytes(memoryUsed), label:'MEMORY', detail:`${memoryProgress.toLocaleString(undefined, {maximumFractionDigits:1})}%`, progress:memoryProgress})}
       </div>
@@ -249,7 +274,7 @@ async function refreshDockerPanel() {
         <button class="container-mini-control ${container.running ? 'stop' : 'start'}" type="button" data-docker-action="${container.running ? 'stop' : 'start'}" data-id="${e(container.id)}" aria-label="${container.running ? 'Stop' : 'Start'} ${e(container.name)}" title="${container.running ? 'Stop' : 'Start'}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2v10"/><path d="M6.3 5.7a8 8 0 1 0 11.4 0"/></svg>
         </button>
-      </div>`).join('') || empty('No containers')}</div>`;
+      </div>`).join('') || empty('No containers')}</div>`);
   } catch (error) {
     target.innerHTML = `<div class="utility-placeholder"><strong>Docker unavailable</strong><span>${e(error.message)}</span><a href="/docker">Open Docker →</a></div>`;
   } finally {
@@ -349,11 +374,11 @@ function render(snapshot) {
     const active = document.activeElement;
     const focusedId = target.contains(active) ? active.dataset.id : null;
     const scrollTop = target.scrollTop;
-    target.innerHTML = state.data
+    renderMetrics(target, state.data
       ? renderers[name](state.data)
       : state.status === 'loading'
         ? spinner('Loading')
-        : empty(state.status === 'disabled' ? 'Not connected' : 'No data') + '<a class="connect-link" href="/settings">Connect ↗</a>';
+        : empty(state.status === 'disabled' ? 'Not connected' : 'No data') + '<a class="connect-link" href="/settings">Connect ↗</a>');
     target.scrollTop = scrollTop;
     if (focusedId) Array.from(target.querySelectorAll('[data-id]')).find(element => element.dataset.id === focusedId)?.focus({preventScroll: true});
   }
@@ -416,7 +441,7 @@ async function refreshCodexActivity() {
       state.data.tasks = activity.tasks;
       state.data.activity_note = activity.note;
       state.data.integration = activity.integration;
-      if ($('#detail').hidden && (latest.layout || []).includes('codex')) $('#codex-content').innerHTML = codex(state.data);
+      if ($('#detail').hidden && (latest.layout || []).includes('codex')) renderMetrics($('#codex-content'), codex(state.data));
     }
   } catch { /* The normal dashboard status handles unavailable local activity. */ }
   finally { setTimeout(refreshCodexActivity, document.hidden ? 10000 : 500); }
@@ -504,8 +529,150 @@ $('#fullscreen').addEventListener('click', async () => {
 });
 document.addEventListener('fullscreenchange', () => $('#fullscreen').setAttribute('aria-label', document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen'));
 
+let selectedTunnelId = null;
+let tunnelPopoverTimer;
+let tunnelStatusAvailable = false;
+const tunnelNames = {connected:'Connected', connecting:'Connecting', reconnecting:'Reconnecting', disconnected:'Off', error:'Failed'};
+
+function closeTunnelPopover() {
+  clearTimeout(tunnelPopoverTimer);
+  $('#tunnel-popover').hidden = true;
+  document.querySelectorAll('.tunnel-dot').forEach(dot => dot.setAttribute('aria-expanded', 'false'));
+  selectedTunnelId = null;
+}
+
+function updateTunnelPopover() {
+  const dot = [...$('#tunnel-dots').children].find(node => node.dataset.id === selectedTunnelId);
+  if (!dot) { closeTunnelPopover(); return; }
+  const panel = $('#tunnel-popover');
+  const list = $('#tunnel-list');
+  const tunnels = tunnelState?.tunnels || [];
+  for (const row of [...list.children]) {
+    if (!tunnels.some(tunnel => tunnel.id === row.dataset.id)) row.remove();
+  }
+  for (const tunnel of tunnels) {
+    let row = [...list.children].find(node => node.dataset.id === tunnel.id);
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'tunnel-list-row';
+      row.dataset.id = tunnel.id;
+      row.innerHTML = '<div><strong></strong><small></small></div><button type="button" class="tunnel-row-toggle" role="switch"><span class="mini-track" aria-hidden="true"><span></span></span></button>';
+      list.append(row);
+    }
+    row.querySelector('strong').textContent = tunnel.name;
+    row.querySelector('small').textContent = tunnelStatusAvailable
+      ? `${tunnelNames[tunnel.state] || tunnel.state} / localhost:${tunnel.local_port}${tunnel.message ? ` / ${tunnel.message}` : ''}`
+      : 'Status unavailable';
+    const toggle = row.querySelector('button');
+    toggle.dataset.id = tunnel.id;
+    toggle.dataset.state = tunnelStatusAvailable ? tunnel.state : 'unknown';
+    toggle.setAttribute('aria-checked', String(Boolean(tunnel.desired)));
+    toggle.setAttribute('aria-label', `${tunnel.name}: ${tunnelStatusAvailable ? tunnelNames[tunnel.state] || tunnel.state : 'Status unavailable'}`);
+    toggle.setAttribute('aria-disabled', String(tunnelLoading || !tunnelStatusAvailable));
+  }
+  $('#tunnels').setAttribute('aria-disabled', String(tunnelLoading || !tunnelStatusAvailable));
+  panel.hidden = false;
+  const bounds = $('#tunnel-dots').getBoundingClientRect();
+  const beside = bounds.right + panel.offsetWidth + 16 <= innerWidth;
+  const below = innerHeight - bounds.bottom - 12;
+  const above = bounds.top - 12;
+  panel.style.maxHeight = `${beside ? innerHeight - 16 : Math.max(120, below, above)}px`;
+  panel.style.left = `${beside ? bounds.right + 8 : Math.max(8, Math.min(bounds.left, innerWidth - panel.offsetWidth - 8))}px`;
+  panel.style.top = `${beside ? Math.max(8, Math.min(bounds.top, innerHeight - panel.offsetHeight - 8)) : below >= above ? bounds.bottom + 4 : Math.max(8, bounds.top - panel.offsetHeight - 4)}px`;
+
+}
+
+function openTunnelPopover(dot) {
+  clearTimeout(tunnelPopoverTimer);
+  document.querySelectorAll('.tunnel-dot').forEach(node => node.setAttribute('aria-expanded', String(node === dot)));
+  selectedTunnelId = dot.dataset.id;
+  updateTunnelPopover();
+}
+
+function renderTunnelDots() {
+  const container = $('#tunnel-dots');
+  const tunnels = tunnelState?.tunnels || [];
+  container.hidden = !tunnels.length;
+  for (const dot of [...container.children]) {
+    if (!tunnels.some(tunnel => tunnel.id === dot.dataset.id)) dot.remove();
+  }
+  for (const tunnel of tunnels) {
+    let dot = [...container.children].find(node => node.dataset.id === tunnel.id);
+    if (!dot) {
+      dot = document.createElement('button');
+      dot.className = 'tunnel-dot';
+      dot.type = 'button';
+      dot.dataset.id = tunnel.id;
+      dot.setAttribute('aria-haspopup', 'dialog');
+      dot.setAttribute('aria-controls', 'tunnel-popover');
+      dot.setAttribute('aria-expanded', 'false');
+      dot.innerHTML = '<span aria-hidden="true"></span>';
+      dot.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') openTunnelPopover(dot); });
+      dot.addEventListener('focus', () => openTunnelPopover(dot));
+      dot.addEventListener('click', () => openTunnelPopover(dot));
+      dot.addEventListener('pointerleave', () => {
+        tunnelPopoverTimer = setTimeout(() => {
+          if (!$('#tunnel-popover').matches(':focus-within') && document.activeElement !== dot) closeTunnelPopover();
+        }, 200);
+      });
+      container.append(dot);
+    }
+    dot.dataset.state = tunnelStatusAvailable ? tunnel.state : 'unknown';
+    dot.setAttribute('aria-label', `${tunnel.name}: ${tunnelStatusAvailable ? tunnelNames[tunnel.state] || tunnel.state : 'Status unavailable'}. Tunnel controls`);
+  }
+  if (selectedTunnelId) updateTunnelPopover();
+}
+
+$('#tunnel-popover').addEventListener('pointerenter', () => clearTimeout(tunnelPopoverTimer));
+$('#tunnel-popover').addEventListener('pointerleave', () => {
+  if (!$('#tunnel-popover').matches(':focus-within')) tunnelPopoverTimer = setTimeout(closeTunnelPopover, 200);
+});
+document.addEventListener('click', event => {
+  if (!event.target.closest('#tunnel-dots, #tunnel-popover')) closeTunnelPopover();
+});
+document.addEventListener('focusin', event => {
+  if (!event.target.closest('#tunnel-dots, #tunnel-popover')) closeTunnelPopover();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && selectedTunnelId) {
+    const dot = [...$('#tunnel-dots').children].find(node => node.dataset.id === selectedTunnelId);
+    dot?.focus();
+    closeTunnelPopover();
+  }
+  if (event.key === 'Tab' && event.shiftKey && event.target.id === 'tunnels' && selectedTunnelId) {
+    event.preventDefault();
+    [...$('#tunnel-dots').children].find(node => node.dataset.id === selectedTunnelId)?.focus();
+  }
+  if (event.key === 'Tab' && !event.shiftKey && event.target.matches('.tunnel-dot') && selectedTunnelId) {
+    event.preventDefault();
+    $('#tunnels').focus();
+  }
+});
+window.addEventListener('resize', () => { if (selectedTunnelId) updateTunnelPopover(); });
+$('#tunnel-list').addEventListener('click', async event => {
+  const toggle = event.target.closest('.tunnel-row-toggle');
+  if (!toggle) return;
+  const tunnel = tunnelState?.tunnels?.find(row => row.id === toggle.dataset.id);
+  if (!tunnel || tunnelLoading || !tunnelStatusAvailable) return;
+  tunnelLoading = true;
+  tunnelMutation += 1;
+  updateTunnelPopover();
+  try {
+    const action = tunnel.desired ? 'disconnect' : 'connect';
+    showTunnelStatus(await api(`/api/tunnels/${encodeURIComponent(tunnel.id)}/${action}`, {method:'POST', timeout:15000}));
+  } catch (error) {
+    $('#tunnel-warning').textContent = error.message;
+    $('#tunnel-warning').hidden = false;
+  } finally {
+    tunnelLoading = false;
+    if (selectedTunnelId) updateTunnelPopover();
+  }
+});
+
 function showTunnelStatus(data) {
   tunnelState = data;
+  tunnelStatusAvailable = true;
+  renderTunnelDots();
   const button = $('#tunnels');
   const count = data.tunnels?.length || 0;
   const connected = data.tunnels?.filter(tunnel => tunnel.state === 'connected').length || 0;
@@ -521,17 +688,8 @@ function showTunnelStatus(data) {
   const label = labels[data.state] || 'SSH tunnel error';
   button.dataset.state = data.state;
   button.setAttribute('aria-label', label);
-  button.setAttribute('aria-checked', String(Boolean(data.desired)));
-  const stateNames = {connected:'Connected',connecting:'Connecting',reconnecting:'Reconnecting',disconnected:'Off',error:'Failed'};
-  const summary = data.state === 'connected'
-    ? `All ${count} connected`
-    : data.state === 'partial'
-      ? `${connected} of ${count} connected`
-      : data.state === 'unconfigured'
-        ? 'No connections configured'
-        : stateNames[data.state] || label;
-  const rows = (data.tunnels || []).map(tunnel => `<li><span title="${e(tunnel.name)}">${e(tunnel.name)}</span><b class="${e(tunnel.state)}">${e(stateNames[tunnel.state] || tunnel.state)}</b></li>`).join('');
-  $('#tunnel-tooltip').innerHTML = `<strong>SSH tunnels</strong><span>${e(summary)}</span>${rows ? `<ul>${rows}</ul>` : ''}`;
+  button.setAttribute('aria-checked', String(Boolean(count && data.tunnels.every(tunnel => tunnel.desired))));
+  button.setAttribute('aria-label', count && data.tunnels.every(tunnel => tunnel.desired) ? 'Disconnect all SSH tunnels' : 'Connect all SSH tunnels');
   const problem = data.tunnels?.find(tunnel => tunnel.message)?.message;
   $('#tunnel-warning').hidden = !problem;
   $('#tunnel-warning').textContent = problem ? `SSH · ${problem}` : '';
@@ -539,10 +697,14 @@ function showTunnelStatus(data) {
 
 async function refreshTunnels() {
   try {
-    showTunnelStatus(await api('/api/tunnels', {timeout:5000}));
+    if (tunnelLoading) return;
+    const mutation = tunnelMutation;
+    const data = await api('/api/tunnels', {timeout:5000});
+    if (!tunnelLoading && mutation === tunnelMutation) showTunnelStatus(data);
   } catch {
+    tunnelStatusAvailable = false;
+    renderTunnelDots();
     $('#tunnels').dataset.state = 'error';
-    $('#tunnel-tooltip').innerHTML = '<strong>SSH tunnels</strong><span>Status unavailable</span>';
     $('#tunnel-warning').textContent = 'Could not read SSH tunnel status';
     $('#tunnel-warning').hidden = false;
   } finally {
@@ -551,25 +713,27 @@ async function refreshTunnels() {
 }
 
 $('#tunnels').addEventListener('click', async () => {
-  if (tunnelLoading) return;
+  if (tunnelLoading || !tunnelStatusAvailable) return;
   if (!tunnelState || tunnelState.state === 'unconfigured') {
     window.location.assign('/settings#ssh-tunnels');
     return;
   }
   tunnelLoading = true;
+  tunnelMutation += 1;
   $('#tunnels').dataset.state = 'connecting';
+  if (selectedTunnelId) updateTunnelPopover();
   try {
-    const retry = ['error','partial'].includes(tunnelState.state);
-    const action = tunnelState.desired && !retry ? 'disconnect' : 'connect';
+    const allOn = tunnelState.tunnels.length && tunnelState.tunnels.every(tunnel => tunnel.desired);
+    const action = allOn ? 'disconnect' : 'connect';
     showTunnelStatus(await api(`/api/tunnels/${action}`, {method:'POST', timeout:15000}));
   } catch (error) {
     $('#tunnels').dataset.state = 'error';
     $('#tunnels').setAttribute('aria-label', error.message);
-    $('#tunnel-tooltip').innerHTML = `<strong>SSH tunnels</strong><span>${e(error.message)}</span>`;
     $('#tunnel-warning').textContent = error.message;
     $('#tunnel-warning').hidden = false;
   } finally {
     tunnelLoading = false;
+    if (selectedTunnelId) updateTunnelPopover();
   }
 });
 

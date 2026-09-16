@@ -155,6 +155,13 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
             abort(404)
         return jsonify(tunnel_manager.test(identifier))
 
+    @app.post("/api/tunnels/<identifier>/<action>")
+    def tunnel_control(identifier: str, action: str):
+        if not re.fullmatch(r"[a-f0-9-]{16,64}", identifier) or action not in {"connect", "disconnect"}:
+            abort(404)
+        operation = tunnel_manager.connect if action == "connect" else tunnel_manager.disconnect
+        return jsonify(operation(identifier))
+
     @app.post("/api/connections/<name>/test")
     def connection_test(name: str):
         if name not in INTERVALS:

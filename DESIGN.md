@@ -2,7 +2,7 @@
 
 Settings uses labelled icon tabs for Display, Codex, Dagster, SigNoz, GitHub, Docker, PostgreSQL and SSH tunnels. On tablets and desktop, tabs form a left rail; below 650px they form two compact rows above the selected panel. Only the selected panel scrolls. Navigation and the shared Save settings action stay visible. Display keeps the three ordered dashboard app choices together with visible app names. Switching tabs preserves edits, and validation reveals the section containing an invalid field. All tab targets are at least 44px and support arrow keys, Home and End.
 
-The dashboard is a full-height ultrawide instrument display with a narrow clock/launcher rail on the left and three configurable app channels. There is no dashboard header, marketing text, or freshness footer. Settings sits at the top of the overview rail.
+The dashboard is a full-height ultrawide instrument display with a narrow clock/launcher rail on the left and three configurable app channels. There is no dashboard header, marketing text, or freshness footer. Settings sits beside fullscreen at the bottom of the overview rail.
 
 Use a nearly black neutral background with subtle vertical dividers. Vibrant mint/cyan Codex data, purple Dagster data, and orange SigNoz data. Color belongs on graphs, meters, and activity indicators, not large panel backgrounds. Service logos carry identity. Clock and numbers have monospaced/tabular typography. Minimal labels identify units, usage windows, recent tasks, and errors. Stale and offline states remain explicit. Demo mode is managed from Settings without adding a label to the display.
 
@@ -11,3 +11,5 @@ At 2560 × 720 and equivalent scaled viewports, fill the display without page sc
 Top apps uses incoming SERVER-span request rates from the last five minutes. Tapping an error expands details across the display with Back and a source link.
 
 SSH tunnels use collapsible rows with name, server, forwarding ports and live SSH status. Saved rows start closed; new and duplicated rows open for editing. Test, Duplicate and Delete stay accessible while collapsed. Duplication reuses credentials securely and selects a different local port. Expanding or duplicating a row does not initiate a connection.
+
+Dashboard ring arcs retain their position across refreshes and ease to the new value in either direction, respecting reduced motion. Small SSH status dots below the date open a shared vertical list on hover, keyboard focus or tap, with names and status on the left and individual switches on the right. Long lists scroll inside the panel. Each tunnel can be connected independently; an All switch sits at the top of the list. Grey means off, green connected, amber connecting or reconnecting, red failed, and a hollow dot means status unavailable. Opening controls never connects or disconnects a tunnel.

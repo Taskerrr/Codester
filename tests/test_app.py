@@ -268,3 +268,16 @@ def test_service_discovery_uses_saved_real_connection(app, client, monkeypatch):
     monkeypatch.setattr("codester.signoz.services", discover)
     response = client.post("/api/signoz/services", headers=csrf(client))
     assert response.json["services"] == ["api", "worker"]
+
+
+def test_individual_tunnel_controls_require_csrf_and_valid_action(app, client, monkeypatch):
+    manager = app.extensions["tunnel_manager"]
+    calls = []
+    monkeypatch.setattr(manager, "connect", lambda identifier: calls.append(identifier) or {"ok": True})
+    path = "/api/tunnels/1234567890abcdef/connect"
+    assert client.post(path).status_code == 403
+    assert not calls
+    assert client.post(path, headers=csrf(client)).status_code == 200
+    assert calls == ["1234567890abcdef"]
+    assert client.post("/api/tunnels/1234567890abcdef/delete", headers=csrf(client)).status_code == 404
+    assert client.post("/api/tunnels/invalid/connect", headers=csrf(client)).status_code == 404
