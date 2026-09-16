@@ -85,6 +85,7 @@ function fill(data) {
     for(const field of ['api_url','browser_url']) $(`#${name}-${field}`).value = data[name][field];
   }
   $('#signoz-key').value = '';
+  $('#signoz-window_seconds').value = String(data.signoz.window_seconds || 3600);
   $('#clear-key').checked = false;
   $('#key-note').textContent = data.signoz.has_key ? 'A key is saved. Leave blank to keep it, or enter a replacement.' : 'No key saved. Use a query API key, not an ingestion key.';
   $('#github-token').value = '';
@@ -110,6 +111,7 @@ function read() {
   data.signoz.api_key=$('#signoz-key').value;
   data.signoz.clear_key=$('#clear-key').checked;
   data.signoz.error_service=$('#error-service').value;
+  data.signoz.window_seconds=Number($('#signoz-window_seconds').value);
   data.signoz.panels=[];
   for(let i=0;i<3;i++) if($(`#panel-${i}-enabled`).checked) data.signoz.panels.push({service:$(`#panel-${i}-service`).value,metric:$(`#panel-${i}-metric`).value});
   data.tunnels = Array.from(document.querySelectorAll('.tunnel-config')).map(row => ({

@@ -90,3 +90,49 @@ def test_organization_setting_is_optional_and_validated():
     config["github"]["organization"] = "https://github.com/TMPlant"
     with pytest.raises(ConfigurationError, match="organisation name"):
         validate(config)
+
+
+def test_recent_refresh_preserves_calendar_and_reads_only_three_repos(monkeypatch):
+    today = datetime.now(UTC).date().isoformat()
+    calendar = {
+        "login": "jack",
+        "total": 400,
+        "days": [{"date": today, "count": 4}],
+        "calendar_source": "repository_commits",
+        "calendar_limited": True,
+        "calendar_repository_count": 101,
+        "calendar_updated_at": 123,
+    }
+    calls = []
+
+    def get(url, headers, params=None, **kwargs):
+        calls.append((url, params))
+        if url.endswith("/orgs/TMPlant/repos"):
+            assert params["per_page"] == 3
+            assert params["page"] == 1
+            return [{"full_name": f"TMPlant/repo{i}"} for i in range(3)]
+        assert "/commits" in url
+        since = datetime.fromisoformat(params["since"].replace("Z", "+00:00"))
+        assert (datetime.now(UTC) - since).days == 13
+        return [{"commit": {"author": {"date": today + "T00:00:00Z"}}}]
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("Recent refresh must not fetch the contribution calendar")
+
+    monkeypatch.setattr(github, "get_json", get)
+    monkeypatch.setattr(github, "post_json", unexpected)
+    result = github.snapshot(
+        {"api_url": "https://api.github.com", "organization": "TMPlant"},
+        "secret",
+        calendar=calendar,
+    )
+    for field in (
+        "total",
+        "days",
+        "calendar_limited",
+        "calendar_repository_count",
+        "calendar_updated_at",
+    ):
+        assert result[field] == calendar[field]
+    assert len(calls) == 4
+    assert all(sum(repo["commits"]) == 1 for repo in result["repositories"])

@@ -6,7 +6,7 @@ import re
 import time
 from urllib.parse import quote
 
-from codester.store import METRICS
+from codester.store import METRICS, SIGNOZ_WINDOWS
 from codester.transport import IntegrationError, post_json
 
 
@@ -120,7 +120,8 @@ def scalar(results: list[dict], name: str) -> float | None:
 
 
 def top_apps(config: dict, key: str) -> list[dict]:
-    """Rank instrumented services by incoming request rate over five minutes."""
+    """Count incoming requests per service within the selected window."""
+    seconds = config.get("window_seconds", 3600)
     results = query(
         config,
         key,
@@ -131,10 +132,10 @@ def top_apps(config: dict, key: str) -> list[dict]:
                 "aggregations": [{"expression": "count()", "alias": "requests"}],
                 "groupBy": [{"name": "service.name", "fieldContext": "resource"}],
                 "order": [{"key": {"name": "requests"}, "direction": "desc"}],
-                "limit": 3,
+                "limit": 200,
             }
         ],
-        seconds=300,
+        seconds=seconds,
     )
     apps = []
     for result in results:
@@ -143,8 +144,7 @@ def top_apps(config: dict, key: str) -> list[dict]:
             (
                 column.get("name")
                 for column in columns
-                if column.get("name") == "service.name"
-                or column.get("columnType") == "group"
+                if column.get("name") == "service.name" or column.get("columnType") == "group"
             ),
             None,
         )
@@ -173,8 +173,8 @@ def top_apps(config: dict, key: str) -> list[dict]:
             else:
                 continue
             if math.isfinite(count) and count >= 0:
-                apps.append({"service": service, "rate": count / 300})
-    return sorted(apps, key=lambda app: app["rate"], reverse=True)[:3]
+                apps.append({"service": service, "rate": count / seconds, "requests": count})
+    return sorted(apps, key=lambda app: app["requests"], reverse=True)[:200]
 
 
 def trace_link(config: dict, trace_id: str) -> str:
@@ -223,6 +223,7 @@ def raw_spec(expression: str, limit: int) -> dict:
 
 
 def snapshot(config: dict, key: str) -> dict:
+    seconds = config.get("window_seconds", 3600)
     specs = []
     for index, panel in enumerate(config["panels"]):
         condition = "kind = 2"  # SERVER spans: one incoming request per instrumented service.
@@ -245,17 +246,17 @@ def snapshot(config: dict, key: str) -> dict:
                     "aggregations": [{"expression": "count()", "alias": "value"}],
                 }
             )
-    results = query(config, key, specs) if specs else []
+    results = query(config, key, specs, seconds=seconds) if specs else []
     panels = []
     for index, panel in enumerate(config["panels"]):
         value = scalar(results, f"p{index}")
         metric = panel["metric"]
         if value is not None:
             if metric == "request_rate":
-                value /= 900
+                value /= seconds
             elif metric == "p95":
                 value /= 1_000_000
-            else:
+            elif metric == "error_rate":
                 errors = scalar(results, f"p{index}errors")
                 value = errors / value * 100 if value and errors is not None else None
         panels.append(
@@ -263,7 +264,12 @@ def snapshot(config: dict, key: str) -> dict:
                 **panel,
                 "label": METRICS[metric],
                 "value": value,
-                "unit": {"p95": "ms", "request_rate": "req/s", "error_rate": "%"}[metric],
+                "unit": {
+                    "p95": "ms",
+                    "request_rate": "req/s",
+                    "request_count": "requests",
+                    "error_rate": "%",
+                }[metric],
             }
         )
     condition = "has_error = true"
@@ -274,14 +280,18 @@ def snapshot(config: dict, key: str) -> dict:
         apps = top_apps(config, key)
     except IntegrationError:
         apps = []
-        apps_message = "Top apps unavailable for this SigNoz version."
-    errors = error_rows(config, query(config, key, [raw_spec(condition, 8)], "raw"))
+        apps_message = "Request totals unavailable for this SigNoz version."
+    errors = error_rows(
+        config, query(config, key, [raw_spec(condition, 8)], "raw", seconds=seconds)
+    )
     return {
         "panels": panels,
         "top_apps": apps,
         "top_apps_message": apps_message,
         "errors": errors,
-        "note": "Last 15 minutes · incoming SERVER spans · sampled traces may undercount requests",
+        "window_seconds": seconds,
+        "window_label": SIGNOZ_WINDOWS[seconds],
+        "note": f"Last {SIGNOZ_WINDOWS[seconds]} · incoming SERVER spans · sampled traces may undercount requests",
     }
 
 

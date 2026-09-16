@@ -24,7 +24,8 @@ DEFAULTS: dict = {
         "api_url": "",
         "browser_url": "",
         "error_service": "",
-        "panels": [{"service": "", "metric": m} for m in ["request_rate", "error_rate", "p95"]],
+        "window_seconds": 3600,
+        "panels": [{"service": "", "metric": m} for m in ["request_count", "error_rate", "p95"]],
     },
     "github": {
         "enabled": False,
@@ -35,10 +36,14 @@ DEFAULTS: dict = {
     },
     "tunnels": [],
 }
-METRICS = {"request_rate": "Request rate", "error_rate": "Error rate", "p95": "p95 latency"}
-DASHBOARD_APPS = frozenset(
-    {"codex", "dagster", "signoz", "postgres", "server", "github", "docker"}
-)
+SIGNOZ_WINDOWS = {300: "5 min", 900: "15 min", 3600: "1 hour", 21600: "6 hours", 86400: "24 hours"}
+METRICS = {
+    "request_count": "Total requests",
+    "request_rate": "Request rate",
+    "error_rate": "Error rate",
+    "p95": "p95 latency",
+}
+DASHBOARD_APPS = frozenset({"codex", "dagster", "signoz", "postgres", "server", "github", "docker"})
 
 
 class ConfigurationError(ValueError):
@@ -125,9 +130,7 @@ def repository_identifier(repository: dict) -> str:
         if not isinstance(value, str) or not re.fullmatch(r"[a-f0-9-]{16,64}", value):
             raise ConfigurationError("Invalid repository identifier.")
         return value
-    return uuid.uuid5(
-        uuid.NAMESPACE_URL, f"codester:repository:{repository.get('repo', '')}"
-    ).hex
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"codester:repository:{repository.get('repo', '')}").hex
 
 
 def repository_text(value: object, label: str, maximum: int) -> str:
@@ -171,6 +174,10 @@ def validate(data: object) -> dict:
             result[name][field] = valid_url(item.get(field, ""))
         if item["enabled"] and not result[name]["api_url"]:
             raise ConfigurationError(f"Enter the {name} API URL before enabling it.")
+    window = data["signoz"].get("window_seconds", 3600)
+    if type(window) is not int or window not in SIGNOZ_WINDOWS:
+        raise ConfigurationError("Choose a supported SigNoz time window.")
+    result["signoz"]["window_seconds"] = window
     panels = data["signoz"].get("panels", [])
     if not isinstance(panels, list) or len(panels) > 3:
         raise ConfigurationError("Choose up to three SigNoz measurements.")
@@ -187,7 +194,8 @@ def validate(data: object) -> dict:
     result["signoz"]["error_service"] = service_name(data["signoz"].get("error_service", ""))
     organization = data["github"].get("organization", "")
     if not isinstance(organization, str) or (
-        organization.strip() and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}", organization.strip())
+        organization.strip()
+        and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}", organization.strip())
     ):
         raise ConfigurationError("Enter a GitHub organisation name, not a URL.")
     result["github"]["organization"] = organization.strip()
@@ -246,9 +254,7 @@ def validate(data: object) -> dict:
             raise ConfigurationError("Choose SSH agent or password authentication.")
         ssh_host = tunnel_text(tunnel.get("ssh_host"), "SSH host", r"[A-Za-z0-9._-]+", 253)
         username = tunnel_text(tunnel.get("username"), "username", r"[A-Za-z0-9._-]+", 64)
-        remote_host = tunnel_text(
-            tunnel.get("remote_host"), "remote host", r"[A-Za-z0-9._-]+", 253
-        )
+        remote_host = tunnel_text(tunnel.get("remote_host"), "remote host", r"[A-Za-z0-9._-]+", 253)
         ssh_port = tunnel_port(tunnel.get("ssh_port"), "SSH port")
         local_port = tunnel_port(tunnel.get("local_port"), "local port")
         remote_port = tunnel_port(tunnel.get("remote_port"), "remote port")
@@ -299,6 +305,9 @@ class Store:
             db.execute("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, value TEXT)")
             db.execute("CREATE TABLE IF NOT EXISTS secrets (name TEXT PRIMARY KEY, value BLOB)")
             db.execute(
+                "CREATE TABLE IF NOT EXISTS github_cache (signature TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
+            db.execute(
                 "CREATE TABLE IF NOT EXISTS repository_state "
                 "(id TEXT PRIMARY KEY, deployed_head TEXT NOT NULL)"
             )
@@ -314,10 +323,30 @@ class Store:
         data.setdefault("github", copy.deepcopy(DEFAULTS["github"]))
         data["github"].setdefault("repositories", [])
         data["github"].setdefault("organization", "")
+        data["signoz"].setdefault("window_seconds", 3600)
         for tunnel in data["tunnels"]:
             tunnel.setdefault("id", tunnel_identifier(tunnel))
             tunnel.setdefault("auth", "agent")
         return data
+
+    def read_github_cache(self, signature: str) -> dict:
+        with self.lock, sqlite3.connect(self.path) as db:
+            row = db.execute(
+                "SELECT value FROM github_cache WHERE signature=?", (signature,)
+            ).fetchone()
+        if row is None:
+            return {}
+        try:
+            value = json.loads(row[0])
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        return value if isinstance(value, dict) and value.get("version") == 1 else {}
+
+    def save_github_cache(self, signature: str, value: dict) -> None:
+        with self.lock, sqlite3.connect(self.path) as db:
+            db.execute(
+                "INSERT OR REPLACE INTO github_cache VALUES (?, ?)", (signature, json.dumps(value))
+            )
 
     def public(self) -> dict:
         data = self.read()
@@ -377,7 +406,11 @@ class Store:
                 existing = db.execute(
                     "SELECT 1 FROM secrets WHERE name=?", (secret_name,)
                 ).fetchone()
-                if tunnel["auth"] == "password" and not password and (clear_password or not existing):
+                if (
+                    tunnel["auth"] == "password"
+                    and not password
+                    and (clear_password or not existing)
+                ):
                     raise ConfigurationError(f"Enter an SSH password for {tunnel['name']}.")
                 if tunnel["auth"] != "password" or clear_password:
                     db.execute("DELETE FROM secrets WHERE name=?", (secret_name,))

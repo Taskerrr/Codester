@@ -136,15 +136,22 @@ Oldest queue age follows up to two additional 100-run pages. If that cannot cove
 
 Requires the **v5 query API** and a read-capable API key, not an ingestion key. Save the URL/key, use **Find services**, then choose up to three service/measurement pairs. Disable a numbered row to show fewer measurements. Services are discovered from traces in the last 24 hours, limited to 200. A saved service stays selected even when absent from discovery.
 
-Measurements cover the last 15 minutes of incoming SERVER spans (`kind = 2`):
+Measurements cover incoming SERVER spans (`kind = 2`) over the window selected in Settings:
+5 minutes, 15 minutes, 1 hour (default), 6 hours, or 24 hours. The same window applies
+to request totals and recent errors. Total requests is available alongside request rate,
+error rate, and p95 latency:
 
-- Request rate: span count / 900 seconds.
+- Total requests: incoming server span count within the selected window.
+- Request rate: span count / selected window in seconds.
 - Error rate: failed server spans / all server spans × 100. No requests means unavailable.
 - p95 latency: p95 duration in nanoseconds, converted to milliseconds.
 
 These are trace-derived values. Sampling, missing instrumentation, and services that only emit internal/consumer spans affect coverage. This version does not query arbitrary infrastructure metrics. Recent errors show failed spans (all kinds) filtered by the separately selected service. Details fetch up to 30 trace spans from the last day; use the source link for complete exception details.
 
-Top apps ranks the three services with the most incoming SERVER spans over the last five minutes and displays each count as requests per second. It is independent of the configured measurement rows. If the installed SigNoz version cannot run that grouped query, the dashboard keeps the other measurements and shows Top apps as unavailable.
+Requests by app ranks up to 200 services by their total recorded incoming requests within
+the selected window. It is independent of the configured measurement rows. Trace sampling
+can reduce these totals; they are not a replacement for an unsampled request counter.
+If the grouped query fails, the dashboard keeps the other measurements and marks totals unavailable.
 
 ### GitHub
 
@@ -174,7 +181,22 @@ The server binds to loopback by default. Docker publishes only `127.0.0.1`. Host
 
 The display has a clock/launcher rail and three configurable app channels. Settings stores three unique choices and their left-to-right order. Codex, Dagster, SigNoz, and GitHub have live overview renderers; Docker has a compact container summary and a full management screen. PostgreSQL and Linux servers remain selectable placeholders. Dagster spinners stop on stale connections or when reduced motion is enabled.
 
-Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s, and GitHub 5 minutes. Local checkout status is cached centrally for four seconds. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results. Demo data is never used as a fallback for a failed live connection.
+Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s, and GitHub sparklines 60s. Sparkline reads fetch only the three displayed repositories and their last 14 days of commits. Local checkout status is cached centrally for four seconds. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results. Demo data is never used as a fallback for a failed live connection.
+
+GitHub history and the last successful snapshot persist in the private local SQLite database.
+Saved data appears immediately after a restart, marked stale until checked. A separate history
+worker builds the initial calendar without blocking the repository charts and saves a checkpoint
+after each repository. Its hourly refresh skips unchanged repositories and replaces the last
+seven days of counts in changed repositories, preserving older history without double-counting.
+After longer downtime, it also fetches the missing period. A full reconciliation every 30 days
+accounts for rewritten or backdated history. Settings unrelated to GitHub do not discard history;
+cache entries are isolated by API, account token, organisation and repository selection.
+
+Each integration's header shows a muted grey countdown beside its title until the next scheduled refresh.
+Intervals start after the previous fetch finishes. Refreshing, retrying, and a disconnected
+browser are distinct states; hover or focus the countdown to see the last successful read.
+The initial GitHub history job scans up to 182 days of commits across visible repositories
+in the background. If interrupted, completed repository checkpoints survive a restart.
 
 ## Development and checks
 

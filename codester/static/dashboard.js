@@ -1,6 +1,8 @@
 import {$, api, escape as e, duration, ago, compactTime} from './common.js';
 
 let latest;
+let snapshotReceivedAt = 0;
+let dashboardConnected = false;
 let detailTrigger;
 let detailController;
 
@@ -102,18 +104,19 @@ function reading(panel, fallbackLabel) {
 
 function signoz(data) {
   const panels = data.panels || [];
-  const requestRate = selectPanel(panels, 'request_rate', 0);
+  const requestRate = panels.find(panel => panel.metric === 'request_count') || selectPanel(panels, 'request_rate', 0);
   const latency = selectPanel(panels, 'p95', requestRate === panels[0] ? 1 : 0);
-  const apps = (data.top_apps || []).slice(0, 3);
-  const peak = Math.max(...apps.map(app => number(app.rate)), 1);
+  const apps = data.top_apps || [];
+  const requests = app => number(app.requests ?? app.rate * (data.window_seconds || 900));
+  const peak = Math.max(...apps.map(requests), 1);
   const appRows = apps.map(app => `<div class="app-row">
-    <div><strong title="${e(app.service)}">${e(app.service)}</strong><svg class="app-bar" viewBox="0 0 100 2" preserveAspectRatio="none" aria-hidden="true"><rect width="${number(app.rate) / peak * 100}" height="2"/></svg></div>
-    <b>${number(app.rate).toLocaleString(undefined, {maximumFractionDigits: 1})} <small>req/s</small></b>
+    <div><strong title="${e(app.service)}">${e(app.service)}</strong><svg class="app-bar" viewBox="0 0 100 2" preserveAspectRatio="none" aria-hidden="true"><rect width="${requests(app) / peak * 100}" height="2"/></svg></div>
+    <b>${requests(app).toLocaleString(undefined, {maximumFractionDigits: 0})} <small>requests</small></b>
   </div>`).join('');
   return `<div class="hero-rings signoz-rings">${reading(requestRate, 'Request rate')}${reading(latency, 'p95 latency')}</div>
     <div class="split-lists signoz-lists">
-      <section>${sectionHeading('Top apps', '5 min')}<div class="app-list">${appRows || empty(data.top_apps_message || 'No requests')}</div></section>
-      <section>${sectionHeading('Errors')}${errors('signoz', data.errors)}</section>
+      <section>${sectionHeading('Requests by app', data.window_label || '15 min')}<div class="app-list">${appRows || empty(data.top_apps_message || 'No requests in this window')}</div></section>
+      <section>${sectionHeading('Errors', data.window_label || '15 min')}${errors('signoz', data.errors)}</section>
     </div>`;
 }
 
@@ -171,7 +174,7 @@ function github(data) {
     </div>`;
   }).join('');
   return `<div class="github-hero">
-      <div class="contribution-wrap"><div class="contribution-months">${months}</div><div class="contribution-grid">${calendar}</div></div>
+      ${!days.length && data.calendar_loading ? (data.calendar_error ? empty('History unavailable; retrying') : spinner('Loading contribution history in the background')) : `<div class="contribution-wrap" title="${e(data.calendar_error || '')}"><div class="contribution-months">${months}</div><div class="contribution-grid">${calendar}</div></div>`}
     </div>
     ${sectionHeading('Recent repositories', data.organization || data.login || '')}
     <div class="repo-list">${repositories || empty('No repositories')}</div>`;
@@ -361,12 +364,40 @@ function render(snapshot) {
   if (layout.includes('github')) refreshGithubRepositories();
 }
 
+function updateRefreshIndicators() {
+  if (!latest) return;
+  const now = latest.server_time + (performance.now() - snapshotReceivedAt) / 1000;
+  for (const [name, state] of Object.entries(latest.services)) {
+    const indicator = $(`#${name}-refresh`);
+    if (!indicator) continue;
+    indicator.hidden = ['disabled', 'demo'].includes(state.status);
+    if (indicator.hidden) continue;
+    const issue = ['stale', 'error'].includes(state.status);
+    const remaining = state.next_refresh == null ? 0 : Math.max(0, Math.ceil(state.next_refresh - now));
+    const countdown = remaining >= 60 ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : `${remaining}s`;
+    const text = !dashboardConnected ? 'Paused' : state.refreshing ? 'Refreshing' : remaining ? `${issue ? 'Retry ' : ''}${countdown}` : 'Due';
+    indicator.querySelector('span').textContent = state.refreshing && dashboardConnected ? '' : text;
+    indicator.classList.toggle('refreshing', dashboardConnected && Boolean(state.refreshing));
+    indicator.classList.toggle('retrying', issue || !dashboardConnected);
+    indicator.style.setProperty('--remaining', Math.min(100, remaining / Math.max(1, state.refresh_interval || 1) * 100));
+    const age = state.last_success == null ? 'No successful refresh yet' : `Last success ${Math.max(0, Math.floor(now - state.last_success))}s ago`;
+    const calendarNote = name === 'github' ? '. Sparklines refresh every minute; saved history updates in the background' : '';
+    indicator.title = `${text}. ${age}${calendarNote}`;
+    indicator.setAttribute('aria-label', `${name}: ${text}. ${age}${calendarNote}`);
+  }
+}
+
 async function refresh() {
   try {
     latest = await api('/api/dashboard', {timeout: 8000});
+    snapshotReceivedAt = performance.now();
+    dashboardConnected = true;
+    updateRefreshIndicators();
     $('#connection-warning').hidden = true;
     if ($('#detail').hidden) render(latest);
   } catch {
+    dashboardConnected = false;
+    updateRefreshIndicators();
     $('#connection-warning').textContent = 'Disconnected · readings paused';
     $('#connection-warning').hidden = false;
   } finally {
@@ -552,6 +583,7 @@ function clock() {
 
 clock();
 setInterval(clock, 1000);
+setInterval(updateRefreshIndicators, 1000);
 await wakeUpstream();
 refresh();
 refreshTunnels();

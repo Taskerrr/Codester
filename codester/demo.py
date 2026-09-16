@@ -170,10 +170,10 @@ def snapshot(service: str) -> dict:
         "panels": [
             {
                 "service": "checkout-api",
-                "label": "Request rate",
-                "metric": "request_rate",
-                "value": 42.8,
-                "unit": "req/s",
+                "label": "Total requests",
+                "metric": "request_count",
+                "value": 154080,
+                "unit": "requests",
             },
             {
                 "service": "checkout-api",
@@ -191,9 +191,9 @@ def snapshot(service: str) -> dict:
             },
         ],
         "top_apps": [
-            {"service": "Fuel Reporting", "rate": 18.2},
-            {"service": "Driver Logbook", "rate": 11.7},
-            {"service": "Plant Portal", "rate": 7.4},
+            {"service": "Fuel Reporting", "rate": 18.2, "requests": 65520},
+            {"service": "Driver Logbook", "rate": 11.7, "requests": 42120},
+            {"service": "Plant Portal", "rate": 7.4, "requests": 26640},
         ],
         "top_apps_message": "",
         "errors": [
@@ -212,7 +212,9 @@ def snapshot(service: str) -> dict:
                 "status": "Error",
             },
         ],
-        "note": "Last 15 minutes · incoming SERVER spans · sample data",
+        "window_seconds": 3600,
+        "window_label": "1 hour",
+        "note": "Last hour · incoming SERVER spans · sample data",
     }
 
 

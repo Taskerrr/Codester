@@ -4,7 +4,24 @@ import re
 import pytest
 
 from codester.app import create_app
-from codester.store import DEFAULTS, Store
+from codester.store import DEFAULTS, ConfigurationError, Store, validate
+
+
+@pytest.mark.parametrize("seconds", [300, 900, 3600, 21600, 86400])
+def test_signoz_window_is_saved(tmp_path, seconds):
+    store = Store(tmp_path)
+    config = store.read()
+    config["signoz"]["window_seconds"] = seconds
+    store.save(config)
+    assert Store(tmp_path).read()["signoz"]["window_seconds"] == seconds
+
+
+@pytest.mark.parametrize("seconds", [True, 0, -1, 100, "3600", None])
+def test_invalid_signoz_window_is_rejected(seconds):
+    config = copy.deepcopy(DEFAULTS)
+    config["signoz"]["window_seconds"] = seconds
+    with pytest.raises(ConfigurationError, match="time window"):
+        validate(config)
 
 
 @pytest.fixture

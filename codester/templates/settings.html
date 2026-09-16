@@ -47,7 +47,9 @@
     <label class="toggle"><input id="clear-key" type="checkbox"> Remove the saved SigNoz key</label>
     <div class="button-row"><button type="button" class="secondary-button test" data-service="signoz">Test connection</button><button type="button" id="discover" class="secondary-button">Find services</button></div>
     <p id="signoz-test" role="status" class="test-result"></p><p id="discovery-status" role="status" class="help">Save the connection first, then find services observed in the last 24 hours.</p>
-    <h3>Measurements</h3><p class="help">Choose up to three. Values cover the last 15 minutes of incoming server spans; trace sampling affects accuracy.</p>
+    <label>Time window<select id="signoz-window_seconds"><option value="300">Last 5 minutes</option><option value="900">Last 15 minutes</option><option value="3600">Last hour</option><option value="21600">Last 6 hours</option><option value="86400">Last 24 hours</option></select></label>
+    <p class="help">Applies to measurements, requests per app, and recent errors. Refreshes every 30 seconds after each query finishes.</p>
+    <h3>Measurements</h3><p class="help">Choose up to three. Totals count recorded incoming server spans, so trace sampling can reduce the counts. The app list shows up to 200 services.</p>
     {% for i in range(3) %}
     <div class="panel-config"><label class="toggle panel-toggle"><input id="panel-{{ i }}-enabled" type="checkbox" checked> {{ i + 1 }}</label>
       <label>Service<select id="panel-{{ i }}-service" class="service-select"><option value="">All services</option></select></label>
