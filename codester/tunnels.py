@@ -269,6 +269,19 @@ class TunnelManager:
         )
         return command
 
+    def remote_session(self, config: dict, script: str) -> tuple[list[str], dict[str, str]]:
+        """Reuse the saved SSH identity without creating or changing any forwards."""
+        if not self.ssh:
+            raise ConfigurationError("OpenSSH is not installed or is not available on PATH.")
+        if config["auth"] == "password" and not self.askpass:
+            raise ConfigurationError("The Codester SSH password helper is unavailable.")
+        command = self._command(config)
+        command.remove("-N")
+        index = command.index("-L")
+        del command[index:index + 2]
+        command.append(script)
+        return command, self._environment(config)
+
     def _environment(self, config: dict) -> dict[str, str]:
         environment = os.environ.copy()
         if config["auth"] == "password":

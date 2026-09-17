@@ -254,6 +254,13 @@ function updateRepositoryLimit() {
   $('#add-repository').disabled = document.querySelectorAll('.repository-config').length >= 3;
 }
 function fill(data) {
+  const pg = data.postgres || {enabled:false,host:'127.0.0.1',port:5432,database:'',username:'',sslmode:'require',sslrootcert:'',refresh_seconds:10};
+  $('#postgres-enabled').checked = pg.enabled;
+  for (const field of ['host','port','database','username','sslmode','sslrootcert','refresh_seconds']) $(`#postgres-${field}`).value = pg[field] ?? '';
+  $('#postgres-password').value = '';
+  $('#postgres-clear_password').checked = false;
+  $('#postgres-password-note').textContent = pg.has_password ? 'Password saved. Leave blank to keep it.' : 'Password uses the configured credential store.';
+  $('#postgres-tunnel').replaceChildren(new Option('Choose a tunnel to fill host and port', ''), ...(data.tunnels || []).map(tunnel => new Option(`${tunnel.name} / localhost:${tunnel.local_port}`, String(tunnel.local_port))));
   $('#demo').checked = data.demo;
   dashboardApps = [...data.dashboard_apps];
   editingSlot = null;
@@ -317,6 +324,9 @@ function read() {
     path:row.querySelector('[data-repository-field="path"]').value,
     deploy_command:row.querySelector('[data-repository-field="deploy_command"]').value,
   }));
+  data.postgres = {enabled:$('#postgres-enabled').checked, password:$('#postgres-password').value, clear_password:$('#postgres-clear_password').checked};
+  for (const field of ['host','database','username','sslmode','sslrootcert']) data.postgres[field] = $(`#postgres-${field}`).value;
+  for (const field of ['port','refresh_seconds']) data.postgres[field] = Number($(`#postgres-${field}`).value);
   return data;
 }
 async function saveSettings(refill = true) {
@@ -334,6 +344,9 @@ async function saveSettings(refill = true) {
     }
     else {
       $('#signoz-key').value='';
+      $('#postgres-password').value='';
+      $('#postgres-clear_password').checked=false;
+      $('#postgres-password-note').textContent = saved.postgres.has_password ? 'Password saved. Leave blank to keep it.' : 'No password saved.';
       $('#github-token').value='';
       for (const row of document.querySelectorAll('.tunnel-config')) {
         const input=row.querySelector('[data-tunnel-field="password"]');
@@ -432,7 +445,7 @@ for(const button of document.querySelectorAll('.test')) button.addEventListener(
   const name=button.dataset.service;
   button.disabled=true;
   $(`#${name}-test`).textContent='Testing saved connection…';
-  try { const result=await api(`/api/connections/${name}/test`,{method:'POST'}); $(`#${name}-test`).textContent=result.message; }
+  try { if (name === 'postgres') await saveSettings(false); const result=await api(`/api/connections/${name}/test`,{method:'POST'}); $(`#${name}-test`).textContent=result.message; }
   catch(error) { $(`#${name}-test`).textContent=error.message; }
   finally { button.disabled=false; }
 });
@@ -457,3 +470,5 @@ async function init() {
   catch(error) { message(`Could not load settings: ${error.message}. Reload before editing.`,true); }
 }
 init();
+
+$('#postgres-tunnel').addEventListener('change', () => { if ($('#postgres-tunnel').value) { $('#postgres-host').value = '127.0.0.1'; $('#postgres-port').value = $('#postgres-tunnel').value; $('#save-note').textContent = 'Unsaved changes'; } });

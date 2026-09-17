@@ -78,7 +78,7 @@
 .channel+.channel { border-left:1px solid var(--deck-line); }
 .channel.dagster { --channel-color:var(--dagster); }
 .channel.signoz { --channel-color:var(--signoz); }
-.channel.postgres { --channel-color:#4169e1; }
+.channel.postgres { --channel-color:oklch(73% .12 250); }
 .channel.server { --channel-color:oklch(81% .19 150); }
 .channel.github { --channel-color:oklch(76% .19 148); }
 .channel.docker { --channel-color:#2496ed; }
@@ -381,3 +381,16 @@
 .tunnel-popover>a { align-self:flex-start; margin:4px 0 0; flex-shrink:0; }
 .rail-bottom { margin-top:auto; }
 @media(prefers-reduced-motion:reduce) { .mini-track>span { transition:none; } }
+
+.pg-counts { display:flex; gap:40px; padding:24px 0; }
+.pg-counts>div { display:flex; flex-direction:column; gap:7px; }
+.pg-counts strong { font:600 2.8rem ui-monospace,monospace; color:var(--channel-color); }
+.pg-counts span { font-size:.65rem; color:var(--deck-muted); letter-spacing:.1em; }
+.pg-counts .pg-waiting strong { color:var(--signoz); }
+.pg-mini-row { display:flex; gap:12px; justify-content:space-between; align-items:center; min-height:44px; padding:8px 0; border-bottom:1px solid var(--deck-line); color:var(--text); text-decoration:none; }
+.pg-mini-row>span { min-width:0; }
+.pg-mini-row strong { display:block; font:500 .75rem ui-monospace,monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pg-mini-row small,.pg-mini-row time { font-size:.65rem; color:var(--deck-muted); }
+.pg-mini-block { display:block; padding:10px 0; min-height:44px; font-size:.75rem; color:var(--signoz); text-decoration:none; }
+
+.channel.postgres .connect-link { display:inline-flex; align-items:center; min-height:44px; color:var(--deck-muted); font-size:.75rem; text-decoration:none; }

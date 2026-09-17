@@ -38,6 +38,7 @@ DEFAULTS: dict = {
         "repositories": [],
     },
     "tunnels": [],
+    "postgres": {"enabled": False, "host": "127.0.0.1", "port": 5432, "database": "", "username": "", "sslmode": "require", "sslrootcert": "", "refresh_seconds": 10},
 }
 SIGNOZ_WINDOWS = {300: "5 min", 900: "15 min", 3600: "1 hour", 21600: "6 hours", 86400: "24 hours"}
 METRICS = {
@@ -177,6 +178,29 @@ def validate(data: object) -> dict:
             result[name][field] = valid_url(item.get(field, ""))
         if item["enabled"] and not result[name]["api_url"]:
             raise ConfigurationError(f"Enter the {name} API URL before enabling it.")
+    pg = data.get("postgres", DEFAULTS["postgres"])
+    if not isinstance(pg, dict) or not isinstance(pg.get("enabled"), bool):
+        raise ConfigurationError("Choose whether to enable PostgreSQL.")
+    result["postgres"]["enabled"] = pg["enabled"]
+    for field in ("host", "database", "username", "sslrootcert"):
+        value = pg.get(field, DEFAULTS["postgres"][field])
+        if not isinstance(value, str) or len(value) > 1024 or any(ord(c) < 32 for c in value):
+            raise ConfigurationError(f"Invalid PostgreSQL {field}.")
+        result["postgres"][field] = value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9._:-]+", result["postgres"]["host"]):
+        raise ConfigurationError("Enter a PostgreSQL hostname or IP address.")
+    if pg["enabled"] and (not result["postgres"]["database"] or not result["postgres"]["username"]):
+        raise ConfigurationError("Enter the PostgreSQL database and username before enabling it.")
+    port = pg.get("port", 5432)
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise ConfigurationError("Use a PostgreSQL port from 1 to 65535.")
+    sslmode = pg.get("sslmode", "require")
+    if not isinstance(sslmode, str) or sslmode not in {"disable", "prefer", "require", "verify-ca", "verify-full"}:
+        raise ConfigurationError("Choose a supported PostgreSQL TLS mode.")
+    interval = pg.get("refresh_seconds", 10)
+    if type(interval) is not int or interval not in {10, 30, 60}:
+        raise ConfigurationError("Choose a PostgreSQL refresh interval of 10, 30 or 60 seconds.")
+    result["postgres"].update(port=port, sslmode=sslmode, refresh_seconds=interval)
     window = data["signoz"].get("window_seconds", 3600)
     if type(window) is not int or window not in SIGNOZ_WINDOWS:
         raise ConfigurationError("Choose a supported SigNoz time window.")
@@ -391,6 +415,7 @@ class Store:
             data = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()[0])
         data.setdefault("dashboard_apps", list(DEFAULTS["dashboard_apps"]))
         data.setdefault("tunnels", [])
+        data.setdefault("postgres", copy.deepcopy(DEFAULTS["postgres"]))
         data.setdefault("github", copy.deepcopy(DEFAULTS["github"]))
         data["github"].setdefault("repositories", [])
         data["github"].setdefault("organization", "")
@@ -426,6 +451,7 @@ class Store:
             saved = {name for (name,) in db.execute("SELECT name FROM secrets")}
         data["signoz"]["has_key"] = "signoz" in saved
         data["github"]["has_token"] = "github" in saved
+        data["postgres"]["has_password"] = "postgres" in saved
         for tunnel in data["tunnels"]:
             tunnel["has_password"] = f"tunnel-password:{tunnel_identifier(tunnel)}" in saved
         return data
@@ -455,6 +481,13 @@ class Store:
             raise ConfigurationError("Invalid GitHub token.")
         if not isinstance(clear_github_token, bool):
             raise ConfigurationError("Invalid GitHub token removal choice.")
+        pg = data.get("postgres", {})
+        pg_password = pg.get("password", "")
+        pg_clear = pg.get("clear_password", False)
+        if not isinstance(pg_password, str) or len(pg_password) > 4096 or "\x00" in pg_password:
+            raise ConfigurationError("Invalid PostgreSQL password.")
+        if not isinstance(pg_clear, bool):
+            raise ConfigurationError("Invalid PostgreSQL password removal choice.")
         raw_tunnels = data.get("tunnels", [])
         assert isinstance(raw_tunnels, list)
         # Blank means preserve, explicit clear means delete.
@@ -518,6 +551,10 @@ class Store:
             ).fetchall():
                 if secret_name not in retained_secrets:
                     db.execute("DELETE FROM secrets WHERE name=?", (secret_name,))
+            if pg_clear:
+                db.execute("DELETE FROM secrets WHERE name='postgres'")
+            elif pg_password:
+                db.execute("INSERT OR REPLACE INTO secrets VALUES ('postgres', ?)", (self.cipher.encrypt(pg_password.encode()),))
             db.execute("UPDATE settings SET value=? WHERE id=1", (json.dumps(settings),))
             if clear:
                 db.execute("DELETE FROM secrets WHERE name='signoz'")

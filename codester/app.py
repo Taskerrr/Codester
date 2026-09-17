@@ -17,6 +17,7 @@ from codester.codex_events import ActivityEvents
 from codester.credentials import CredentialStoreError
 from codester.poller import INTERVALS, Poller
 from codester.repositories import RepositoryManager
+from codester.services import ServiceManager
 from codester.store import METRICS, ConfigurationError, Store
 from codester.transport import IntegrationError
 from codester.tunnels import TunnelManager
@@ -30,6 +31,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     poller = Poller(store)
     tunnel_manager = TunnelManager(store.path.parent, store.read()["tunnels"], autostart=start_poller)
     repository_manager = RepositoryManager(store)
+    service_manager = ServiceManager(store, tunnel_manager)
     token = secrets.token_urlsafe(32)
     docker_lock = threading.Lock()
     app.extensions.update(
@@ -37,6 +39,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         poller=poller,
         tunnel_manager=tunnel_manager,
         repository_manager=repository_manager,
+        service_manager=service_manager,
         codex_activity_events=activity_events,
     )
 
@@ -137,6 +140,60 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
             tunnel_manager.configure(store.read()["tunnels"])
         return jsonify(store.public())
 
+    @app.get("/postgres")
+    def postgres_page():
+        return render_template("postgres.html", csrf=token)
+
+    @app.get("/api/postgres")
+    def postgres_activity():
+        snapshot = poller.snapshot()
+        return jsonify(state=snapshot["services"]["postgres"], demo=snapshot["demo"], server_time=snapshot["server_time"])
+
+    @app.post("/api/postgres/<action>")
+    def postgres_control(action: str):
+        if action not in {"cancel", "terminate"}:
+            abort(404)
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get("token"), str) or len(data["token"]) > 4096:
+            raise ConfigurationError("Select a current PostgreSQL session first.")
+        with poller.operation_locks["postgres"]:
+            with poller.lock:
+                config = store.read()
+                if config["demo"] or not config["postgres"]["enabled"]:
+                    raise ConfigurationError("Session controls require a live PostgreSQL connection.")
+                if poller.state["postgres"]["status"] != "connected":
+                    raise ConfigurationError("Refresh the PostgreSQL connection before changing a session.")
+                password = store.secret("postgres")
+            result = poller.postgres.control(config["postgres"], password, data["token"], action)
+        poller.wakes["postgres"].set()
+        return jsonify(result)
+
+    @app.get("/services")
+    def services_page():
+        return render_template("services.html", csrf=token)
+
+    @app.get("/api/services")
+    def services_snapshot():
+        return jsonify(service_manager.snapshot())
+
+    @app.put("/api/services/<identifier>")
+    def service_save(identifier: str):
+        if not re.fullmatch(r"[a-f0-9-]{16,64}", identifier):
+            abort(404)
+        return jsonify(service_manager.save(identifier, request.get_json()))
+
+    @app.delete("/api/services/<identifier>")
+    def service_delete(identifier: str):
+        service_manager.delete(identifier)
+        return jsonify(ok=True)
+
+    @app.post("/api/services/<identifier>/run/<command_id>")
+    def service_run(identifier: str, command_id: str):
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            raise ConfigurationError("Invalid command request.")
+        return jsonify(service_manager.start(identifier, command_id, confirmed=data.get("confirmed") is True))
+
     @app.get("/api/tunnels")
     def tunnel_status():
         return jsonify(tunnel_manager.status())
@@ -171,8 +228,8 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         with poller.operation_locks[name]:
             with poller.lock:
                 config = store.read()
-                key = store.secret(name) if name in {"signoz", "github"} else ""
-            if name != "codex" and not config[name]["api_url"]:
+                key = store.secret(name) if name in {"signoz", "github", "postgres"} else ""
+            if name not in {"codex", "postgres"} and not config[name]["api_url"]:
                 raise ConfigurationError("Save a connection URL first.")
             data = poller.fetch(name, config, key)
         message = "Connection and dashboard queries succeeded."

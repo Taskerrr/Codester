@@ -5,6 +5,10 @@ import time
 
 def snapshot(service: str) -> dict:
     now = time.time()
+    if service == "postgres":
+        running = {"pid": 4101, "username": "app", "application_name": "api", "client": "10.0.0.12", "state": "active", "wait_event_type": "Lock", "wait_event": "transactionid", "query": "UPDATE orders SET status = 'processed' WHERE id = 42", "query_seconds": 24, "transaction_seconds": 24, "token": None}
+        blocker = {"pid": 4090, "username": "app", "application_name": "worker", "client": "10.0.0.13", "state": "idle in transaction", "query": "UPDATE orders SET status = 'pending' WHERE id = 42", "query_seconds": 95, "transaction_seconds": 100, "token": None}
+        return {"database": "demo", "username": "monitor", "sessions": 12, "active": 1, "idle_transactions": 1, "waiting": 1, "hidden_sessions": 0, "full_visibility": True, "tracking": True, "held_locks": 18, "waiting_locks": 1, "queries": [running, blocker], "blocking": [{"waiting_pid": 4101, "blocking_pid": 4090}], "lock_sessions": [running, blocker], "locks": [{"pid": 4101, "locktype": "transactionid", "mode": "ShareLock", "granted": False, "relation": None}], "query_limit": 50, "wait_limit": 20}
     if service == "codex":
         return {
             "plan": "Demo account",

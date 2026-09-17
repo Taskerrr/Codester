@@ -7,15 +7,17 @@ import time
 from codester import codex, dagster, demo, signoz
 from codester.credentials import CredentialStoreError
 from codester.github_activity import GitHubActivity
+from codester.postgres import PostgresMonitor
 from codester.store import Store
 from codester.transport import IntegrationError
 
-INTERVALS = {"codex": 60, "dagster": 10, "signoz": 30, "github": 60}
+INTERVALS = {"codex": 60, "dagster": 10, "signoz": 30, "github": 60, "postgres": 10}
 
 
 class Poller:
     def __init__(self, store: Store):
         self.store = store
+        self.postgres = PostgresMonitor()
         self.lock = threading.RLock()
         self.operation_locks = {name: threading.Lock() for name in INTERVALS}
         self.wakes = {name: threading.Event() for name in INTERVALS}
@@ -91,6 +93,8 @@ class Poller:
             return dagster.snapshot(config[name])
         if name == "signoz":
             return signoz.snapshot(config[name], key)
+        if name == "postgres":
+            return self.postgres.snapshot(config[name], key)
         return self.github_activity.fetch(config[name], key)
 
     def refresh(self, name: str) -> bool:
@@ -115,7 +119,7 @@ class Poller:
                         "data": demo.snapshot(name),
                     }
                 elif config[name]["enabled"]:
-                    key = self.store.secret(name) if name in {"signoz", "github"} else ""
+                    key = self.store.secret(name) if name in {"signoz", "github", "postgres"} else ""
                     data = self.fetch(name, config, key)
                     result = {
                         "status": "connected",
@@ -155,7 +159,8 @@ class Poller:
             self.wakes[name].clear()
             success = self.refresh(name)
             failures = 0 if success else min(failures + 1, 5)
-            delay = min(INTERVALS[name] * 2**failures, 300)
+            interval = self.store.read()["postgres"]["refresh_seconds"] if name == "postgres" else INTERVALS[name]
+            delay = min(interval * 2**failures, 300)
             with self.lock:
                 if not self.wakes[name].is_set():
                     self.state[name].update(

@@ -8,7 +8,7 @@
   <div class="settings-intro"><h1>Settings</h1><p class="muted">Local to this device</p></div>
   <form id="settings-form" novalidate>
   <div class="settings-tabs" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
-    {% for key, label, icon in [('display', 'Display', ''), ('codex', 'Codex', 'codex.svg'), ('dagster', 'Dagster', 'dagster.svg'), ('signoz', 'SigNoz', 'signoz.svg'), ('github', 'GitHub', 'github.svg'), ('docker', 'Docker', 'docker.svg'), ('postgres', 'PostgreSQL', 'postgresql.svg'), ('tunnels', 'SSH tunnels', '')] %}
+    {% for key, label, icon in [('display', 'Display', ''), ('codex', 'Codex', 'codex.svg'), ('dagster', 'Dagster', 'dagster.svg'), ('signoz', 'SigNoz', 'signoz.svg'), ('github', 'GitHub', 'github.svg'), ('docker', 'Docker', 'docker.svg'), ('postgres', 'PostgreSQL', 'postgresql.svg'), ('tunnels', 'SSH tunnels', ''), ('commands', 'Commands', '')] %}
     <button type="button" id="tab-{{ key }}" class="settings-tab" role="tab" data-settings-tab="{{ key }}" aria-controls="settings-{{ key }}" aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="{{ '0' if loop.first else '-1' }}">
       {% if icon %}<img src="/static/{{ icon }}" alt="">
       {% elif key == 'display' %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M9 4v13M15 4v13"/></svg>
@@ -19,6 +19,10 @@
     {% endfor %}
   </div>
   <div class="settings-panels">
+  <section id="settings-commands" class="settings-panel" role="tabpanel" aria-labelledby="tab-commands" tabindex="0" hidden>
+    <div class="settings-panel-heading"><h2>Service commands</h2><p class="help">Save commands for each server, run them and view their output.</p></div>
+    <a href="/services" class="primary-button">Open service commands</a>
+  </section>
   <section id="settings-display" class="settings-panel" role="tabpanel" aria-labelledby="tab-display" tabindex="0">
     <div class="settings-panel-heading"><h2>Display</h2><p class="help">Choose the three apps shown on your dashboard, from left to right.</p></div>
   <fieldset class="settings-section"><legend>Display mode</legend>
@@ -116,10 +120,25 @@
     <p class="help settings-info">When Codester runs in Docker, it uses the Docker socket mounted into its container. Anyone with control of Codester can use the Docker access you grant it.</p>
   </section>
   <section id="settings-postgres" class="settings-panel" role="tabpanel" aria-labelledby="tab-postgres" tabindex="0" hidden>
-    <div class="settings-panel-heading"><h2><img class="tiny-icon" src="/static/postgresql.svg" alt=""> PostgreSQL</h2><p class="help">Database monitoring is not connected yet. The dashboard tile is a placeholder.</p></div>
-    <h3>Connect through SSH</h3><p class="help">Forward a database connection and use it in your usual database client. A typical forward uses local port 15432 and remote port 5432. Enter the database username and password in your database client.</p>
-    <div class="button-row"><button type="button" class="secondary-button" id="add-postgres-tunnel">Add PostgreSQL tunnel</button><button type="button" class="secondary-button" data-open-settings="tunnels">View SSH tunnels</button></div>
-    <p class="help settings-info">Use remote host 127.0.0.1 when PostgreSQL runs on the SSH server. Otherwise, enter the database host as reached from that server.</p>
+    <div class="settings-panel-heading"><h2><img class="tiny-icon" src="/static/postgresql.svg" alt=""> PostgreSQL</h2><p class="help">Current queries and blocking locks for one database.</p></div>
+    <label class="toggle"><input id="postgres-enabled" type="checkbox"> Enable monitoring</label>
+    <div class="field-grid">
+      <label>Host<input id="postgres-host" maxlength="1024" value="127.0.0.1" autocomplete="off"></label>
+      <label>Port<input id="postgres-port" type="number" min="1" max="65535" value="5432"></label>
+      <label>Database<input id="postgres-database" maxlength="1024" autocomplete="off"></label>
+      <label>Username<input id="postgres-username" maxlength="1024" autocomplete="off"></label>
+      <label>Password<input id="postgres-password" type="password" maxlength="4096" autocomplete="new-password" placeholder="Enter password"></label>
+      <label>Refresh<select id="postgres-refresh_seconds"><option value="10">Every 10 seconds</option><option value="30">Every 30 seconds</option><option value="60">Every minute</option></select></label>
+      <label>TLS<select id="postgres-sslmode"><option value="require">Require encryption</option><option value="verify-full">Verify certificate and hostname</option><option value="verify-ca">Verify certificate</option><option value="prefer">Prefer encryption</option><option value="disable">Disabled (e.g. SSH tunnel)</option></select></label>
+      <label>CA certificate path <span class="optional">optional</span><input id="postgres-sslrootcert" maxlength="1024" placeholder="Path on the machine running Codester"></label>
+    </div>
+    <p id="postgres-password-note" class="help"></p>
+    <label class="toggle"><input id="postgres-clear_password" type="checkbox"> Remove saved database password</label>
+    <label>Use a saved tunnel<select id="postgres-tunnel"><option value="">Choose a tunnel to fill host and port</option></select></label>
+    <p class="help">For an SSH forward, use 127.0.0.1 and its local port. Database credentials are separate from SSH credentials; connect the tunnel first.</p>
+    <div class="button-row"><button type="button" class="secondary-button test" data-service="postgres">Save &amp; test</button><a class="quiet-button" href="/postgres">View activity</a><button type="button" class="secondary-button" id="add-postgres-tunnel">Add PostgreSQL tunnel</button></div>
+    <p id="postgres-test" class="help" role="status"></p>
+    <p class="help">To see other users' SQL, the database role needs pg_read_all_stats (or pg_monitor). Cancelling other users' queries normally requires pg_signal_backend; PostgreSQL enforces the permissions. Superuser sessions require a superuser.</p>
   </section>
   <section id="settings-tunnels" class="settings-panel" role="tabpanel" aria-labelledby="tab-tunnels" tabindex="0" hidden>
   <fieldset id="ssh-tunnels" class="settings-section"><legend>SSH tunnels</legend>
@@ -148,7 +167,7 @@
       </fieldset>
       <fieldset class="tunnel-group"><legend>SSH server</legend>
         <label class="tunnel-server-picker" hidden>Copy from saved tunnel<select class="tunnel-server-choice"><option value="">Choose a server</option></select></label>
-        <label>Host<input data-tunnel-field="ssh_host" type="text" maxlength="253" placeholder="10.15.14.130" autocomplete="off" required></label>
+        <label>Host<input data-tunnel-field="ssh_host" type="text" maxlength="253" placeholder="ssh.example.com" autocomplete="off" required></label>
         <div class="tunnel-auth-fields">
           <label>Authentication<select data-tunnel-field="auth"><option value="password">Password</option><option value="agent">SSH agent</option></select></label>
           <label>Username<input data-tunnel-field="username" type="text" maxlength="64" placeholder="Server username" autocomplete="username" required></label>

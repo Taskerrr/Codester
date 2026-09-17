@@ -11,7 +11,7 @@ const clamp = value => Math.min(100, Math.max(0, number(value)));
 const empty = text => `<p class="deck-empty">${e(text)}</p>`;
 const spinner = label => `<span class="loading-ring" role="img" aria-label="${e(label)}"></span>`;
 const sectionHeading = (title, aside = '') => `<div class="mini-heading"><h3>${e(title)}</h3><span>${e(aside)}</span></div>`;
-const utilityApps = new Set(['postgres', 'server', 'docker']);
+const utilityApps = new Set(['server', 'docker']);
 let dockerPanelLoading = false;
 let dockerControlLoading = false;
 let dockerPendingStop = '';
@@ -216,7 +216,12 @@ function repositoryMeta(local) {
   return parts.join(' · ');
 }
 
-const renderers = {codex, dagster, signoz, github};
+function postgres(data) {
+  const rows = (data.queries || []).slice(0, 4).map(row => `<a href="/postgres" class="pg-mini-row"><span><strong>${e(row.query || 'Query hidden by permissions')}</strong><small>PID ${row.pid} / ${e(row.username || '')} / ${e(row.state || '')}</small></span><time>${duration(row.query_seconds)}</time></a>`).join('');
+  const blocking = (data.blocking || []).slice(0, 3).map(edge => `<a class="pg-mini-block" href="/postgres#locks">PID ${edge.waiting_pid} waiting for ${edge.blocking_pid ? `PID ${edge.blocking_pid}` : 'prepared transaction'}</a>`).join('');
+  return `<div class="pg-counts"><div><strong>${number(data.active)}</strong><span>ACTIVE${data.hidden_sessions ? ' (VISIBLE)' : ''}</span></div><div class="${data.waiting ? 'pg-waiting' : ''}"><strong>${number(data.waiting)}</strong><span>WAITING</span></div></div>${sectionHeading('Queries', data.database)}${rows || empty(data.hidden_sessions ? 'Some queries hidden by permissions' : 'No active queries')}${sectionHeading('Blocking locks', `${number(data.held_locks)} held`)}${blocking || empty(data.hidden_sessions ? 'Limited visibility' : 'No blocking sessions observed')}<a href="/postgres" class="connect-link">View activity</a>`;
+}
+const renderers = {codex, dagster, signoz, github, postgres};
 
 function bytes(value) {
   if (!Number.isFinite(Number(value))) return '—';
@@ -501,6 +506,8 @@ $('#overview').addEventListener('click', event => {
 $('.deck-buttons').addEventListener('click', event => {
   const button = event.target.closest('[data-app]');
   if (!button) return;
+  if (button.dataset.app === 'postgres') { window.location.assign('/postgres'); return; }
+  if (button.dataset.app === 'server') { window.location.assign('/services'); return; }
   const panel = document.querySelector(`[data-app-panel="${button.dataset.app}"]:not([hidden])`);
   if (panel) panel.querySelector('.channel-arrow').focus();
   else window.location.assign('/settings#dashboard-layout');
