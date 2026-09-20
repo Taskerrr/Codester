@@ -1,4 +1,4 @@
-  <header class="pg-heading"><div><h1><img src="/static/postgresql.svg" alt=""> PostgreSQL</h1><p id="pg-database" class="muted"></p></div><span id="pg-freshness" role="status">Loading</span></header>
+  <header class="pg-heading"><div>{% if not embedded_activity %}<h1><img src="/static/postgresql.svg" alt=""> PostgreSQL</h1>{% endif %}<p id="pg-database" class="muted"></p></div><span id="pg-freshness" role="status">Loading</span></header>
   <p id="pg-notice" class="notice" role="status" hidden></p>
   <p id="pg-action-result" role="status" hidden></p>
   <div id="pg-counts" class="pg-summary"></div>

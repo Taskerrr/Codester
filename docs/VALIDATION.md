@@ -94,3 +94,14 @@ The display removes the header/footer and explanatory copy, adds a clock rail, r
   partial failure messages, Home-panel grouping, standalone page grouping, Escape
   dismissal and narrow-screen overflow. No real user containers were started or stopped.
 - Ruff, focused type checks and JavaScript syntax checks passed.
+
+## Compact PostgreSQL workspace, 20 September 2026
+
+- SQL/app subset: 43 passed, six optional real-database tests skipped. JavaScript syntax checks pass.
+- Playwright with intercepted SQL responses verified fixed write-mode requests, Play/Pause,
+  elapsed time, cancellation dispatch, per-connection draft/result restoration, connection
+  editing, empty-connection creation and activity navigation, with no JavaScript exceptions.
+- One-line editor is 44px high at 2560×720, leaving 572px for the empty results area.
+  Ten lines grow to 240px. Desktop checks at 2560×720, 1707×480 and 1000×650
+  have no page overflow; 390×844 scrolls vertically without horizontal overflow.
+- Database execution was simulated for these UI checks; no saved user database was queried.

@@ -10,8 +10,9 @@ reason rather than leaving conflicting requirements behind.
 - Saved SQL queries and persistent query history may make repeated tasks easier.
   Neither is part of the current runner. Current drafts and results live only in
   browser memory and survive workspace switching, not page reloads.
-- Consider richer database exploration only if everyday query use warrants it.
-  Keep the overview quiet and avoid recreating a full database administration tool.
+- Table/column autocomplete and an optional schema browser could help discover tables.
+  Prefer autocomplete in the query bar before adding another permanent tab; this is
+  exploring, not implemented. Multi-statement script support is also a separate possibility.
 
 ## Agreed
 
@@ -44,15 +45,19 @@ pages remain accessible through their header links.
 
 ### PostgreSQL SQL workspace, 20 September 2026
 
-- Side-by-side query editor and results table on wide screens; stacked on narrow screens.
+- Compact full-width query bar above results, superseding the original side-by-side layout
+  for the 2560 × 720 display. Grows up to ten lines; short viewports cap editor height.
 - Up to 20 named development/production connections, with credentials in the existing
-  private credential store. Connection and environment are always visible.
+  private credential store. A single dropdown selects, adds and edits connections, showing
+  the selected connection, environment and database. No first-run instructional copy.
 - The configured monitoring connection is also available without copying its password.
   Named connections are managed inside the workspace, independently of Home monitoring.
 - SSH connections use the existing tunnel's local host/port. Opening SQL never starts
   a tunnel automatically.
-- Read-only transactions by default; explicit write mode with target confirmation.
-  Writes use database-role permissions and commit on successful single-statement execution.
+- Read/write is the fixed workspace mode, replacing read-only and per-run confirmation
+  at the user’s request. Green Play executes directly and becomes red Pause to cancel;
+  elapsed time is shown beside it. Writes use database-role permissions and commit on
+  successful single-statement execution. The API still supports explicit read-only requests.
 - One SQL statement per request, one running SQL request per instance, a 30-second
   statement timeout, three-second lock timeout, cancellation, and a 35-second cancellation
   deadline. Demo mode never executes SQL.
@@ -94,3 +99,8 @@ single-statement rejection, duplicate column names, NULL, Unicode, large values,
 empty results, truncation and recovery after errors. Browser checks cover Home
 replacement, workspace switching, preserved drafts/results, connection forms,
 SQL execution/cancellation, keyboard use, and wide/narrow layouts.
+
+### PostgreSQL activity heading cleanup, 20 September 2026
+
+- Removed the duplicate title/logo inside the workspace Activity & locks tab.
+  The standalone activity page retains its heading.

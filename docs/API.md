@@ -50,6 +50,8 @@ SQL connection passwords are accepted only on save and never returned.
 - `DELETE /api/sql/connections/<id>`: removes the saved connection and credential.
 - `POST /api/sql/run`: `{connection_id, revision, query, mode, request_id,
   confirmed}`. Mode is `read` or `write`; writes require `confirmed: true`.
+  The workspace always sends `mode: "write"` and `confirmed: true` when Play is pressed;
+  there is no separate workspace mode selector or confirmation step.
   Request IDs are UUIDs. Queries accept at most 20,000 characters and one statement.
   Demo mode rejects execution. One execution runs at a time per instance.
   Returns `columns`, positional `rows` (text or null), `row_count`, `affected_rows`,

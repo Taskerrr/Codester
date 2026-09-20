@@ -1,9 +1,9 @@
 <section id="sql-workspace" class="workspace-view sql-workspace" aria-label="PostgreSQL workspace" hidden>
   <header class="workspace-heading">
     <h1><img src="/static/postgresql.svg" alt=""> PostgreSQL</h1>
-    <div class="sql-connection-bar"><label for="sql-connection">Connection</label><select id="sql-connection"></select><span id="sql-environment"></span><button id="sql-edit-connection" class="quiet-button" type="button">Edit</button><button id="sql-add-connection" class="quiet-button" type="button">Add connection</button></div>
+    <nav class="pg-tabs" aria-label="PostgreSQL workspace"><button id="sql-tab-editor" type="button" aria-pressed="true">Query</button><button id="sql-tab-activity" type="button" aria-pressed="false">Activity &amp; locks</button></nav>
+    <div class="sql-connection-bar"><select id="sql-connection" aria-label="Connection"></select></div>
   </header>
-  <p id="sql-target" class="help"></p>
   <p id="sql-notice" role="status" class="help"></p>
   <form id="sql-connection-form" class="sql-connection-form" hidden>
     <h2 id="sql-connection-title">New connection</h2>
@@ -23,18 +23,16 @@
     <div class="sql-actions"><button type="submit" class="primary-button">Save connection</button><button id="sql-close-connection" type="button" class="quiet-button">Cancel</button><button id="sql-delete-connection" type="button" class="quiet-button">Delete connection</button></div>
     <p id="sql-connection-error" role="alert"></p>
   </form>
-  <nav class="pg-tabs" aria-label="PostgreSQL workspace"><button id="sql-tab-editor" type="button" aria-pressed="true">SQL editor</button><button id="sql-tab-activity" type="button" aria-pressed="false">Activity &amp; locks</button></nav>
   <div id="sql-editor-view" class="sql-editor-view">
     <section class="sql-editor-pane" aria-label="Query editor">
-      <div class="sql-editor-toolbar"><label for="sql-query">Query</label><label class="sql-mode-label" for="sql-mode">Mode <select id="sql-mode"><option value="read">Read only</option><option value="write">Read &amp; write</option></select></label></div>
-      <textarea id="sql-query" spellcheck="false" autocomplete="off" aria-describedby="sql-query-help" placeholder="SELECT * FROM your_table LIMIT 100;"></textarea>
-      <p id="sql-query-help" class="help">One statement · 30s timeout · up to 500 rows shown · Ctrl/⌘ Enter to run</p>
-      <div id="sql-write-confirmation" class="sql-write-confirmation" hidden><p id="sql-write-description"></p><button id="sql-confirm-run" class="primary-button" type="button">Confirm and run</button><button id="sql-dismiss-confirmation" class="quiet-button" type="button">Back</button></div>
-      <div class="sql-actions"><button id="sql-run" type="button" class="primary-button">Run query</button><button id="sql-cancel" type="button" class="quiet-button" disabled>Cancel query</button></div>
+      <textarea id="sql-query" rows="1" spellcheck="false" autocomplete="off" aria-label="SQL query" placeholder="SELECT …"></textarea>
+      <div class="sql-run-controls"><button id="sql-run" type="button" class="sql-run" aria-label="Run query" title="Run query (Ctrl/⌘ Enter)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l14 8-14 8z"/></svg></button><span id="sql-elapsed" aria-label="Query duration"></span></div>
     </section>
-    <section class="sql-results-pane" aria-label="Query results"><div class="sql-results-heading"><h2>Results</h2><span id="sql-result-status" role="status">Run a query to see results.</span></div><div id="sql-results" class="sql-results" tabindex="0"><p class="sql-empty">Your results will appear here.</p></div></section>
+    <section class="sql-results-pane" aria-label="Query results"><div id="sql-result-status" role="status"></div><div id="sql-results" class="sql-results" tabindex="0"></div></section>
   </div>
   <section id="sql-activity-view" class="postgres-main" hidden>
+    {% with embedded_activity=true %}
     {% include 'postgres_activity.html' %}
+    {% endwith %}
   </section>
 </section>

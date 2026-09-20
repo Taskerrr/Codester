@@ -8,7 +8,9 @@ export function initSQLWorkspace() {
   let running = false;
   let requestId;
   let editingId;
-  let pending;
+  let cancelling = false;
+  let startedAt = 0;
+  let timer;
   let currentId = '';
   let currentRevision = '';
   const drafts = new Map();
@@ -17,16 +19,25 @@ export function initSQLWorkspace() {
   const workspace = $('#sql-workspace');
 
   function remember() {
-    if (currentId) drafts.set(currentId, {revision:currentRevision, query:$('#sql-query').value, results:$('#sql-results').innerHTML, status:$('#sql-result-status').textContent, error:$('#sql-result-status').classList.contains('error')});
+    if (currentId) drafts.set(currentId, {revision:currentRevision, query:$('#sql-query').value, results:$('#sql-results').innerHTML, status:$('#sql-result-status').textContent, elapsed:$('#sql-elapsed').textContent, error:$('#sql-result-status').classList.contains('error')});
   }
-  function clearConfirmation() { pending = null; $('#sql-write-confirmation').hidden = true; }
+  function resizeQuery() {
+    const query = $('#sql-query');
+    if (!query.clientWidth) return;
+    query.style.height = 'auto';
+    query.style.height = Math.min(query.scrollHeight + 2, 240) + 'px';
+  }
   function controls() {
-    $('#sql-run').disabled = running || demo || !selected() || !$('#sql-query').value.trim();
-    $('#sql-cancel').disabled = !running;
-    for (const id of ['sql-connection','sql-mode','sql-add-connection','sql-edit-connection']) $(`#${id}`).disabled = running;
-    $('#sql-edit-connection').disabled ||= !selected() || currentId === 'monitor';
+    const button = $('#sql-run');
+    button.disabled = running ? cancelling : demo || !selected() || !$('#sql-query').value.trim();
+    $('#sql-connection').disabled = running;
     $('#sql-query').readOnly = running;
-    $('#sql-run').textContent = running ? 'Running…' : 'Run query';
+    button.classList.toggle('is-running', running);
+    button.setAttribute('aria-label', running ? 'Cancel query' : 'Run query');
+    button.title = running ? 'Cancel query' : 'Run query (Ctrl/⌘ Enter)';
+    button.innerHTML = running
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l14 8-14 8z"/></svg>';
   }
   function selectConnection(id) {
     remember();
@@ -37,20 +48,19 @@ export function initSQLWorkspace() {
     const retainResults = saved && saved.revision === connection?.revision;
     currentRevision = connection?.revision || '';
     $('#sql-query').value = saved?.query || '';
-    $('#sql-results').innerHTML = retainResults ? saved.results : '<p class="sql-empty">Your results will appear here.</p>';
-    $('#sql-result-status').textContent = retainResults ? saved.status : saved ? 'Connection changed. Run the query to refresh results.' : 'Run a query to see results.';
+    $('#sql-results').innerHTML = retainResults ? saved.results : '';
+    $('#sql-result-status').textContent = retainResults ? saved.status : saved ? 'Connection changed. Run the query to refresh results.' : '';
     $('#sql-result-status').classList.toggle('error', retainResults && saved.error);
-    $('#sql-mode').value = 'read';
-    $('#sql-environment').textContent = connection?.environment || 'No connection';
-    $('#sql-environment').dataset.environment = connection?.environment || '';
-    $('#sql-target').textContent = connection ? `${connection.name} · ${connection.host}:${connection.port} / ${connection.database} · ${connection.username}` : 'Add a named PostgreSQL connection to get started.';
+    $('#sql-connection').title = connection ? `${connection.host}:${connection.port} / ${connection.database} · ${connection.username}` : 'New connection';
+    $('#sql-elapsed').textContent = retainResults ? saved.elapsed || '' : '';
+    resizeQuery();
     workspace.dataset.connection = id;
-    clearConfirmation();
     controls();
     document.dispatchEvent(new Event('sqlconnectionchange'));
   }
   function renderConnections(preferred = currentId) {
-    $('#sql-connection').innerHTML = connections.length ? connections.map(row => `<option value="${e(row.id)}">${e(row.name)}</option>`).join('') : '<option value="">No saved connections</option>';
+    preferred = connections.some(row => row.id === preferred) ? preferred : connections[0]?.id || '';
+    $('#sql-connection').innerHTML = (connections.length ? connections.map(row => `<option value="${e(row.id)}">${e(row.name)} · ${e(row.environment)} · ${e(row.database)}</option>`).join('') : '<option value="" disabled>New connection</option>') + '<option value="__new">New connection…</option>' + (connections.some(row => row.id === preferred && row.id !== 'monitor') ? '<option value="__edit">Edit connection…</option>' : '');
     $('#sql-notice').textContent = demo ? 'Demo mode is on. Turn it off in Settings to run SQL against a saved connection.' : '';
     selectConnection(connections.some(row => row.id === preferred) ? preferred : connections[0]?.id || '');
   }
@@ -77,15 +87,12 @@ export function initSQLWorkspace() {
     form.hidden = false;
     workspace.classList.add('connection-editing');
     form.elements.namedItem('name').focus();
-    clearConfirmation();
   }
   function closeForm() {
     form.hidden = true; workspace.classList.remove('connection-editing');
     form.elements.namedItem('password').value = '';
-    $('#sql-add-connection').focus();
+    $('#sql-connection').focus();
   }
-  $('#sql-add-connection').addEventListener('click', () => editConnection());
-  $('#sql-edit-connection').addEventListener('click', () => editConnection(selected()));
   $('#sql-close-connection').addEventListener('click', closeForm);
   form.addEventListener('submit', async event => {
     event.preventDefault();
@@ -109,54 +116,56 @@ export function initSQLWorkspace() {
     } catch (error) { $('#sql-connection-error').textContent = error.message; }
     finally { for (const action of form.querySelectorAll('button')) action.disabled = false; }
   });
-  $('#sql-connection').addEventListener('change', event => selectConnection(event.target.value));
-  $('#sql-query').addEventListener('input', () => { clearConfirmation(); controls(); });
-  $('#sql-mode').addEventListener('change', clearConfirmation);
+  $('#sql-connection').addEventListener('change', event => {
+    const value = event.target.value;
+    if (value === '__new' || value === '__edit') {
+      event.target.value = currentId;
+      editConnection(value === '__edit' ? selected() : undefined);
+    } else { closeForm(); renderConnections(value); }
+  });
+  $('#sql-query').addEventListener('input', () => { resizeQuery(); controls(); });
+  new ResizeObserver(resizeQuery).observe($('#sql-editor-view'));
   function resultTable(result) {
     if (!result.columns.length) return `<p class="sql-empty">${e(result.status || 'Statement completed')}${result.affected_rows !== null ? ` · ${e(result.affected_rows)} rows affected` : ''}.</p>`;
     return `<table><caption>Query results</caption><thead><tr>${result.columns.map(name => `<th scope="col">${e(name)}</th>`).join('')}</tr></thead><tbody>${result.rows.map(row => `<tr>${row.map(value => `<td${value === null ? ' class="sql-null"' : ''}>${value === null ? 'NULL' : e(value)}</td>`).join('')}</tr>`).join('')}</tbody></table>${!result.rows.length ? `<p class="sql-empty">${result.truncated ? 'No rows fit within the preview limit. Select fewer or smaller columns.' : 'Query completed with no rows.'}</p>` : ''}`;
   }
-  async function run(confirmed = false) {
+  async function run() {
     if (running || demo || !selected() || !$('#sql-query').value.trim()) return;
     const connection = selected();
     const query = $('#sql-query').value;
-    const mode = $('#sql-mode').value;
-    if (mode === 'write' && !confirmed) {
-      pending = {id:currentId, query, revision:connection.revision};
-      $('#sql-write-description').textContent = `Run in write mode on ${connection.name} (${connection.environment}), ${connection.host}:${connection.port}/${connection.database}? Changes are committed immediately.`;
-      $('#sql-write-confirmation').hidden = false;
-      $('#sql-confirm-run').focus();
-      return;
-    }
-    if (mode === 'write' && (!pending || pending.id !== currentId || pending.query !== query || pending.revision !== connection.revision)) { clearConfirmation(); return; }
-    clearConfirmation(); running = true; requestId = crypto.randomUUID(); controls();
+    const mode = 'write';
+    const confirmed = true;
+    running = true; cancelling = false; requestId = crypto.randomUUID(); controls();
+    startedAt = performance.now();
+    const updateElapsed = () => { $('#sql-elapsed').textContent = ((performance.now() - startedAt) / 1000).toFixed(1) + 's'; };
+    updateElapsed(); timer = setInterval(updateElapsed, 100);
     const status = $('#sql-result-status');
-    status.classList.remove('error'); status.textContent = `Running on ${connection.name}…`;
-    $('#sql-results').innerHTML = '<p class="sql-empty">Waiting for results…</p>';
+    status.classList.remove('error'); status.textContent = '';
+    $('#sql-results').innerHTML = '';
+    $('#sql-results').setAttribute('aria-busy', 'true');
     try {
       const result = await api('/api/sql/run', {method:'POST', body:JSON.stringify({connection_id:currentId, revision:connection.revision, query, mode, confirmed, request_id:requestId}), timeout:45000});
       $('#sql-results').innerHTML = resultTable(result);
-      status.textContent = `${result.connection_name} · ${result.environment} · ${result.rows.length} of ${result.row_count} result rows · ${result.elapsed_ms} ms${result.truncated ? ' · Preview truncated (500 rows / 4,000 characters per cell / 2 MB)' : ''}`;
+      $('#sql-elapsed').textContent = (result.elapsed_ms / 1000).toFixed(1) + 's';
+      status.textContent = `${result.rows.length} rows${result.truncated ? ' · Preview truncated (500 rows / 4,000 characters per cell / 2 MB)' : ''}`;
     } catch (error) {
       status.classList.add('error'); status.textContent = `${connection.name}: ${error.message}`;
       $('#sql-results').innerHTML = `<p class="sql-empty">No results available.${mode === 'write' ? ' For a failed or interrupted write, verify the database state before retrying.' : ''}</p>`;
-    } finally { running = false; requestId = null; controls(); remember(); }
+    } finally { clearInterval(timer); running = false; requestId = null; $('#sql-results').setAttribute('aria-busy', 'false'); controls(); remember(); }
   }
-  $('#sql-run').addEventListener('click', () => run());
-  $('#sql-confirm-run').addEventListener('click', () => run(true));
-  $('#sql-dismiss-confirmation').addEventListener('click', () => { clearConfirmation(); $('#sql-run').focus(); });
+  $('#sql-run').addEventListener('click', () => running ? cancel() : run());
   $('#sql-query').addEventListener('keydown', event => {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); run(); }
   });
-  $('#sql-cancel').addEventListener('click', async () => {
+  async function cancel() {
     if (!requestId) return;
-    const cancelling = requestId;
-    $('#sql-cancel').disabled = true;
+    const cancelledId = requestId;
+    cancelling = true; controls();
     try {
-      const response = await api(`/api/sql/cancel/${cancelling}`, {method:'POST', timeout:8000});
-      if (requestId === cancelling) $('#sql-result-status').textContent = response.cancelled ? 'Cancellation requested. Waiting for the database…' : 'Query has already finished. Waiting for its result…';
-    } catch (error) { if (requestId === cancelling) { $('#sql-result-status').textContent = error.message; $('#sql-cancel').disabled = false; } }
-  });
+      const response = await api(`/api/sql/cancel/${cancelledId}`, {method:'POST', timeout:8000});
+      if (requestId === cancelledId) $('#sql-result-status').textContent = response.cancelled ? 'Cancellation requested. Waiting for the database…' : 'Query has already finished. Waiting for its result…';
+    } catch (error) { if (requestId === cancelledId) { $('#sql-result-status').textContent = error.message; cancelling = false; controls(); } }
+  }
   for (const tab of ['editor','activity']) $(`#sql-tab-${tab}`).addEventListener('click', () => {
     $('#sql-editor-view').hidden = tab !== 'editor';
     $('#sql-activity-view').hidden = tab !== 'activity';

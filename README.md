@@ -258,18 +258,18 @@ are separate from the Home monitoring configuration. Passwords use the existing
 credential store and are never returned to the browser. For SSH, use the local
 forwarded host/port and connect through the usual SSH controls.
 
-The editor defaults to **Read only**, enforced using a PostgreSQL read-only
-transaction. **Read & write** requires an inline confirmation naming the target
-connection before every run. Each run uses a new connection and accepts one
+The compact editor grows from one line to ten above the full-width results table.
+Use the connection dropdown to select, add or edit a connection. The editor always
+runs in **Read & write** mode; Play executes directly. Each run uses a new connection and accepts one
 statement; multi-statement scripts, persistent transactions, interactive commands
 and COPY streams are not supported. Database permissions still apply. Successful
 writes commit immediately; cancelling or losing a response does not prove that a
 write was rolled back, so inspect the data before retrying.
 
-Run with the button or Ctrl/Command+Enter. One SQL request can run at a time per
+Run with the green play icon or Ctrl/Command+Enter. Elapsed time appears beside it. One SQL request can run at a time per
 Codester instance. Statement and lock timeouts are 30 and 3 seconds, respectively,
-with cancellation requested after 35 seconds as a backstop. **Cancel query** sends
-a cancellation request. There are no automatic retries. Demo mode disables SQL
+with cancellation requested after 35 seconds as a backstop. While running, the icon
+becomes a red pause button that sends a cancellation request. There are no automatic retries. Demo mode disables SQL
 execution. The query runner uses the database role's normal schema search path;
 the separate monitoring adapter continues to use `pg_catalog`.
 
