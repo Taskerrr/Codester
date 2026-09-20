@@ -456,6 +456,15 @@ class Store:
             tunnel["has_password"] = f"tunnel-password:{tunnel_identifier(tunnel)}" in saved
         return data
 
+    def save_dashboard_apps(self, apps: object) -> list[str]:
+        """Update only the overview layout, without replacing unrelated settings."""
+        with self.lock, closing(sqlite3.connect(self.path)) as db, db:
+            data = self.read()
+            data["dashboard_apps"] = apps
+            layout = validate(data)["dashboard_apps"]
+            db.execute("UPDATE settings SET value=? WHERE id=1", (json.dumps(data),))
+        return layout
+
     def secret(self, name: str) -> str:
         with self.lock, closing(sqlite3.connect(self.path)) as db, db:
             row = db.execute("SELECT value FROM secrets WHERE name=?", (name,)).fetchone()

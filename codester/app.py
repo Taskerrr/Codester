@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import threading
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -18,6 +19,7 @@ from codester.credentials import CredentialStoreError
 from codester.poller import INTERVALS, Poller
 from codester.repositories import RepositoryManager
 from codester.services import ServiceManager
+from codester.sql_workspace import SQLWorkspace
 from codester.store import METRICS, ConfigurationError, Store
 from codester.transport import IntegrationError
 from codester.tunnels import TunnelManager
@@ -32,6 +34,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     tunnel_manager = TunnelManager(store.path.parent, store.read()["tunnels"], autostart=start_poller)
     repository_manager = RepositoryManager(store)
     service_manager = ServiceManager(store, tunnel_manager)
+    sql_workspace = SQLWorkspace(store)
     token = secrets.token_urlsafe(32)
     docker_lock = threading.Lock()
     app.extensions.update(
@@ -40,6 +43,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         tunnel_manager=tunnel_manager,
         repository_manager=repository_manager,
         service_manager=service_manager,
+        sql_workspace=sql_workspace,
         codex_activity_events=activity_events,
     )
 
@@ -99,7 +103,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     def dashboard():
         result = poller.snapshot()
         settings = store.read()
-        codex_data = result["services"]["codex"].get("data")
+        codex_data: dict | None = result["services"]["codex"].get("data")
         if not result["demo"] and settings["codex"]["enabled"] and settings["codex"]["activity"]:
             if codex_data is None:
                 codex_data = {"windows": []}
@@ -143,6 +147,55 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     @app.get("/postgres")
     def postgres_page():
         return render_template("postgres.html", csrf=token)
+
+    @app.put("/api/dashboard/layout")
+    def dashboard_layout():
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            raise ConfigurationError("Choose three dashboard apps.")
+        return jsonify(layout=store.save_dashboard_apps(data.get("apps")))
+
+    @app.get("/api/sql/connections")
+    def sql_connections():
+        return jsonify(connections=sql_workspace.connections(), demo=store.read()["demo"])
+
+    @app.put("/api/sql/connections/<identifier>")
+    def sql_connection_save(identifier: str):
+        return jsonify(connections=sql_workspace.save(identifier, request.get_json(silent=True)))
+
+    @app.delete("/api/sql/connections/<identifier>")
+    def sql_connection_delete(identifier: str):
+        sql_workspace.delete(identifier)
+        return jsonify(ok=True)
+
+    @app.post("/api/sql/run")
+    def sql_run():
+        return jsonify(sql_workspace.execute(request.get_json(silent=True)))
+
+    @app.post("/api/sql/cancel/<identifier>")
+    def sql_cancel(identifier: str):
+        return jsonify(cancelled=sql_workspace.cancel(identifier))
+
+    @app.get("/api/sql/connections/<identifier>/activity")
+    def sql_activity(identifier: str):
+        if store.read()["demo"]:
+            return postgres_activity()
+        config, password = sql_workspace.resolve(identifier)
+        data = poller.postgres.snapshot(config, password)
+        now = time.time()
+        return jsonify(state=dict(status="connected", data=data, last_success=now), demo=False, server_time=now)
+
+    @app.post("/api/sql/connections/<identifier>/<action>")
+    def sql_session_control(identifier: str, action: str):
+        if action not in {"cancel", "terminate"}:
+            abort(404)
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get("token"), str) or len(data["token"]) > 4096:
+            raise ConfigurationError("Select a current PostgreSQL session first.")
+        if store.read()["demo"]:
+            raise ConfigurationError("Session controls require a live connection.")
+        config, password = sql_workspace.resolve(identifier)
+        return jsonify(poller.postgres.control(config, password, data["token"], action))
 
     @app.get("/api/postgres")
     def postgres_activity():
@@ -270,6 +323,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
                 container.update(stats.get(container["id"], {}))
         return jsonify(
             containers=containers,
+            groups=docker_engine.groups(containers),
             running=sum(container["running"] for container in containers),
             total=len(containers),
             cpu_percent=round(
@@ -294,6 +348,17 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
         with docker_lock:
             docker_engine.control(container_id, action)
         return jsonify(ok=True)
+
+    @app.post("/api/docker/projects/<project_id>/<action>")
+    def docker_project_control(project_id: str, action: str):
+        if not re.fullmatch(r"[a-f0-9]{64}", project_id) or action not in {"start", "stop"}:
+            abort(404)
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            raise ConfigurationError("Select a Docker project first.")
+        with docker_lock:
+            result = docker_engine.control_project(project_id, action, data.get("container_ids"))
+        return jsonify(result)
 
     @app.get("/api/github/repositories")
     def github_repositories():

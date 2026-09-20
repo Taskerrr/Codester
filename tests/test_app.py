@@ -281,3 +281,19 @@ def test_individual_tunnel_controls_require_csrf_and_valid_action(app, client, m
     assert calls == ["1234567890abcdef"]
     assert client.post("/api/tunnels/1234567890abcdef/delete", headers=csrf(client)).status_code == 404
     assert client.post("/api/tunnels/invalid/connect", headers=csrf(client)).status_code == 404
+
+
+def test_docker_project_api_membership_and_csrf(client, monkeypatch):
+    calls = []
+    project_id = 'a' * 64
+    member_id = 'b' * 64
+    def control(project, action, members):
+        calls.append((project, action, members))
+        return {'ok':True, 'message':'Stop requested.'}
+    monkeypatch.setattr('codester.docker_engine.control_project', control)
+    path = f'/api/docker/projects/{project_id}/stop'
+    assert client.post(path, json={'container_ids':[member_id]}).status_code == 403
+    assert client.post(path, json={'container_ids':[member_id]}, headers=csrf(client)).json['ok']
+    assert calls == [(project_id,'stop',[member_id])]
+    assert client.post(f'/api/docker/projects/{project_id}/remove', headers=csrf(client)).status_code == 404
+    assert client.post(path, json=[], headers=csrf(client)).status_code == 400

@@ -5,15 +5,6 @@
 {% block navigation %}<a class="quiet-button" href="/settings#postgres">Connection settings</a><a class="quiet-button" href="/">← Overview</a>{% endblock %}
 {% block content %}
 <main id="main" class="postgres-main">
-  <header class="pg-heading"><div><h1><img src="/static/postgresql.svg" alt=""> PostgreSQL</h1><p id="pg-database" class="muted"></p></div><span id="pg-freshness" role="status">Loading</span></header>
-  <p id="pg-notice" class="notice" role="status" hidden></p>
-  <p id="pg-action-result" role="status" hidden></p>
-  <div id="pg-counts" class="pg-summary"></div>
-  <div class="pg-tabs" role="tablist" aria-label="PostgreSQL activity"><button id="pg-tab-queries" type="button" role="tab" aria-controls="pg-queries" aria-selected="true">Queries</button><button id="pg-tab-locks" type="button" role="tab" aria-controls="pg-locks" aria-selected="false" tabindex="-1">Blocking locks</button></div>
-  <div class="pg-content">
-    <section id="pg-confirmation" class="pg-confirmation" aria-labelledby="pg-confirm-title" hidden><h2 id="pg-confirm-title" tabindex="-1"></h2><p id="pg-confirm-description"></p><pre id="pg-confirm-query"></pre><button id="pg-confirm-action" type="button" class="primary-button">Confirm</button><button id="pg-cancel-action" type="button" class="quiet-button">Back</button></section>
-    <section id="pg-queries" role="tabpanel" aria-labelledby="pg-tab-queries"><p id="pg-query-note" class="help"></p><div id="pg-query-list"></div></section>
-    <section id="pg-locks" role="tabpanel" aria-labelledby="pg-tab-locks" hidden><p id="pg-lock-note" class="help"></p><div id="pg-lock-list"></div></section>
-  </div>
+  {% include 'postgres_activity.html' %}
 </main>
 {% endblock %}

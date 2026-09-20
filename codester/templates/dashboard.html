@@ -1,7 +1,10 @@
 {% extends 'base.html' %}
 {% block bodyclass %}dashboard-page{% endblock %}
 {% block scripts %}
+<link rel="stylesheet" href="/static/docker-groups.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='deck.css') }}">
+<link rel="stylesheet" href="/static/postgres.css">
+<link rel="stylesheet" href="/static/workspaces.css">
 <script type="module" src="{{ url_for('static', filename='dashboard.js') }}"></script>
 {% endblock %}
 {% block header %}{% endblock %}
@@ -11,9 +14,9 @@
   <p id="tunnel-warning" class="deck-warning tunnel-warning" role="status" hidden></p>
   <div id="overview" class="deck-layout">
     <aside class="clock-rail" aria-label="Workspace overview">
-      <div class="rail-emblem" aria-hidden="true"><span>&lt;</span><i></i></div>
+      <button id="workspace-home" class="rail-emblem" type="button" aria-label="Home" title="Home" aria-pressed="true"><span aria-hidden="true">&lt;</span><i aria-hidden="true"></i><small>Home</small></button>
       <div class="rail-clock"><time id="clock"></time><span id="date"></span><div id="tunnel-dots" class="tunnel-dots" aria-label="SSH tunnels" hidden></div></div>
-      <nav class="deck-buttons" aria-label="Dashboard sections">
+      <nav class="deck-buttons" aria-label="App workspaces">
         <button class="deck-button codex" data-app="codex" type="button" aria-label="Codex" title="Codex"><img src="{{ url_for('static', filename='codex.svg') }}" alt=""></button>
         <button class="deck-button dagster" data-app="dagster" type="button" aria-label="Dagster" title="Dagster"><img src="{{ url_for('static', filename='dagster.svg') }}" alt=""></button>
         <button class="deck-button signoz" data-app="signoz" type="button" aria-label="SigNoz" title="SigNoz"><img src="{{ url_for('static', filename='signoz.svg') }}" alt=""></button>
@@ -31,7 +34,8 @@
     <section class="channel {{ name }}" data-app-panel="{{ name }}" aria-label="{{ label }}" {% if name not in ['codex', 'dagster', 'signoz'] %}hidden{% endif %}>
       <header class="channel-header">
         <div class="channel-identity">
-          {% if icon %}<img src="{{ url_for('static', filename=icon) }}" alt="">{% elif name == 'server' %}<svg class="channel-inline-icon" viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="5" width="26" height="22" rx="4"/><path d="m9 12 4 4-4 4M17 20h6"/></svg>{% else %}<svg class="channel-inline-icon" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-4.1 25.3c.7.1.9-.3.9-.7v-2.5c-3.8.8-4.6-1.6-4.6-1.6-.6-1.6-1.5-2-1.5-2-1.3-.9.1-.9.1-.9 1.4.1 2.2 1.5 2.2 1.5 1.3 2.2 3.4 1.6 4.2 1.2.1-.9.5-1.6.9-2-3-.3-6.2-1.5-6.2-6.4 0-1.4.5-2.6 1.4-3.5-.1-.3-.6-1.7.1-3.5 0 0 1.1-.4 3.6 1.3a12.4 12.4 0 0 1 6.6 0c2.5-1.7 3.6-1.3 3.6-1.3.7 1.8.2 3.2.1 3.5.9.9 1.4 2.1 1.4 3.5 0 5-3.2 6.1-6.2 6.4.5.4.9 1.3.9 2.6v3.9c0 .4.2.8.9.7A13 13 0 0 0 16 3Z"/></svg>{% endif %}
+          <button class="panel-picker-trigger" type="button" data-picker="{{ name }}" aria-label="Replace {{ label }} panel" aria-expanded="false" aria-controls="panel-picker">{% if icon %}<img src="{{ url_for('static', filename=icon) }}" alt="">{% elif name == 'server' %}<svg class="channel-inline-icon" viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="5" width="26" height="22" rx="4"/><path d="m9 12 4 4-4 4M17 20h6"/></svg>{% else %}<svg class="channel-inline-icon" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-4.1 25.3c.7.1.9-.3.9-.7v-2.5c-3.8.8-4.6-1.6-4.6-1.6-.6-1.6-1.5-2-1.5-2-1.3-.9.1-.9.1-.9 1.4.1 2.2 1.5 2.2 1.5 1.3 2.2 3.4 1.6 4.2 1.2.1-.9.5-1.6.9-2-3-.3-6.2-1.5-6.2-6.4 0-1.4.5-2.6 1.4-3.5-.1-.3-.6-1.7.1-3.5 0 0 1.1-.4 3.6 1.3a12.4 12.4 0 0 1 6.6 0c2.5-1.7 3.6-1.3 3.6-1.3.7 1.8.2 3.2.1 3.5.9.9 1.4 2.1 1.4 3.5 0 5-3.2 6.1-6.2 6.4.5.4.9 1.3.9 2.6v3.9c0 .4.2.8.9.7A13 13 0 0 0 16 3Z"/></svg>{% endif %}
+          </button>
           <div><div class="channel-title"><h2>{{ label }}</h2>
         {% if name in ['codex', 'dagster', 'signoz', 'github', 'postgres'] %}
         <div id="{{ name }}-refresh" class="refresh-countdown" hidden tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><circle class="refresh-track" cx="12" cy="12" r="9"/><circle class="refresh-progress" cx="12" cy="12" r="9" pathLength="100"/></svg><span></span></div>
@@ -45,7 +49,9 @@
       <div id="{{ name }}-content" class="channel-content"><span class="loading-ring" role="status" aria-label="Loading {{ label }}"></span></div>
     </section>
     {% endfor %}
+    {% include 'sql_workspace.html' %}
   </div>
+  <div id="panel-picker" class="panel-picker" role="dialog" aria-label="Replace panel" hidden><strong>Show on Home</strong><div id="panel-picker-options"></div><p id="panel-picker-error" role="alert"></p><button id="panel-picker-close" type="button" class="quiet-button">Close</button></div>
   <div id="tunnel-popover" class="tunnel-popover" role="dialog" aria-labelledby="tunnel-popover-name" hidden>
     <div class="tunnel-list-heading"><strong id="tunnel-popover-name">SSH tunnels</strong>
       <button id="tunnels" class="tunnel-toggle" type="button" role="switch" data-state="loading" aria-checked="false" aria-label="Connect all SSH tunnels"><span class="tunnel-label" aria-hidden="true">All</span><span class="tunnel-track" aria-hidden="true"><span class="tunnel-knob"></span></span></button>

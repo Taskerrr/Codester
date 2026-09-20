@@ -2,6 +2,7 @@
 {% block title %}Docker · Codester{% endblock %}
 {% block bodyclass %}docker-page{% endblock %}
 {% block scripts %}
+<link rel="stylesheet" href="/static/docker-groups.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='docker.css') }}">
 <script type="module" src="{{ url_for('static', filename='docker.js') }}"></script>
 {% endblock %}
@@ -19,7 +20,8 @@
     <div class="docker-gauge"><div class="docker-ring"></div></div><div class="docker-gauge"><div class="docker-ring"></div></div>
   </section>
   <section class="docker-containers" aria-labelledby="containers-title">
-    <div class="docker-section-title"><h2 id="containers-title">Containers</h2><span id="docker-updated"></span></div>
+    <div class="docker-section-title"><h2 id="containers-title">Projects &amp; containers</h2><span id="docker-updated"></span></div>
+    <p id="docker-action-result" role="status"></p>
     <div id="container-list" class="container-list"><span class="docker-loader" role="status" aria-label="Loading containers"></span></div>
   </section>
 </main>

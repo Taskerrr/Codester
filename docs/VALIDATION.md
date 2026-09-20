@@ -56,3 +56,41 @@ The display removes the header/footer and explanatory copy, adds a clock rail, r
 - Added same-turn terminal reconciliation so a missing Stop hook cannot permanently mask a visible completion. New turns and later continuations remain active. No hook configuration change or renewed approval is needed.
 - 84 tests pass, including actual failure-payload shape and all terminal states. Browser checks show the usage-limit label without a spinner through the dashboard refresh. Docker file synchronization can still delay fallback detection.
 - Replaced the PostgreSQL outline/circular treatment with the official three-color SVG. Checked launcher and settings image loading in Playwright.
+
+## Shared workspaces and SQL runner, 20 September 2026
+
+- Full suite with `CODESTER_TEST_PG_PORT` set to a disposable PostgreSQL 17 container:
+  188 passed, four existing integration tests skipped. The new SQL integration
+  cases run against a loopback-only container and never use saved user connections.
+- New coverage includes layout-only updates and rejection of duplicates, unchanged
+  unrelated settings/credentials, named connection save/edit/delete and secret
+  non-disclosure, CSRF, demo isolation, explicit write confirmation, stale target
+  rejection, selected-connection activity/control routing, and cancellation.
+- Real database checks cover read-only enforcement, writes and RETURNING, multi-statement
+  rejection without partial execution, Unicode, duplicate column names, NULL, integers
+  beyond JavaScript's exact range, empty results, row/cell/byte preview limits, cancellation
+  before dispatch and during execution, and recovery after SQL errors.
+- Ruff and focused ty checks pass; JavaScript modules pass Node syntax checks.
+- Playwright verified every launcher, Home replacement and persistence after reload,
+  keyboard picker navigation/Escape/focus return, SQL draft/results retention, separate
+  drafts for development/production connections, connection forms and deletion,
+  selected-connection activity, blocking-lock tabs, write confirmation and cancellation.
+- SQL results render HTML-like content as text. Browser checks produced no JavaScript
+  exceptions. The expected cancelled SQL request returns an error response.
+- SQL workspace fits at 2560×720, 1707×480 and 1000×650 without page overflow.
+  At 390×844, editor/results stack and the page scrolls vertically without horizontal
+  overflow. Physical touchscreen and Windows testing remain outstanding.
+
+## Docker Compose project grouping, 20 September 2026
+
+- Full suite: 189 passed, 10 skipped (including optional SQL tests requiring the
+  disposable PostgreSQL instance). Docker/app subset: 42 passed.
+- New checks cover Compose label parsing from CLI and socket responses, isolated
+  membership, one-off jobs, partial/paused states, idempotent target selection,
+  membership changes before execution, protection for Codester's project, partial
+  failures, project API validation and CSRF.
+- Playwright with an isolated simulated Docker inventory verified collapsed
+  projects, preserved expansion through polling, project start/stop and confirmation,
+  partial failure messages, Home-panel grouping, standalone page grouping, Escape
+  dismissal and narrow-screen overflow. No real user containers were started or stopped.
+- Ruff, focused type checks and JavaScript syntax checks passed.

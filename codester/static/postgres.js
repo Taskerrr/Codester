@@ -5,6 +5,9 @@ let pending;
 let actionTrigger;
 let actionRunning = false;
 let signature = '';
+const embedded = Boolean($('#sql-workspace'));
+let generation = 0;
+const activityPath = () => embedded ? `/api/sql/connections/${encodeURIComponent($('#sql-workspace').dataset.connection || '')}` : '/api/postgres';
 const age = value => value == null ? '?' : value < 60 ? `${Math.max(0, Math.floor(value))}s` : `${Math.floor(value / 60)}m ${Math.floor(value % 60)}s`;
 function tab(name, focus = false) {
   for (const key of ['queries','locks']) {
@@ -14,7 +17,7 @@ function tab(name, focus = false) {
     $(`#pg-${key}`).hidden = !selected;
     if (selected && focus) $(`#pg-tab-${key}`).focus();
   }
-  history.replaceState(null, '', `#${name}`);
+  if (!embedded) history.replaceState(null, '', `#${name}`);
 }
 for (const name of ['queries','locks']) {
   $(`#pg-tab-${name}`).addEventListener('click', () => tab(name));
@@ -80,13 +83,33 @@ $('#pg-confirm-action').addEventListener('click', async () => {
   if (!pending || actionRunning) return;
   actionRunning = true; $('#pg-confirm-action').disabled = true; $('#pg-cancel-action').disabled = true; render();
   const result = $('#pg-action-result'); result.hidden = false; result.classList.remove('error'); result.textContent = 'Sending request';
-  try { const response = await api(`/api/postgres/${pending.action}`, {method:'POST',body:JSON.stringify({token:pending.token}),timeout:15000}); result.textContent = response.message; closeConfirmation(); }
+  try { const response = await api(`${activityPath()}/${pending.action}`, {method:'POST',body:JSON.stringify({token:pending.token}),timeout:15000}); result.textContent = response.message; closeConfirmation(); }
   catch (error) { result.textContent = error.message; result.classList.add('error'); }
   finally { actionRunning = false; $('#pg-confirm-action').disabled = false; $('#pg-cancel-action').disabled = false; await refresh(); if ($('#pg-confirmation').hidden && actionTrigger) [...document.querySelectorAll('[data-key]')].find(node => node.dataset.key === actionTrigger)?.focus({preventScroll:true}); }
 });
 async function refresh() {
-  try { latest = await api('/api/postgres', {timeout:8000}); render(); }
-  catch { if (latest) { latest.state.status = 'stale'; latest.state.message = 'Connection to Codester lost. Session controls paused.'; render(); } else { $('#pg-notice').textContent = 'Could not read PostgreSQL status.'; $('#pg-notice').hidden = false; } }
+  if (embedded && (!$('#sql-workspace').dataset.connection || $('#sql-workspace').hidden || $('#sql-activity-view').hidden)) return;
+  const version = generation;
+  try {
+    const response = await api(embedded ? `${activityPath()}/activity` : '/api/postgres', {timeout:8000});
+    if (version !== generation) return;
+    latest = response; render();
+  } catch {
+    if (version !== generation) return;
+    if (latest) { latest.state.status = 'stale'; latest.state.message = 'Could not refresh activity. Session controls paused.'; render(); }
+    else { $('#pg-notice').textContent = 'Could not read PostgreSQL status. Check the connection and SSH tunnel.'; $('#pg-notice').hidden = false; }
+  }
+}
+if (embedded) {
+  document.addEventListener('sqlconnectionchange', () => {
+    generation += 1; latest = null; signature = ''; closeConfirmation();
+    for (const id of ['pg-counts','pg-query-list','pg-lock-list','pg-database','pg-query-note','pg-lock-note']) $(`#${id}`).textContent = '';
+    $('#pg-freshness').textContent = 'No reading yet';
+    $('#pg-notice').hidden = true; $('#pg-action-result').hidden = true;
+    refresh();
+  });
+  document.addEventListener('sqlactivitychange', refresh);
+  document.addEventListener('workspacechange', refresh);
 }
 tab(location.hash === '#locks' ? 'locks' : 'queries');
 await refresh();

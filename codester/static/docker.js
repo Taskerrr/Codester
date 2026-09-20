@@ -1,7 +1,10 @@
 import {$, api, escape as e} from './common.js';
+import {DockerGroups} from './docker-groups.js';
 
-let pendingStop = '';
-let pendingTimer;
+const groups = new DockerGroups($('#container-list'), (message, error) => {
+  $('#docker-action-result').textContent = message;
+  $('#docker-action-result').classList.toggle('error', error);
+}, load);
 let loading = false;
 
 function bytes(value) {
@@ -32,30 +35,23 @@ function gauge(value, label, detail, progress) {
 }
 
 function render(data) {
-  const containers = data.containers.filter(container => container.manageable).sort(containerOrder);
+  const containers = data.containers.filter(container => container.manageable);
   summary(data, containers);
   $('#docker-status').textContent = 'Connected';
   $('#docker-status').dataset.state = 'connected';
   $('#docker-updated').textContent = 'just now';
-  $('#container-list').innerHTML = containers.length ? containers.map(container => `<article class="container-row">
-    <div class="container-name"><strong title="${e(container.name)}">${e(container.name)}</strong><span title="${e(container.image)}">${e(container.image)}</span></div>
-    <button class="container-action ${container.running ? 'stop' : 'start'}" type="button" data-id="${e(container.id)}" data-action="${container.running ? 'stop' : 'start'}" aria-label="${container.running ? 'Stop' : 'Start'} ${e(container.name)}" title="${container.running ? 'Stop' : 'Start'}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2v10"/><path d="M6.3 5.7a8 8 0 1 0 11.4 0"/></svg>
-    </button>
-  </article>`).join('') : '<p class="docker-empty">No containers</p>';
-}
-
-function containerOrder(left, right) {
-  return Number(right.running) - Number(left.running) || left.name.localeCompare(right.name, undefined, {sensitivity:'base'});
+  const focusKey = document.activeElement?.dataset.dockerKey;
+  $('#container-list').innerHTML = groups.markup(data.groups);
+  groups.restoreFocus(focusKey);
 }
 
 async function load() {
-  if (loading) return;
+  if (loading || groups.paused) return;
   loading = true;
   $('#docker-refresh').disabled = true;
   try {
     const data = await api('/api/docker/containers', {timeout: 10000});
-    render(data);
+    if (!groups.paused) render(data);
   } catch (error) {
     $('#docker-status').textContent = 'Unavailable';
     $('#docker-status').dataset.state = 'error';
@@ -66,43 +62,8 @@ async function load() {
   }
 }
 
-function clearConfirmation() {
-  pendingStop = '';
-  clearTimeout(pendingTimer);
-  for (const button of document.querySelectorAll('.container-action.confirm')) {
-    button.classList.remove('confirm');
-    button.title = 'Stop';
-  }
-}
-
-$('#container-list').addEventListener('click', async event => {
-  const button = event.target.closest('.container-action');
-  if (!button || button.disabled) return;
-  const {id, action} = button.dataset;
-  if (action === 'stop' && pendingStop !== id) {
-    clearConfirmation();
-    pendingStop = id;
-    button.classList.add('confirm');
-    button.title = 'Tap again to stop';
-    pendingTimer = setTimeout(clearConfirmation, 4000);
-    return;
-  }
-  clearConfirmation();
-  button.disabled = true;
-  button.classList.add('working');
-  try {
-    await api(`/api/docker/containers/${encodeURIComponent(id)}/${action}`, {method: 'POST', timeout: 20000});
-    await load();
-  } catch (error) {
-    $('#docker-status').textContent = error.message;
-    $('#docker-status').dataset.state = 'error';
-    button.disabled = false;
-    button.classList.remove('working');
-  }
-});
-
 $('#docker-refresh').addEventListener('click', load);
 load();
 setInterval(() => {
-  if (!document.hidden && !pendingStop) load();
+  if (!document.hidden && !groups.paused) load();
 }, 5000);

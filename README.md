@@ -167,7 +167,11 @@ The adapters are fixture/schema-tested, but your work-server versions, permissio
 
 ### Docker Desktop
 
-When Docker is selected as one of the three dashboard columns, that column shows running and memory gauges plus a scrollable list of power controls. Its header arrow opens the larger container screen with the same controls. Both the gauges and control lists omit Codester because it cannot restart itself after stopping; zero running therefore means no manageable workload containers are active. Controllable containers are ordered with running containers first and then alphabetically within each state. Start is immediate. Stop requires a second tap within four seconds and asks Docker for a ten-second graceful stop. Requests are bounded, resource reads cover at most 50 running containers, and container identifiers are validated against the current local list. No image removal, container deletion, shell access, or compose operations are exposed.
+Docker shows Compose projects as collapsed rows, in both the Home panel/workspace and the larger Docker page. Expand a project to inspect its component containers and their status. Grouping uses Docker's Compose project labels; similarly named standalone containers remain separate. One-off Compose jobs stay separate so starting a project does not rerun them.
+
+Small play/pause controls start or gracefully stop all existing containers in a project. Partially running projects show a count such as `1/2` and offer both icons. Component times use compact units such as `4m` or `2h`; full status is available on hover, and exit codes and unhealthy states remain visible. Stop requires a second tap within five seconds and requests a ten-second graceful stop. Expanded rows survive polling. Failed components are named explicitly, and the list refreshes to show the resulting state. Project membership is checked again before an action; changed projects must be refreshed first.
+
+Codester itself is omitted from workload gauges and standalone controls. A mixed project containing Codester is visible but cannot be controlled here. Project actions support up to 50 containers and start/stop existing containers through Docker's API; they do not rebuild, create missing services, remove resources, or wait for Compose dependency health conditions. Resource reads cover at most 50 running containers. Individual container controls remain available through the API; the project rows are the primary UI controls.
 
 Docker Desktop must be running and the current user must already have permission to use it. Native Windows/macOS startup uses the Docker CLI installed with Docker Desktop. Set `CODESTER_DOCKER_SOCKET` only when a nonstandard Unix socket should be used and the Docker CLI is unavailable.
 
@@ -237,3 +241,43 @@ Reads use `pg_stat_activity`, `pg_locks` and `pg_blocking_pids`, with one shared
 For visibility into other users' activity, use a role with `pg_read_all_stats` or `pg_monitor`. PostgreSQL enforces cancellation/termination privileges; `pg_signal_backend` allows signalling other non-superuser sessions, while superuser sessions require a superuser. Codester does not grant roles. Limited visibility is explicitly labelled instead of treating hidden activity as zero workload.
 
 The activity page offers **Cancel query** and **End session**, each with a confirmation naming the PID and showing the SQL. Cancellation does not guarantee that an open transaction releases its locks. Ending a session rolls back its open transaction, and the application may reconnect. Successful responses report a signal request, not proof all locks disappeared. Controls are unavailable for demo, disabled or stale connections. Short-lived signed tokens bind the target connection, backend start, query start, transaction start, state and query fingerprint; a single SQL statement rechecks that identity before signalling. PostgreSQL signalling cannot eliminate every race with concurrently changing queries. No live work-database sessions were terminated during development; integration tests use an isolated local PostgreSQL container.
+
+### App workspaces and quick SQL
+
+Use any left-rail app icon to open that app across the main content area. The
+clock, SSH dots and launchers stay visible; **Home** returns to your three panels.
+Click a panel's heading icon on Home to replace that slot. The picker and
+Settings > Display share the same saved layout and require three unique apps.
+Workspace navigation does not alter that layout. PostgreSQL has the first
+purpose-built workspace; other apps currently expand their overview content.
+
+Open **PostgreSQL** to add named development and production connections and run
+SQL. The existing monitoring connection is available automatically when its
+host/database/user are configured; edit it in Settings. Named SQL connections
+are separate from the Home monitoring configuration. Passwords use the existing
+credential store and are never returned to the browser. For SSH, use the local
+forwarded host/port and connect through the usual SSH controls.
+
+The editor defaults to **Read only**, enforced using a PostgreSQL read-only
+transaction. **Read & write** requires an inline confirmation naming the target
+connection before every run. Each run uses a new connection and accepts one
+statement; multi-statement scripts, persistent transactions, interactive commands
+and COPY streams are not supported. Database permissions still apply. Successful
+writes commit immediately; cancelling or losing a response does not prove that a
+write was rolled back, so inspect the data before retrying.
+
+Run with the button or Ctrl/Command+Enter. One SQL request can run at a time per
+Codester instance. Statement and lock timeouts are 30 and 3 seconds, respectively,
+with cancellation requested after 35 seconds as a backstop. **Cancel query** sends
+a cancellation request. There are no automatic retries. Demo mode disables SQL
+execution. The query runner uses the database role's normal schema search path;
+the separate monitoring adapter continues to use `pg_catalog`.
+
+Results retain text representations (including large integers), duplicate column
+names, and explicit NULL values. The preview holds up to 500 rows, 4,000 characters
+per cell and approximately 2 MB of text; truncation is labelled. Results are
+streamed and drained to completion, so limiting the preview does not limit the
+query's work or the number of rows a write changes. Add SQL LIMIT clauses when
+appropriate. Drafts and results survive workspace/connection switches in the
+current page, but are not saved across reloads. **Activity & locks** inspects the
+selected connection; existing session-control permissions and confirmations apply.

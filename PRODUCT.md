@@ -7,7 +7,7 @@ product
 Two developers working on Windows, with development on macOS. Each runs a private local instance and glances at a small secondary touchscreen while using VS Code. Shared Dagster and SigNoz servers are accessed through existing SSH tunnels.
 
 ## Product Purpose
-Bring account capacity, running work, service failures, and local container state into one quiet overview. Let each developer choose three overview apps, make failures readable with a tap, and preserve a direct route into the source tool. Setup must work without editing source code.
+Bring account capacity, running work, service failures, and local container state into one quiet overview. Let each developer choose three overview apps, open focused workspaces from the launcher, make failures readable with a tap, and preserve a direct route into the source tool. PostgreSQL adds everyday SQL execution and results without crowding the overview. Setup must work without editing source code.
 
 ## Brand Personality
 Compact, visual, vivid. The user wants the Clawdeck reference’s clock rail and graph-led overview, with bright service accents and very little copy.

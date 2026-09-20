@@ -116,6 +116,121 @@ def test_socket_stop_waits_past_grace_period(monkeypatch):
 
     docker_engine.control(identifier, "stop")
 
-    assert calls == [
-        ("POST", f"/containers/{identifier}/stop?t=10", {"timeout": 15})
+    assert calls == [("POST", f"/containers/{identifier}/stop?t=10", {"timeout": 15})]
+
+
+def compose_container(letter, service, running=True, project="example", **extra):
+    return {
+        "id": letter * 64,
+        "name": f"{project}-{service}-1",
+        "image": "example:latest",
+        "project": project,
+        "service": service,
+        "running": running,
+        "state": "running" if running else "exited",
+        "status": "Up" if running else "Exited",
+        "manageable": True,
+        **extra,
+    }
+
+
+def test_compose_labels_from_cli_and_socket():
+    row = json.loads(container_row())
+    row["Labels"] = (
+        "unrelated=thing,com.docker.compose.project=my-stack,com.docker.compose.service=web,com.docker.compose.oneoff=False"
+    )
+    cli = docker_engine._normalize_cli(json.dumps(row))[0]
+    socket = docker_engine._normalize_socket(
+        [
+            {
+                "Id": "a" * 64,
+                "Names": ["/web"],
+                "Labels": {
+                    "com.docker.compose.project": "my-stack",
+                    "com.docker.compose.service": "web",
+                },
+            }
+        ]
+    )[0]
+    assert cli["project"] == socket["project"] == "my-stack"
+    assert cli["service"] == socket["service"] == "web"
+    assert not cli["oneoff"]
+    assert docker_engine._normalize_cli(container_row())[0]["project"] == ""
+
+
+def test_groups_use_labels_not_name_and_keep_oneoffs_separate():
+    items = [
+        compose_container("a", "daemon"),
+        compose_container("b", "web", False),
+        compose_container("c", "web", project="other"),
+        compose_container("d", "shell", False, oneoff=True),
+        compose_container("e", "lookalike", project=""),
     ]
+    groups = docker_engine.groups(items)
+    assert len(groups) == 4
+    project = next(group for group in groups if group["name"] == "example")
+    assert project["kind"] == "project" and project["total"] == 2
+    assert project["state"] == "partial" and project["running"] == 1
+    assert {row["id"] for row in project["containers"]} == {"a" * 64, "b" * 64}
+    assert sum(group["kind"] == "container" for group in groups) == 2
+
+
+def test_project_actions_target_current_members_and_skip_correct_state(monkeypatch):
+    items = [
+        compose_container("a", "daemon"),
+        compose_container("b", "web", False),
+        compose_container("c", "other", project="different"),
+    ]
+    calls = []
+    monkeypatch.setattr(docker_engine, "containers", lambda: items)
+    monkeypatch.setattr(
+        docker_engine, "_control_known", lambda key, action: calls.append((key, action))
+    )
+    ids = ["a" * 64, "b" * 64]
+    result = docker_engine.control_project(docker_engine.project_key("example"), "start", ids)
+    assert result["ok"] and calls == [("b" * 64, "start")]
+    calls.clear()
+    result = docker_engine.control_project(docker_engine.project_key("example"), "stop", ids)
+    assert result["ok"] and calls == [("a" * 64, "stop")]
+
+
+def test_project_membership_change_and_self_are_rejected_before_actions(monkeypatch):
+    items = [compose_container("a", "daemon"), compose_container("b", "web")]
+    calls = []
+    monkeypatch.setattr(docker_engine, "containers", lambda: items)
+    monkeypatch.setattr(docker_engine, "_control_known", lambda *args: calls.append(args))
+    key = docker_engine.project_key("example")
+    with pytest.raises(IntegrationError, match="changed"):
+        docker_engine.control_project(key, "stop", ["a" * 64])
+    items[1]["manageable"] = False
+    with pytest.raises(IntegrationError, match="includes Codester"):
+        docker_engine.control_project(key, "stop", ["a" * 64, "b" * 64])
+    assert not calls
+
+
+def test_partial_project_failure_is_reported_without_skipping_other_members(monkeypatch):
+    items = [compose_container("a", "daemon"), compose_container("b", "web")]
+    monkeypatch.setattr(docker_engine, "containers", lambda: items)
+
+    def control(key, action):
+        if key == "b" * 64:
+            raise IntegrationError("Docker rejected the container request.")
+
+    monkeypatch.setattr(docker_engine, "_control_known", control)
+    result = docker_engine.control_project(
+        docker_engine.project_key("example"), "stop", [row["id"] for row in items]
+    )
+    assert not result["ok"] and result["succeeded"] == ["a" * 64]
+    assert result["failed"][0]["name"] == "example-web-1"
+    assert "Failed: example-web-1" in result["message"]
+
+
+def test_paused_project_can_be_stopped(monkeypatch):
+    item = compose_container("a", "web", False, state="paused")
+    group = docker_engine.groups([item])[0]
+    assert group["active"] == 1 and group["state"] == "partial"
+    calls = []
+    monkeypatch.setattr(docker_engine, "containers", lambda: [item])
+    monkeypatch.setattr(docker_engine, "_control_known", lambda *args: calls.append(args))
+    docker_engine.control_project(group["id"], "stop", [item["id"]])
+    assert calls == [(item["id"], "stop")]

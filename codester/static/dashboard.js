@@ -1,4 +1,6 @@
 import {$, api, escape as e, duration, ago, compactTime} from './common.js';
+import {applyWorkspaceLayout, activeWorkspace, currentLayout, layoutEpoch} from './workspaces.js';
+import {DockerGroups} from './docker-groups.js';
 
 let latest;
 let snapshotReceivedAt = 0;
@@ -13,9 +15,11 @@ const spinner = label => `<span class="loading-ring" role="img" aria-label="${e(
 const sectionHeading = (title, aside = '') => `<div class="mini-heading"><h3>${e(title)}</h3><span>${e(aside)}</span></div>`;
 const utilityApps = new Set(['server', 'docker']);
 let dockerPanelLoading = false;
-let dockerControlLoading = false;
-let dockerPendingStop = '';
-let dockerPendingTimer;
+const dockerMessage = $('#docker-message');
+const dockerGroups = new DockerGroups($('#docker-content'), (message, error) => {
+  dockerMessage.textContent = message;
+  dockerMessage.classList.toggle('error', error);
+}, refreshDockerPanel);
 let tunnelState;
 let tunnelLoading = false;
 let tunnelMutation = 0;
@@ -232,21 +236,6 @@ function bytes(value) {
   return `${amount.toLocaleString(undefined, {maximumFractionDigits: amount >= 10 ? 0 : 1})} ${units[unit]}`;
 }
 
-function applyLayout(layout) {
-  const overview = $('#overview');
-  for (const panel of overview.querySelectorAll('[data-app-panel]')) panel.hidden = true;
-  layout.forEach(name => {
-    const panel = overview.querySelector(`[data-app-panel="${name}"]`);
-    if (panel) {
-      panel.hidden = false;
-      overview.append(panel);
-    }
-  });
-  for (const button of document.querySelectorAll('[data-app]')) {
-    button.classList.toggle('selected', layout.includes(button.dataset.app));
-    button.setAttribute('aria-pressed', String(layout.includes(button.dataset.app)));
-  }
-}
 
 function utilityPlaceholder(name) {
   const labels = {
@@ -259,12 +248,13 @@ function utilityPlaceholder(name) {
 
 async function refreshDockerPanel() {
   const target = $('#docker-content');
-  if (!target || target.closest('.channel').hidden || dockerPanelLoading || dockerControlLoading || dockerPendingStop) return;
+  if (!target || target.closest('.channel').hidden || dockerPanelLoading || dockerGroups.paused) return;
   dockerPanelLoading = true;
   try {
     const data = await api('/api/docker/containers', {timeout: 10000});
-    $('#docker-message').innerHTML = '';
-    const containers = data.containers.filter(container => container.manageable).sort(containerOrder);
+    if (dockerGroups.paused) return;
+    const focusKey = document.activeElement?.dataset.dockerKey;
+    const containers = data.containers.filter(container => container.manageable);
     const running = containers.filter(container => container.running).length;
     const memoryUsed = containers.reduce((total, container) => total + (Number(container.memory_used) || 0), 0);
     const runningProgress = containers.length ? running / containers.length * 100 : 0;
@@ -273,16 +263,13 @@ async function refreshDockerPanel() {
         ${ring({value:running, label:'RUNNING', detail:`${containers.length} total`, progress:runningProgress})}
         ${ring({value:bytes(memoryUsed), label:'MEMORY', detail:`${memoryProgress.toLocaleString(undefined, {maximumFractionDigits:1})}%`, progress:memoryProgress})}
       </div>
-      ${sectionHeading('Containers')}
-      <div class="container-mini-list">${containers.map(container => `<div class="container-mini">
-        <strong title="${e(container.name)}">${e(container.name)}</strong>
-        <button class="container-mini-control ${container.running ? 'stop' : 'start'}" type="button" data-docker-action="${container.running ? 'stop' : 'start'}" data-id="${e(container.id)}" aria-label="${container.running ? 'Stop' : 'Start'} ${e(container.name)}" title="${container.running ? 'Stop' : 'Start'}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2v10"/><path d="M6.3 5.7a8 8 0 1 0 11.4 0"/></svg>
-        </button>
-      </div>`).join('') || empty('No containers')}</div>`);
+      ${sectionHeading('Projects & containers')}
+      <div class="docker-group-list">${dockerGroups.markup(data.groups)}</div>`);
+    dockerGroups.restoreFocus(focusKey);
   } catch (error) {
     target.innerHTML = `<div class="utility-placeholder"><strong>Docker unavailable</strong><span>${e(error.message)}</span><a href="/docker">Open Docker →</a></div>`;
   } finally {
+    target.append(dockerMessage);
     dockerPanelLoading = false;
   }
 }
@@ -314,50 +301,9 @@ async function controlRepository(button) {
   }
 }
 
-function containerOrder(left, right) {
-  return Number(right.running) - Number(left.running) || left.name.localeCompare(right.name, undefined, {sensitivity:'base'});
-}
-
-function clearDockerConfirmation() {
-  dockerPendingStop = '';
-  clearTimeout(dockerPendingTimer);
-  for (const button of document.querySelectorAll('.container-mini-control.confirm')) {
-    button.classList.remove('confirm');
-    button.title = 'Stop';
-    button.setAttribute('aria-label', `Stop ${button.closest('.container-mini').querySelector('strong').textContent}`);
-  }
-}
-
-async function controlDocker(button) {
-  const {id, dockerAction: action} = button.dataset;
-  if (action === 'stop' && dockerPendingStop !== id) {
-    clearDockerConfirmation();
-    dockerPendingStop = id;
-    button.classList.add('confirm');
-    button.title = 'Tap again to stop';
-    button.setAttribute('aria-label', `Confirm stop ${button.closest('.container-mini').querySelector('strong').textContent}`);
-    dockerPendingTimer = setTimeout(clearDockerConfirmation, 4000);
-    return;
-  }
-  clearDockerConfirmation();
-  dockerControlLoading = true;
-  button.disabled = true;
-  button.classList.add('working');
-  try {
-    await api(`/api/docker/containers/${encodeURIComponent(id)}/${action}`, {method:'POST', timeout:20000});
-    dockerControlLoading = false;
-    await refreshDockerPanel();
-  } catch (error) {
-    dockerControlLoading = false;
-    $('#docker-message').innerHTML = `<p>${e(error.message)}</p>`;
-    button.disabled = false;
-    button.classList.remove('working');
-  }
-}
-
 function render(snapshot) {
   const layout = snapshot.layout || ['codex', 'dagster', 'signoz'];
-  applyLayout(layout);
+  applyWorkspaceLayout(layout);
   for (const [name, state] of Object.entries(snapshot.services)) {
     if (name === 'codex' && state.data && liveCodexActivity) {
       state.data.tasks = liveCodexActivity.tasks;
@@ -387,11 +333,11 @@ function render(snapshot) {
     target.scrollTop = scrollTop;
     if (focusedId) Array.from(target.querySelectorAll('[data-id]')).find(element => element.dataset.id === focusedId)?.focus({preventScroll: true});
   }
-  for (const name of layout.filter(name => utilityApps.has(name) && name !== 'docker')) {
+  for (const name of [...new Set([...layout, activeWorkspace()])].filter(name => utilityApps.has(name) && name !== 'docker')) {
     $(`#${name}-content`).innerHTML = utilityPlaceholder(name);
   }
-  if (layout.includes('docker')) refreshDockerPanel();
-  if (layout.includes('github')) refreshGithubRepositories();
+  if (layout.includes('docker') || activeWorkspace() === 'docker') refreshDockerPanel();
+  if (layout.includes('github') || activeWorkspace() === 'github') refreshGithubRepositories();
 }
 
 function updateRefreshIndicators() {
@@ -419,7 +365,9 @@ function updateRefreshIndicators() {
 
 async function refresh() {
   try {
+    const epoch = layoutEpoch();
     latest = await api('/api/dashboard', {timeout: 8000});
+    if (epoch !== layoutEpoch()) latest.layout = currentLayout();
     snapshotReceivedAt = performance.now();
     dashboardConnected = true;
     updateRefreshIndicators();
@@ -459,7 +407,7 @@ async function wakeUpstream() {
 
 async function openDetail(button) {
   detailTrigger = {service: button.dataset.service, id: button.dataset.id};
-  $('#overview').hidden = true;
+  $('#overview').classList.add('detail-open');
   $('#detail').hidden = false;
   $('#detail-title').textContent = 'Loading…';
   $('#detail-source').textContent = button.dataset.service;
@@ -494,29 +442,24 @@ $('#overview').addEventListener('click', event => {
     controlRepository(repositoryButton);
     return;
   }
-  const dockerButton = event.target.closest('[data-docker-action]');
-  if (dockerButton && !dockerButton.disabled) {
-    controlDocker(dockerButton);
-    return;
-  }
   const button = event.target.closest('[data-id][data-service]');
   if (button) openDetail(button);
 });
 
-$('.deck-buttons').addEventListener('click', event => {
-  const button = event.target.closest('[data-app]');
-  if (!button) return;
-  if (button.dataset.app === 'postgres') { window.location.assign('/postgres'); return; }
-  if (button.dataset.app === 'server') { window.location.assign('/services'); return; }
-  const panel = document.querySelector(`[data-app-panel="${button.dataset.app}"]:not([hidden])`);
-  if (panel) panel.querySelector('.channel-arrow').focus();
-  else window.location.assign('/settings#dashboard-layout');
+document.addEventListener('workspacechange', () => {
+  detailController = null;
+  $('#overview').classList.remove('detail-open');
+  if (latest) render(latest);
+});
+document.addEventListener('layoutchange', event => {
+  if (latest) { latest.layout = event.detail; render(latest); }
 });
 
 function back() {
   detailController = null;
   $('#detail').hidden = true;
   $('#overview').hidden = false;
+  $('#overview').classList.remove('detail-open');
   if (latest) render(latest);
   if (detailTrigger) Array.from($(`#${detailTrigger.service}-content`).querySelectorAll('[data-id]')).find(element => element.dataset.id === detailTrigger.id)?.focus();
 }
@@ -752,6 +695,7 @@ function clock() {
   $('#date').textContent = now.toLocaleDateString([], {weekday: 'short', day: '2-digit', month: 'short'});
 }
 
+$('#overview').append($('#detail'));
 clock();
 setInterval(clock, 1000);
 setInterval(updateRefreshIndicators, 1000);

@@ -1,5 +1,6 @@
 """Bounded local Docker Desktop reads and explicit container controls."""
 
+import hashlib
 import json
 import os
 import re
@@ -29,7 +30,7 @@ def _socket_path() -> Path | None:
     return None
 
 
-def _cli(args: list[str]) -> str:
+def _cli(args: list[str], *, timeout: int = TIMEOUT) -> str:
     binary = shutil.which("docker")
     if not binary:
         raise IntegrationError("Docker Desktop is unavailable. Start Docker Desktop and retry.")
@@ -39,7 +40,7 @@ def _cli(args: list[str]) -> str:
             check=False,
             capture_output=True,
             text=True,
-            timeout=TIMEOUT,
+            timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
         raise IntegrationError("Docker Desktop did not respond in time.") from exc
@@ -94,6 +95,7 @@ def _normalize_cli(output: str) -> list[dict]:
                 "ports": str(row.get("Ports") or "")[:500],
                 "running": state == "running",
                 "manageable": not _is_self(identifier),
+                **_compose_labels(row.get("Labels")),
             }
         )
     return containers
@@ -129,16 +131,123 @@ def _normalize_socket(payload: object) -> list[dict]:
                 "ports": port_text[:500],
                 "running": state == "running",
                 "manageable": not _is_self(identifier),
+                **_compose_labels(row.get("Labels")),
             }
         )
     return containers
 
 
+def _compose_labels(value: object) -> dict:
+    if isinstance(value, str):
+        value = dict(part.split("=", 1) for part in value.split(",") if "=" in part)
+    labels = value if isinstance(value, dict) else {}
+    project = labels.get("com.docker.compose.project", "")
+    service = labels.get("com.docker.compose.service", "")
+    return {
+        "project": project if isinstance(project, str) else "",
+        "service": service if isinstance(service, str) else "",
+        "oneoff": str(labels.get("com.docker.compose.oneoff", "false")).lower() == "true",
+    }
+
+
+def project_key(project: str) -> str:
+    return hashlib.sha256(project.encode()).hexdigest()
+
+
+def groups(items: list[dict]) -> list[dict]:
+    """Compose identity comes from labels; similarly named standalone containers stay separate."""
+    grouped: dict[str, dict] = {}
+    for item in items:
+        project = item.get("project") if not item.get("oneoff") else None
+        key = f"project:{project}" if project else f"container:{item['id']}"
+        if key not in grouped:
+            grouped[key] = {
+                "id": project_key(project) if project else item["id"],
+                "name": project or item["name"],
+                "kind": "project" if project else "container",
+                "containers": [],
+            }
+        grouped[key]["containers"].append(item)
+    result = []
+    for group in grouped.values():
+        members = sorted(group["containers"], key=lambda row: (row.get("service", ""), row["name"]))
+        if not any(row.get("manageable", True) for row in members):
+            continue
+        running = sum(row["running"] for row in members)
+        active = sum(
+            row["running"] or row.get("state") in {"paused", "restarting"} for row in members
+        )
+        group.update(
+            containers=members,
+            total=len(members),
+            running=running,
+            active=active,
+            state="running" if running == len(members) else "partial" if active else "stopped",
+            manageable=all(row.get("manageable", True) for row in members),
+        )
+        result.append(group)
+    return sorted(result, key=lambda group: (not group["active"], group["name"].casefold()))
+
+
+def control_project(project_id: str, action: str, expected_ids: object) -> dict:
+    if not re.fullmatch(r"[a-f0-9]{64}", project_id) or action not in {"start", "stop"}:
+        raise IntegrationError("Invalid Docker project action.")
+    if (
+        not isinstance(expected_ids, list)
+        or not expected_ids
+        or len(expected_ids) > 50
+        or any(
+            not isinstance(value, str) or not re.fullmatch(r"[a-fA-F0-9]{12,64}", value)
+            for value in expected_ids
+        )
+        or len(set(expected_ids)) != len(expected_ids)
+    ):
+        raise IntegrationError("Select a project with at most 50 containers.")
+    group = next(
+        (
+            row
+            for row in groups(containers())
+            if row["kind"] == "project" and row["id"] == project_id
+        ),
+        None,
+    )
+    if group is None or {row["id"] for row in group["containers"]} != set(expected_ids):
+        raise IntegrationError("This Docker project changed. Refresh before trying again.")
+    if not group["manageable"]:
+        raise IntegrationError("This project includes Codester. Manage it outside this dashboard.")
+    targets = [
+        row
+        for row in group["containers"]
+        if (
+            not row["running"]
+            if action == "start"
+            else row["running"] or row.get("state") in {"paused", "restarting"}
+        )
+    ]
+    succeeded = []
+    failed = []
+    if targets:
+        with ThreadPoolExecutor(max_workers=min(8, len(targets))) as executor:
+            requests = {executor.submit(_control_known, row["id"], action): row for row in targets}
+            for future in as_completed(requests):
+                row = requests[future]
+                try:
+                    future.result()
+                    succeeded.append(row["id"])
+                except IntegrationError as exc:
+                    failed.append({"id": row["id"], "name": row["name"], "error": str(exc)})
+    count = len(succeeded)
+    message = f"{group['name']}: {action} requested for {count} {'container' if count == 1 else 'containers'}."
+    if not targets:
+        message = f"{group['name']}: all containers already {'running' if action == 'start' else 'stopped'}."
+    if failed:
+        message += " Failed: " + ", ".join(row["name"] for row in failed) + ". Refresh and retry."
+    return {"ok": not failed, "succeeded": succeeded, "failed": failed, "message": message}
+
+
 def _is_self(identifier: str) -> bool:
     hostname = os.environ.get("HOSTNAME", "")
-    return bool(re.fullmatch(r"[0-9a-fA-F]{12,64}", hostname)) and identifier.startswith(
-        hostname
-    )
+    return bool(re.fullmatch(r"[0-9a-fA-F]{12,64}", hostname)) and identifier.startswith(hostname)
 
 
 def _number(value: object) -> float | None:
@@ -159,9 +268,7 @@ def _normalize_socket_stats(payload: object) -> dict:
         previous_usage = previous.get("cpu_usage")
         total = _number(usage.get("total_usage")) if isinstance(usage, dict) else None
         previous_total = (
-            _number(previous_usage.get("total_usage"))
-            if isinstance(previous_usage, dict)
-            else None
+            _number(previous_usage.get("total_usage")) if isinstance(previous_usage, dict) else None
         )
         system = _number(cpu.get("system_cpu_usage"))
         previous_system = _number(previous.get("system_cpu_usage"))
@@ -213,9 +320,7 @@ def _normalize_cli_stats(output: str) -> dict[str, dict]:
         except json.JSONDecodeError as exc:
             raise IntegrationError("Docker returned unsupported resource statistics.") from exc
         identifier = row.get("ID") if isinstance(row, dict) else None
-        if not isinstance(identifier, str) or not re.fullmatch(
-            r"[0-9a-fA-F]{12,64}", identifier
-        ):
+        if not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-fA-F]{12,64}", identifier):
             raise IntegrationError("Docker returned unsupported resource statistics.")
         memory = str(row.get("MemUsage", "")).split("/")
         memory_used_text = memory[0].strip()[:40] if memory else ""
@@ -269,9 +374,7 @@ def resource_stats(items: list[dict]) -> dict[str, dict]:
     if not running:
         return {}
     if shutil.which("docker"):
-        output = _cli(
-            ["stats", "--no-stream", "--no-trunc", "--format", "{{json .}}"]
-        )
+        output = _cli(["stats", "--no-stream", "--no-trunc", "--format", "{{json .}}"])
         return _normalize_cli_stats(output)
 
     result = {}
@@ -301,11 +404,18 @@ def control(container_id: str, action: str) -> None:
         raise IntegrationError("That Docker container is no longer available.")
     if not known[container_id]["manageable"]:
         raise IntegrationError("Codester cannot stop or start its own container.")
+    _control_known(container_id, action)
+
+
+def _control_known(container_id: str, action: str) -> None:
+    """Act on immutable IDs already resolved from the current Docker inventory."""
+    if _is_self(container_id):
+        raise IntegrationError("Codester cannot stop or start its own container.")
     if shutil.which("docker"):
         command = ["container", action]
         if action == "stop":
             command.extend(["--time", "10"])
-        _cli([*command, container_id])
+        _cli([*command, container_id], timeout=15)
         return
     suffix = "/start" if action == "start" else "/stop?t=10"
     _socket("POST", f"/containers/{container_id}{suffix}", timeout=15)
