@@ -6,6 +6,7 @@ import queue
 import shutil
 import sqlite3
 import subprocess
+import sys
 import threading
 import time
 from datetime import datetime
@@ -111,10 +112,14 @@ def executable() -> str | None:
     root = Path.home() / ".vscode" / "extensions"
     if not root.is_dir():
         return None
+    platform_name = {"win32": "windows", "linux": "linux", "darwin": "darwin"}.get(sys.platform)
+    if platform_name is None:
+        return None
+    binary_name = "codex.exe" if sys.platform == "win32" else "codex"
     candidates: list[Path] = [
         p
-        for p in root.glob("openai.chatgpt-*/bin/*/codex*")
-        if p.is_file() and p.name in {"codex", "codex.exe"}
+        for p in root.glob(f"openai.chatgpt-*/bin/{platform_name}-*/{binary_name}")
+        if p.is_file()
     ]
     candidates.sort(key=modified_time, reverse=True)
     return str(candidates[0]) if candidates else None
