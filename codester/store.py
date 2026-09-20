@@ -239,9 +239,32 @@ def validate(data: object) -> dict:
         repo = repository_text(repository.get("repo"), "name", 200)
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
             raise ConfigurationError("Use a GitHub repository name like owner/project.")
-        path = repository_text(repository.get("path"), "checkout path", 4096)
-        if not Path(path).is_absolute():
+        path = repository.get("path", "")
+        if not isinstance(path, str) or len(path) > 4096 or "\x00" in path:
+            raise ConfigurationError("Enter a valid checkout path.")
+        path = path.strip()
+        if path and not Path(path).is_absolute():
             raise ConfigurationError("Repository checkout paths must be absolute.")
+        update = {}
+        for field, limit in {"update_host_id": 64, "update_path": 1024, "update_script": 8000}.items():
+            value = repository.get(field, "")
+            if not isinstance(value, str) or len(value) > limit or "\x00" in value:
+                raise ConfigurationError(f"Invalid repository {field}.")
+            update[field] = value.strip()
+        confirm = repository.get("update_confirm", False)
+        if not isinstance(confirm, bool):
+            raise ConfigurationError("Choose whether repository updates require confirmation.")
+        update["update_confirm"] = confirm
+        if any(update[field] for field in ("update_host_id", "update_path", "update_script")):
+            if not all(update[field] for field in ("update_host_id", "update_path", "update_script")):
+                raise ConfigurationError("Repository updates need an SSH connection, folder and script.")
+            if not update["update_path"].startswith("/"):
+                raise ConfigurationError("Use an absolute server folder for repository updates.")
+            if not any(
+                isinstance(host, dict) and host.get("id") == update["update_host_id"]
+                for host in data.get("tunnels", [])
+            ):
+                raise ConfigurationError("Choose a saved SSH connection for repository updates.")
         command = repository.get("deploy_command", "")
         if (
             not isinstance(command, str)
@@ -262,6 +285,7 @@ def validate(data: object) -> dict:
                 "repo": repo,
                 "path": path,
                 "deploy_command": command.strip(),
+                **update,
             }
         )
     tunnels = data.get("tunnels", [])

@@ -1,6 +1,7 @@
 import {$, api, escape as e, duration, ago, compactTime} from './common.js';
 import {applyWorkspaceLayout, activeWorkspace, currentLayout, layoutEpoch} from './workspaces.js';
 import {DockerGroups} from './docker-groups.js';
+import {GitHubUpdates} from './github-updates.js';
 
 let latest;
 let snapshotReceivedAt = 0;
@@ -25,6 +26,18 @@ let tunnelLoading = false;
 let tunnelMutation = 0;
 let repositoryOperations = new Map();
 let repositoriesLoading = false;
+const githubUpdates = new GitHubUpdates(redrawGithub, () => activeWorkspace() === 'github');
+function redrawGithub() {
+  const target = $('#github-content');
+  const active = document.activeElement;
+  const focused = target.contains(active) ? {id:active.dataset.id, action:active.dataset.githubUpdate} : null;
+  const scroll = target.scrollTop;
+  const logs = [...target.querySelectorAll('.repo-update-log')].map(node => node.scrollTop);
+  target.innerHTML = github(latest?.services?.github?.data || {});
+  target.scrollTop = scroll;
+  target.querySelectorAll('.repo-update-log').forEach((node, index) => { node.scrollTop = logs[index] || 0; });
+  if (focused) [...target.querySelectorAll('[data-github-update]')].find(node => node.dataset.id === focused.id && node.dataset.githubUpdate === focused.action)?.focus({preventScroll:true});
+}
 let codexActivitySignature = '';
 let liveCodexActivity;
 
@@ -184,22 +197,28 @@ function github(data) {
     const date = monthColumns.get(column);
     return date ? `<span title="${date.toLocaleString([], {month:'long', year:'numeric', timeZone:'UTC'})}">${date.toLocaleString([], {month:'short', timeZone:'UTC'})}</span>` : '<span></span>';
   }).join('');
-  const repositories = (data.repositories || []).slice(0, 3).map(repository => {
+  const repoRows = [...(data.repositories || []).slice(0, 3)];
+  const workspace = activeWorkspace() === 'github';
+  if (workspace) for (const row of githubUpdates.rows) {
+    if (!repoRows.some(repo => repo.name.toLowerCase() === row.repo.toLowerCase())) repoRows.push({name:row.repo,url:row.url});
+  }
+  const repositories = repoRows.map(repository => {
     const local = repositoryOperations.get(repository.name.toLowerCase()) || repository.local;
     const action = local?.action || {state:'idle'};
     const running = action.state === 'running';
     const meta = local ? repositoryMeta(local) : ago(repository.pushed_at);
     const statusText = running ? action.message : ['success','error'].includes(action.state) ? `${action.message} · ${meta}` : meta;
-    const controls = local ? `<div class="repo-actions">
+    const controls = `<div class="repo-actions">${local ? `
       <button type="button" class="${local.demo ? 'demo-preview' : ''}" data-repository-action="push" data-id="${e(local.id)}" ${local.demo || running || !local.needs_push ? 'disabled' : ''} aria-label="Push ${e(repository.name)}" title="${local.needs_push ? 'Push committed changes' : 'Nothing to push'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V3m0 0L7 8m5-5 5 5"/><path d="M5 14v5h14v-5"/></svg></button>
       <button type="button" class="deploy ${local.deploy_state === 'needed' ? 'needed' : ''} ${local.demo ? 'demo-preview' : ''}" data-repository-action="deploy" data-id="${e(local.id)}" ${local.demo || running || !local.deploy_configured || local.deploy_state === 'current' ? 'disabled' : ''} aria-label="Deploy ${e(repository.name)}" title="${local.deploy_configured ? local.deploy_state === 'current' ? 'Already deployed' : 'Deploy current commit' : 'No deploy command'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M14 4c3-1 5-1 6-1 0 1 0 3-1 6l-6 6-4-4 5-7Z"/><path d="m9 11-4 1-2 2 6 1m4 0-1 4-2 2-1-6"/><path d="M6 18c-2 0-3 1-3 3 2 0 3-1 3-3Z"/></svg></button>
-    </div>` : '';
+    ` : ''}${workspace ? githubUpdates.controls(repository.name) : ''}</div>`;
     return `<div class="repo-row ${running ? 'working' : ''}">
       <a class="repo-copy" href="${e(repository.url)}" target="_blank" rel="noopener noreferrer" title="${e(statusText)}"><strong title="${e(repository.name)}">${e(repository.name)}</strong>${local ? `<small>${e(statusText)}</small>` : ''}</a>
-      ${sparkline(repository.commits || [])}
-      <b>${(repository.commits || []).reduce((total, count) => total + number(count), 0)}</b>
+      ${repository.commits ? sparkline(repository.commits) : '<span></span>'}
+      <b>${repository.commits ? repository.commits.reduce((total, count) => total + number(count), 0) : '—'}</b>
       <time class="repo-time" title="${ago(repository.pushed_at)}">${compactTime(repository.pushed_at)}</time>
       ${controls}
+      ${workspace ? githubUpdates.detail(repository.name) : ''}
     </div>`;
   }).join('');
   return `<div class="github-hero">
@@ -282,7 +301,7 @@ async function refreshGithubRepositories() {
     const data = await api('/api/github/repositories', {timeout:10000});
     repositoryOperations = new Map(data.repositories.map(repository => [repository.repo.toLowerCase(), repository]));
     const githubData = latest?.services?.github?.data;
-    if (githubData && $('#detail').hidden) $('#github-content').innerHTML = github(githubData);
+    if (githubData && $('#detail').hidden) redrawGithub();
   } catch {
     // The GitHub API panel remains useful when a local checkout is unavailable.
   } finally {
@@ -322,6 +341,10 @@ function render(snapshot) {
     const message = $(`#${name}-message`);
     message.innerHTML = issue ? `<details><summary>${state.last_success ? `Last read ${ago(state.last_success)}` : 'Connection failed'}</summary><p>${e(state.message)}</p></details>` : '';
     const target = $(`#${name}-content`);
+    if (name === 'github' && activeWorkspace() === 'github') {
+      redrawGithub();
+      continue;
+    }
     const active = document.activeElement;
     const focusedId = target.contains(active) ? active.dataset.id : null;
     const scrollTop = target.scrollTop;

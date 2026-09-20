@@ -120,3 +120,10 @@
 
 #settings-postgres .field-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 18px; }
 @media(max-width:650px) { #settings-postgres .field-grid { grid-template-columns:1fr; gap:10px; } }
+
+.repository-config textarea { box-sizing:border-box; width:100%; min-height:100px; resize:vertical; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--text); font:400 .85rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; }
+.repository-config textarea:focus { border-color:var(--accent); outline:2px solid color-mix(in oklch,var(--accent),transparent 78%); outline-offset:1px; }
+.repository-config textarea::placeholder { color:var(--muted); opacity:.7; }
+.repository-config summary { min-height:44px; display:flex; align-items:center; gap:8px; cursor:pointer; }
+.repository-config summary::before { content:'▸'; }
+.repository-config details[open] > summary::before { content:'▾'; }

@@ -96,7 +96,7 @@
     <button type="button" class="secondary-button test" data-service="github">Test connection</button><p id="github-test" role="status" class="test-result"></p>
     <p class="help">Organisation mode needs repository Contents read access. Account calendar: classic token with <code>read:user</code>; when empty, visible repository commits are used. Only repositories accessible to the saved token can be counted.</p>
     <h3>Repository actions</h3>
-    <p class="help">Up to three local checkouts. Push uses Git; Deploy runs the saved command from that checkout.</p>
+    <p class="help">Update runs your script on a saved SSH server. The tunnel can remain off.</p>
     <div id="repository-list" class="repository-list"></div>
     <button id="add-repository" type="button" class="secondary-button">+ Add repository</button>
   </fieldset>
@@ -105,9 +105,15 @@
       <div class="tunnel-heading"><strong class="repository-title">New repository</strong><div class="button-row"><button type="button" class="secondary-button test-repository">Check</button><button type="button" class="quiet-button remove-repository">Remove</button></div></div>
       <div class="repository-grid">
         <label>GitHub repository<input data-repository-field="repo" type="text" maxlength="200" placeholder="Taskerrr/Codester" autocomplete="off" required></label>
-        <label>Checkout path<input data-repository-field="path" type="text" maxlength="4096" placeholder="/repos/Codester" autocomplete="off" required></label>
-        <label class="repository-command">Deploy command <span class="optional">optional</span><input data-repository-field="deploy_command" type="text" maxlength="2000" placeholder="docker compose up -d --build" autocomplete="off"></label>
+        <label>SSH connection<select data-repository-field="update_host_id"></select></label>
+        <label>Server folder<input data-repository-field="update_path" type="text" maxlength="1024" placeholder="/srv/Codester" autocomplete="off"></label>
+        <label class="repository-command">Update script<textarea data-repository-field="update_script" rows="4" maxlength="8000" spellcheck="false" placeholder="git pull --ff-only &amp;&amp; docker compose up -d --build"></textarea></label>
+        <label class="toggle"><input data-repository-field="update_confirm" type="checkbox"> Confirm before updating</label>
       </div>
+      <details><summary>Local checkout actions</summary><div class="repository-grid">
+        <label>Local checkout path<input data-repository-field="path" type="text" maxlength="4096" placeholder="/repos/Codester" autocomplete="off"></label>
+        <label class="repository-command">Local deploy command<input data-repository-field="deploy_command" type="text" maxlength="2000" placeholder="docker compose up -d --build" autocomplete="off"></label>
+      </div></details>
       <p class="help">Use SSH agent, environment variables, or your platform credential store for access. Do not put passwords in the command.</p>
       <p class="test-result repository-test" role="status"></p>
     </section>

@@ -364,6 +364,19 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     def github_repositories():
         return jsonify(repository_manager.snapshot())
 
+    @app.get("/api/github/updates")
+    def github_updates():
+        return jsonify(service_manager.repository_updates())
+
+    @app.post("/api/github/updates/<identifier>")
+    def github_update(identifier: str):
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get("revision"), str):
+            raise ConfigurationError("Supply the saved repository update revision.")
+        return jsonify(service_manager.start_repository(
+            identifier, data["revision"], confirmed=data.get("confirmed") is True
+        )), 202
+
     @app.post("/api/github/repositories/<identifier>/<action>")
     def github_repository_action(identifier: str, action: str):
         if not re.fullmatch(r"[a-f0-9-]{16,64}", identifier) or action not in {

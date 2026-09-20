@@ -88,3 +88,21 @@ Partial failure returns `ok: false` with HTTP 200 so successful and failed membe
 can be reported together. Refresh the inventory for the resulting live state.
 These actions start/stop existing containers, without Compose configuration or
 health/dependency orchestration. Existing individual container routes remain.
+
+## Remote GitHub updates
+
+Repository settings accept optional `update_host_id`, `update_path`, `update_script`
+and boolean `update_confirm`. Enabling an update requires all three text fields:
+a saved SSH connection, absolute remote folder and script (up to 8,000 characters).
+The local `path` is optional for remote-only repositories.
+
+- `GET /api/github/updates` returns `{demo, repositories}` with each configured
+  repository's `id`, `repo`, `url`, `configured`, `target`, `path`, `script`,
+  `confirm`, `revision` and latest persisted `action`. Reading never starts SSH.
+- `POST /api/github/updates/<id>` accepts `{revision, confirmed}` and returns the
+  started action with HTTP 202. Only the saved script can execute; the submitted
+  revision must match current repository and SSH settings. `confirmed: true` is
+  required only when configured. Demo mode and concurrent updates are rejected.
+- Actions share the service-command runner: bounded output, ten-minute timeout,
+  persisted terminal results and unknown outcome after interrupted execution.
+  `success` indicates command exit zero, not verified application health.

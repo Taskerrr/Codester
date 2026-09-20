@@ -125,6 +125,7 @@ async function refreshTunnelStatus() {
 }
 setInterval(refreshTunnelStatus, 5000);
 function refreshServerChoices() {
+  refreshRepositoryHosts();
   for (const row of document.querySelectorAll('.tunnel-config')) {
     const choice = row.querySelector('.tunnel-server-choice');
     const selected = choice.value;
@@ -135,6 +136,20 @@ function refreshServerChoices() {
     }
     choice.value = selected;
     row.querySelector('.tunnel-server-picker').hidden = choice.options.length === 1;
+  }
+}
+function refreshRepositoryHosts() {
+  const hosts = [...document.querySelectorAll('.tunnel-config')].map(row => ({
+    id:row.dataset.id,
+    name:row.querySelector('[data-tunnel-field="name"]').value,
+    host:row.querySelector('[data-tunnel-field="ssh_host"]').value,
+  }));
+  for (const choice of document.querySelectorAll('[data-repository-field="update_host_id"]')) {
+    const selected = choice.value;
+    choice.replaceChildren(new Option('No remote update', ''));
+    for (const host of hosts) choice.add(new Option(`${host.name || 'New server'} · ${host.host}`, host.id));
+    if (selected && !hosts.some(host => host.id === selected)) choice.add(new Option('SSH connection removed', selected));
+    choice.value = selected;
   }
 }
 function addTunnel(data = {}) {
@@ -232,7 +247,8 @@ function addTunnel(data = {}) {
     duplicate.querySelector('[data-tunnel-field="name"]').focus();
     $('#save-note').textContent='Unsaved changes';
   });
-  row.querySelector('.remove-tunnel').addEventListener('click', () => { row.remove(); $('#save-note').textContent='Unsaved changes'; });
+  row.querySelector('.remove-tunnel').addEventListener('click', () => { row.remove(); refreshRepositoryHosts(); $('#save-note').textContent='Unsaved changes'; });
+  row.addEventListener('input', refreshRepositoryHosts);
   row.querySelector('.test-tunnel').addEventListener('click', () => testTunnel(row));
   $('#tunnel-list').append(row);
   refreshServerChoices();
@@ -241,13 +257,21 @@ function addTunnel(data = {}) {
 function addRepository(data = {}) {
   const row = $('#repository-template').content.firstElementChild.cloneNode(true);
   row.dataset.id = data.id || crypto.randomUUID();
-  for (const field of ['repo','path','deploy_command']) row.querySelector(`[data-repository-field="${field}"]`).value = data[field] || '';
+  for (const field of ['repo','path','deploy_command','update_path','update_script']) row.querySelector(`[data-repository-field="${field}"]`).value = data[field] || '';
+  const host = row.querySelector('[data-repository-field="update_host_id"]');
+  host.add(new Option('No remote update', ''));
+  for (const tunnel of saved?.tunnels || []) host.add(new Option(`${tunnel.name} · ${tunnel.username}@${tunnel.ssh_host}`, tunnel.id));
+  if (data.update_host_id && ![...host.options].some(option => option.value === data.update_host_id)) host.add(new Option('SSH connection removed', data.update_host_id));
+  host.value = data.update_host_id || '';
+  row.querySelector('[data-repository-field="update_confirm"]').checked = Boolean(data.update_confirm);
+  if (data.path) row.querySelector('details').open = true;
   const updateTitle = () => { row.querySelector('.repository-title').textContent = row.querySelector('[data-repository-field="repo"]').value || 'New repository'; };
   row.querySelector('[data-repository-field="repo"]').addEventListener('input', updateTitle);
   updateTitle();
   row.querySelector('.remove-repository').addEventListener('click', () => { row.remove(); updateRepositoryLimit(); $('#save-note').textContent='Unsaved changes'; });
   row.querySelector('.test-repository').addEventListener('click', () => testRepository(row));
   $('#repository-list').append(row);
+  refreshRepositoryHosts();
   updateRepositoryLimit();
 }
 function updateRepositoryLimit() {
@@ -323,6 +347,10 @@ function read() {
     repo:row.querySelector('[data-repository-field="repo"]').value,
     path:row.querySelector('[data-repository-field="path"]').value,
     deploy_command:row.querySelector('[data-repository-field="deploy_command"]').value,
+    update_host_id:row.querySelector('[data-repository-field="update_host_id"]').value,
+    update_path:row.querySelector('[data-repository-field="update_host_id"]').value ? row.querySelector('[data-repository-field="update_path"]').value : '',
+    update_script:row.querySelector('[data-repository-field="update_host_id"]').value ? row.querySelector('[data-repository-field="update_script"]').value : '',
+    update_confirm:row.querySelector('[data-repository-field="update_confirm"]').checked,
   }));
   data.postgres = {enabled:$('#postgres-enabled').checked, password:$('#postgres-password').value, clear_password:$('#postgres-clear_password').checked};
   for (const field of ['host','database','username','sslmode','sslrootcert']) data.postgres[field] = $(`#postgres-${field}`).value;
@@ -435,6 +463,12 @@ async function testRepository(row) {
   result.textContent='Checking…';
   try {
     await saveSettings(false);
+    if (row.querySelector('[data-repository-field="update_host_id"]').value) {
+      const data = await api('/api/github/updates', {timeout:10000});
+      const repository = data.repositories.find(item => item.id === row.dataset.id);
+      result.textContent = repository?.configured ? `Update configured: ${repository.target} / ${repository.path}. No command was run.` : 'Remote update is not configured.';
+      return;
+    }
     const data=await api('/api/github/repositories',{timeout:10000});
     const repository=data.repositories.find(item=>item.id === row.dataset.id);
     result.textContent=!repository ? 'Repository check unavailable' : repository.error || `${repository.branch} · ${repository.changes} changes · ${repository.ahead ?? 'no'} ahead`;

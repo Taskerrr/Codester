@@ -105,3 +105,18 @@ The display removes the header/footer and explanatory copy, adds a clock rail, r
   Ten lines grow to 240px. Desktop checks at 2560×720, 1707×480 and 1000×650
   have no page overflow; 390×844 scrolls vertically without horizontal overflow.
 - Database execution was simulated for these UI checks; no saved user database was queried.
+
+## GitHub remote updates, 20 September 2026
+
+- Full suite: 200 passed, 10 optional integration tests skipped. Ruff and focused
+  type checks pass. Modified JavaScript modules pass syntax checks.
+- New backend tests cover remote-only configuration, validation, CSRF, read-only
+  snapshots, saved SSH identity and quoted working directory, optional confirmation,
+  stale revisions, demo rejection, duplicate runs, output, success/failure/unknown
+  exit states and persisted results after restart.
+- Playwright against an isolated settings store verified saving server/script choices,
+  a configured repository outside the recent three, confirmation before dispatch,
+  disabled running controls, elapsed time, escaped output and expansion across polling.
+- Desktop layouts fit 2560×720 and 1707×480 without page overflow; 390×844 has no
+  horizontal overflow. Browser execution responses were simulated and runner tests
+  used local subprocesses; no remote server was updated during verification.

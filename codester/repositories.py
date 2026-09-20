@@ -128,6 +128,8 @@ class RepositoryManager:
                     return copy.deepcopy(self.cached)
             rows = []
             for repository in self.store.read()["github"]["repositories"]:
+                if not repository["path"]:
+                    continue
                 try:
                     rows.append(self.inspect(repository))
                 except IntegrationError as exc:
@@ -153,6 +155,8 @@ class RepositoryManager:
 
     def start(self, identifier: str, action: str) -> dict:
         repository = self._configured(identifier)
+        if not repository["path"]:
+            raise IntegrationError("No local checkout is configured for this repository.")
         if action not in {"push", "deploy"}:
             raise IntegrationError("Unsupported repository action.")
         if action == "deploy" and not repository["deploy_command"]:

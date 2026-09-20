@@ -281,3 +281,19 @@ query's work or the number of rows a write changes. Add SQL LIMIT clauses when
 appropriate. Drafts and results survive workspace/connection switches in the
 current page, but are not saved across reloads. **Activity & locks** inspects the
 selected connection; existing session-control permissions and confirmations apply.
+
+### Remote repository updates
+
+In **Settings > GitHub > Repository actions**, add a repository, select an existing
+SSH connection, enter its absolute server folder and save an update script. For
+example, `git pull --ff-only && docker compose up -d --build`. Multiline scripts
+are supported; use `&&` when later steps should only run after a successful step.
+**Confirm before updating** is optional. Local checkout fields can remain blank.
+
+Open the GitHub workspace and press **Update**. The saved SSH identity runs the
+script in the server folder without starting a forwarding tunnel. Updating shows
+elapsed time; tap the status to expand the exact script and command output. The
+latest result survives reloads. Success means the command exited successfully,
+not that deployment health was checked. Interrupted SSH sessions and commands
+still running when Codester restarts report an unknown outcome. Demo mode never
+runs remote repository updates. Existing local Push/Deploy controls remain separate.

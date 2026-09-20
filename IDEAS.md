@@ -104,3 +104,14 @@ SQL execution/cancellation, keyboard use, and wide/narrow layouts.
 
 - Removed the duplicate title/logo inside the workspace Activity & locks tab.
   The standalone activity page retains its heading.
+
+### GitHub repository updates, 20 September 2026
+
+- Added Update to configured repository rows in the GitHub workspace, reusing the
+  service-command SSH runner and credential store. The SSH tunnel can remain off.
+- Settings selects a server, folder, multiline update script and optional confirmation.
+  Local checkout actions remain available; remote-only repositories need no local path.
+- Updating shows elapsed time; completion/failure expands persisted command output.
+  Duplicate executions, demo execution and changed target/script revisions are rejected.
+- Configured repositories remain visible even outside the three most recent GitHub rows.
+- Restart/rollback menus and automatic deployment health verification remain outside this feature.

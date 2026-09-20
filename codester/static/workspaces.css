@@ -80,3 +80,21 @@
   .sql-workspace.connection-editing { min-height:0; }
 }
 @media (max-width:520px) { .sql-connection-fields { grid-template-columns:1fr; } .sql-workspace { padding:16px; } }
+
+/* Repository updates keep output and confirmation within their own row. */
+.focused-workspace .repo-actions { align-items:center; flex-wrap:wrap; }
+.focused-workspace .repo-actions .repo-update-button,
+.focused-workspace .repo-actions .repo-update-status { width:auto; min-width:44px; min-height:44px; padding:0 12px; font:500 .8rem system-ui; white-space:nowrap; }
+.focused-workspace .repo-actions .repo-update-status { border-color:transparent; background:transparent; color:var(--deck-muted); }
+.focused-workspace .repo-update-status[data-state=success] { color:oklch(79% .16 155); }
+.focused-workspace .repo-update-status[data-state=error] { color:var(--danger); }
+.focused-workspace .repo-update-status[data-state=unknown] { color:oklch(82% .14 64); }
+.repo-update-confirm, .repo-update-output, .repo-update-error { grid-column:1 / -1; min-width:0; padding:8px 0 12px; font-size:.8rem; }
+.repo-update-confirm p, .repo-update-output p { margin:6px 0; color:var(--deck-muted); overflow-wrap:anywhere; }
+.repo-update-confirm pre, .repo-update-output pre { white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0; font:400 .8rem/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; }
+.repo-update-log { max-height:240px; overflow:auto; padding:12px; background:var(--deck-surface); border:1px solid var(--deck-line); border-radius:6px; }
+.repo-update-error { color:var(--danger); }
+@media (max-width:650px) {
+  .focused-workspace .repo-row { grid-template-columns:minmax(0,1fr) auto; }
+  .focused-workspace .repo-spark, .focused-workspace .repo-row > b, .focused-workspace .repo-time { display:none; }
+}

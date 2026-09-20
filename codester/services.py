@@ -1,6 +1,7 @@
 """Saved, user-controlled commands run through existing SSH identities."""
 
 import copy
+import hashlib
 import json
 import re
 import shlex
@@ -10,6 +11,7 @@ import threading
 import time
 import uuid
 from contextlib import closing
+from io import BufferedReader
 
 from codester.store import ConfigurationError, Store
 from codester.tunnels import TunnelManager
@@ -21,7 +23,7 @@ COMMAND_TIMEOUT = 600
 def validate_service(data: dict, hosts: list[dict]) -> dict:
     if not isinstance(data, dict):
         raise ConfigurationError("Supply a service configuration.")
-    result = {}
+    result: dict = {}
     for field, limit in {"name": 80, "path": 1024, "branch": 200, "notes": 8000}.items():
         value = data.get(field, "main" if field == "branch" else "")
         if not isinstance(value, str) or len(value) > limit or "\x00" in value:
@@ -170,8 +172,17 @@ class ServiceManager:
                 if command["confirm"] and not confirmed:
                     raise ConfigurationError("Confirm this command before running it.")
                 script, label = command["script"], command["label"]
+            return self._start_script(identifier, host, service["path"], script, label)
+
+    def _start_script(
+        self, identifier: str, host: dict, path: str, script: str, label: str
+    ) -> dict:
+        """Start one saved command under the shared execution lock."""
+        with self.lock:
+            if self.actions.get(identifier, {}).get("state") == "running":
+                raise ConfigurationError("An update is already running for this repository.")
             args, environment = self.tunnels.remote_session(
-                host, f"cd {shlex.quote(service['path'])} && {{\n{script}\n}}"
+                host, f"cd {shlex.quote(path)} && {{\n{script}\n}}"
             )
             password = (
                 self.store.secret(f"tunnel-password:{host['id']}")
@@ -183,7 +194,7 @@ class ServiceManager:
                 "state": "running",
                 "label": label,
                 "script": script,
-                "path": service["path"],
+                "path": path,
                 "host": host["ssh_host"],
                 "started_at": time.time(),
                 "output": "",
@@ -195,6 +206,82 @@ class ServiceManager:
                 target=self._run, args=(identifier, args, environment, password), daemon=True
             ).start()
             return copy.deepcopy(self.actions[identifier])
+
+    @staticmethod
+    def repository_revision(repository: dict, host: dict | None) -> str:
+        target = {
+            key: repository.get(key)
+            for key in ("repo", "update_host_id", "update_path", "update_script", "update_confirm")
+        }
+        target["host"] = host
+        return hashlib.sha256(json.dumps(target, sort_keys=True).encode()).hexdigest()
+
+    def repository_updates(self) -> dict:
+        config = self.store.read()
+        rows = []
+        with self.lock:
+            for repository in config["github"]["repositories"]:
+                host = next(
+                    (
+                        row
+                        for row in config["tunnels"]
+                        if row["id"] == repository.get("update_host_id")
+                    ),
+                    None,
+                )
+                rows.append(
+                    {
+                        "id": repository["id"],
+                        "repo": repository["repo"],
+                        "url": config["github"]["browser_url"].rstrip("/")
+                        + "/"
+                        + repository["repo"],
+                        "configured": bool(repository.get("update_script") and host),
+                        "target": f"{host['username']}@{host['ssh_host']}:{host['ssh_port']}"
+                        if host
+                        else "",
+                        "path": repository.get("update_path", ""),
+                        "script": repository.get("update_script", ""),
+                        "confirm": repository.get("update_confirm", False),
+                        "revision": self.repository_revision(repository, host),
+                        "action": copy.deepcopy(self.actions.get("github:" + repository["id"])),
+                    }
+                )
+        return {"repositories": rows, "demo": config["demo"]}
+
+    def start_repository(self, identifier: str, revision: str, *, confirmed: bool = False) -> dict:
+        with self.lock:
+            config = self.store.read()
+            if config["demo"]:
+                raise ConfigurationError(
+                    "Turn off demo mode in Settings before updating a repository."
+                )
+            repository = next(
+                (row for row in config["github"]["repositories"] if row["id"] == identifier), None
+            )
+            if repository is None:
+                raise ConfigurationError("Repository is no longer configured.")
+            host = next(
+                (row for row in config["tunnels"] if row["id"] == repository.get("update_host_id")),
+                None,
+            )
+            if host is None or not repository.get("update_script"):
+                raise ConfigurationError(
+                    "Configure an SSH connection and update script in Settings."
+                )
+            if revision != self.repository_revision(repository, host):
+                raise ConfigurationError(
+                    "Update settings changed. Review the target and try again."
+                )
+            if repository.get("update_confirm") and not confirmed:
+                raise ConfigurationError("Confirm this repository update before running it.")
+            return self._start_script(
+                "github:" + identifier,
+                host,
+                repository["update_path"],
+                repository["update_script"],
+                "Update " + repository["repo"],
+            )
 
     @staticmethod
     def git_status_script(branch: str) -> str:
@@ -221,7 +308,7 @@ class ServiceManager:
             )  # noqa: S603
 
             def collect() -> None:
-                assert process is not None and process.stdout is not None
+                assert process is not None and isinstance(process.stdout, BufferedReader)
                 while chunk := process.stdout.read1(4096):
                     with self.lock:
                         output = action["output"] + chunk.decode("utf-8", errors="replace")
