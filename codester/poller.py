@@ -4,31 +4,57 @@ import copy
 import threading
 import time
 
-from codester import codex, dagster, demo, github, signoz
+from codester import codex, dagster, demo, signoz
+from codester.credentials import CredentialStoreError
+from codester.github_activity import GitHubActivity
+from codester.postgres import PostgresMonitor
 from codester.store import Store
 from codester.transport import IntegrationError
 
-INTERVALS = {"codex": 60, "dagster": 10, "signoz": 30, "github": 300}
+INTERVALS = {"codex": 60, "dagster": 10, "signoz": 30, "github": 60, "postgres": 10}
 
 
 class Poller:
     def __init__(self, store: Store):
         self.store = store
+        self.postgres = PostgresMonitor()
         self.lock = threading.RLock()
         self.operation_locks = {name: threading.Lock() for name in INTERVALS}
         self.wakes = {name: threading.Event() for name in INTERVALS}
         self.stopped = threading.Event()
         self.generation = 0
+        self.github_activity = GitHubActivity(store, self.wakes["github"].set)
         self.state: dict[str, dict] = {
             name: {
                 "status": "loading",
                 "message": "Waiting for first read…",
                 "last_success": None,
+                "refreshing": False,
+                "next_refresh": None,
+                "refresh_interval": INTERVALS[name],
                 "data": None,
             }
             for name in INTERVALS
         }
         self.threads: list[threading.Thread] = []
+        self.restore_github()
+
+    def restore_github(self) -> None:
+        config = self.store.read()
+        if config["demo"] or not config["github"]["enabled"]:
+            return
+        try:
+            saved = self.github_activity.cached(config["github"], self.store.secret("github"))
+        except CredentialStoreError as exc:
+            self.state["github"].update(status="error", message=str(exc))
+            return
+        if saved is not None:
+            self.state["github"].update(
+                status="stale",
+                message="Saved GitHub data; checking for updates.",
+                data=saved,
+                last_success=saved.get("repositories_updated_at"),
+            )
 
     def start(self) -> None:
         for name in INTERVALS:
@@ -40,6 +66,7 @@ class Poller:
 
     def stop(self) -> None:
         self.stopped.set()
+        self.github_activity.stop()
         for wake in self.wakes.values():
             wake.set()
 
@@ -51,9 +78,13 @@ class Poller:
                     "status": "loading",
                     "message": "Reading updated connection…",
                     "last_success": None,
+                    "refreshing": False,
+                    "next_refresh": None,
+                    "refresh_interval": INTERVALS[name],
                     "data": None,
                 }
                 self.wakes[name].set()
+            self.restore_github()
 
     def fetch(self, name: str, config: dict, key: str = "") -> dict:
         if name == "codex":
@@ -62,14 +93,16 @@ class Poller:
             return dagster.snapshot(config[name])
         if name == "signoz":
             return signoz.snapshot(config[name], key)
-        return github.snapshot(config[name], key)
+        if name == "postgres":
+            return self.postgres.snapshot(config[name], key)
+        return self.github_activity.fetch(config[name], key)
 
     def refresh(self, name: str) -> bool:
         with self.operation_locks[name]:
             with self.lock:
                 generation = self.generation
                 config = self.store.read()
-                key = self.store.secret(name) if name in {"signoz", "github"} else ""
+                self.state[name].update(refreshing=True, next_refresh=None)
             result = {
                 "status": "disabled",
                 "message": "Connect in settings to start monitoring.",
@@ -86,6 +119,7 @@ class Poller:
                         "data": demo.snapshot(name),
                     }
                 elif config[name]["enabled"]:
+                    key = self.store.secret(name) if name in {"signoz", "github", "postgres"} else ""
                     data = self.fetch(name, config, key)
                     result = {
                         "status": "connected",
@@ -98,7 +132,7 @@ class Poller:
                 success = False
                 message = (
                     str(exc)
-                    if isinstance(exc, IntegrationError)
+                    if isinstance(exc, (IntegrationError, CredentialStoreError))
                     else "Unexpected response. Check integration compatibility."
                 )
                 with self.lock:
@@ -110,7 +144,12 @@ class Poller:
                 }
             with self.lock:
                 if generation == self.generation:
-                    self.state[name] = result
+                    self.state[name] = {
+                        **result,
+                        "refreshing": False,
+                        "next_refresh": None,
+                        "refresh_interval": INTERVALS[name],
+                    }
             return success
 
     def run(self, name: str) -> None:
@@ -120,7 +159,13 @@ class Poller:
             self.wakes[name].clear()
             success = self.refresh(name)
             failures = 0 if success else min(failures + 1, 5)
-            delay = min(INTERVALS[name] * 2**failures, 300)
+            interval = self.store.read()["postgres"]["refresh_seconds"] if name == "postgres" else INTERVALS[name]
+            delay = min(interval * 2**failures, 300)
+            with self.lock:
+                if not self.wakes[name].is_set():
+                    self.state[name].update(
+                        next_refresh=time.time() + delay, refresh_interval=delay
+                    )
             self.wakes[name].wait(delay)
 
     def snapshot(self) -> dict:

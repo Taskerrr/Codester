@@ -1,0 +1,39 @@
+.postgres-page { height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
+.postgres-page .topbar { min-height:60px; padding:8px 24px; }
+.postgres-page .topbar-context { display:none; }
+.postgres-main { flex:1; display:flex; flex-direction:column; min-height:0; width:100%; max-width:1280px; margin:auto; padding:20px 24px; }
+.pg-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-shrink:0; }
+.pg-heading h1 { font-size:1.5rem; margin:0; display:flex; align-items:center; gap:10px; }
+.pg-heading img { width:30px; height:30px; }
+.pg-heading p { font-size:.8rem; margin:6px 0; }
+#pg-freshness { font-size:.75rem; color:var(--muted); }
+.pg-summary { display:flex; flex-wrap:wrap; gap:18px 32px; padding:18px 0; flex-shrink:0; }
+.pg-summary div { display:flex; align-items:baseline; gap:8px; }
+.pg-summary strong { font:600 1.8rem ui-monospace,monospace; }
+.pg-summary span { font-size:.75rem; color:var(--muted); }
+.pg-summary .waiting strong { color:oklch(78% .14 65); }
+.pg-tabs { display:flex; gap:12px; border-bottom:1px solid var(--line); padding-bottom:8px; flex-shrink:0; }
+.pg-tabs button { min-height:44px; background:transparent; color:var(--muted); border:1px solid transparent; }
+.pg-tabs button[aria-selected=true] { border-color:var(--line); color:var(--text); background:var(--surface); }
+.pg-content { flex:1; overflow:auto; min-height:0; padding:10px 5px 24px 0; }
+.pg-session { padding:12px 0; border-bottom:1px solid var(--line); }
+.pg-session-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.pg-session-meta { font-size:.78rem; color:var(--muted); line-height:1.6; overflow-wrap:anywhere; }
+.pg-session-meta strong { color:var(--text); margin-right:10px; }
+.pg-session details { margin:8px 0; }
+.pg-session summary { cursor:pointer; font:500 .8rem ui-monospace,monospace; overflow-wrap:anywhere; padding:8px 0; }
+.pg-session pre,.pg-confirmation pre { font-size:.8rem; white-space:pre-wrap; overflow-wrap:anywhere; max-height:220px; overflow:auto; }
+.pg-session-actions { display:flex; gap:8px; flex-shrink:0; }
+.pg-session-actions button { min-height:44px; font-size:.75rem; }
+.pg-session-actions .pg-terminate { color:var(--danger); }
+.pg-lock-edge { padding:14px 0; border-bottom:1px solid var(--line); }
+.pg-lock-edge h3 { font-size:.88rem; margin:0 0 8px; }
+.pg-lock-edge>p { color:var(--muted); font-size:.78rem; }
+.pg-lock-edge .pg-session { border:0; padding:6px 0; }
+.pg-confirmation { padding:16px; margin-bottom:16px; background:var(--surface); border:1px solid var(--line); border-radius:8px; }
+.pg-confirmation h2 { font-size:1rem; }
+.pg-confirmation p { font-size:.85rem; }
+#pg-notice,#pg-action-result { margin:8px 0; font-size:.8rem; flex-shrink:0; }
+#pg-action-result.error { color:var(--danger); }
+@media(max-width:650px) { .postgres-main { padding:12px; } .pg-heading { align-items:flex-start; } .pg-heading h1 { font-size:1.2rem; } .pg-summary { gap:10px 18px; padding:10px 0; } .pg-summary strong { font-size:1.4rem; } .pg-session-header { flex-wrap:wrap; } .pg-session-actions { width:100%; } }
+@media(max-height:550px) { .pg-summary { padding:8px 0; } .postgres-main { padding-top:10px; } }

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Service commands · Codester{% endblock %}
+{% block bodyclass %}services-page{% endblock %}
+{% block scripts %}<link rel="stylesheet" href="{{ url_for('static', filename='services.css') }}"><script type="module" src="{{ url_for('static', filename='services.js') }}"></script>{% endblock %}
+{% block navigation %}<a class="quiet-button" href="/settings#commands">Settings</a><a class="quiet-button" href="/">← Overview</a>{% endblock %}
+{% block content %}
+<main id="main" class="services-main">
+  <aside class="services-nav"><h1>Services</h1><nav id="services-list" aria-label="Services"></nav><button id="new-service" class="quiet-button" type="button">+ Add service</button></aside>
+  <section class="service-panel" aria-label="Service commands">
+    <p id="service-message" role="status" hidden></p>
+    <p id="service-empty" class="muted" hidden>Add a service and choose a saved SSH connection to get started.</p>
+    <div id="service-view" hidden>
+      <header class="service-heading"><div><h2 id="service-name"></h2><p id="service-target" class="muted"></p></div><button id="edit-service" class="quiet-button" type="button">Edit</button></header>
+      <p id="service-notes" class="service-notes"></p>
+      <div class="service-tools"><button id="compare-service" class="quiet-button" type="button">Compare Git</button><a id="service-source" class="quiet-button" target="_blank" rel="noopener noreferrer" hidden>Open Dagster ↗</a></div>
+      <p class="help">Compare Git reads the server checkout against its cached upstream and comparison branch. Run a fetch command first for the latest remote refs.</p>
+      <div id="service-commands" class="service-commands"></div>
+      <div id="command-confirmation" class="command-confirmation" hidden><p id="confirmation-copy"></p><button id="confirm-command" type="button">Run command</button><button id="cancel-command" class="quiet-button" type="button">Cancel</button></div>
+      <section id="service-output" class="service-output" hidden aria-label="Latest command output">
+        <div class="output-heading"><strong id="output-name"></strong><span id="output-state" role="status"></span></div>
+        <p id="output-context" class="help"></p><pre id="output-script"></pre><pre id="output-log" tabindex="0" aria-label="Command output"></pre><p id="output-message" class="help"></p>
+      </section>
+    </div>
+    <form id="service-editor" hidden>
+      <h2 id="editor-title">Edit service</h2>
+      <div class="service-fields"><label>Name<input id="edit-name" required maxlength="80"></label><label>SSH connection<select id="edit-host" required></select></label><label>Server folder<input id="edit-path" required maxlength="1024" placeholder="/srv/Dagster"></label><label>Compare with origin/<input id="edit-branch" required maxlength="200" value="main"></label></div>
+      <label>Notes<textarea id="edit-notes" rows="2" maxlength="8000"></textarea></label>
+      <div class="editor-commands-heading"><h3>Commands</h3><button id="add-command" class="quiet-button" type="button">+ Add command</button></div>
+      <p class="help">Each command starts in the server folder. Commands are fully editable and run independently. Keep credentials in the saved SSH connection.</p>
+      <div id="command-editors"></div>
+      <div class="service-editor-actions"><button type="submit" class="primary-button">Save</button><button id="cancel-edit" class="quiet-button" type="button">Cancel</button><button id="delete-service" class="quiet-button danger" type="button">Delete service</button></div>
+    </form>
+  </section>
+</main>
+<template id="command-editor-template"><fieldset class="command-editor"><div class="command-editor-heading"><label>Name<input data-field="label" required maxlength="80"></label><button type="button" class="remove-command quiet-button" aria-label="Delete command">×</button></div><label>Command<textarea data-field="script" required rows="3" maxlength="8000" spellcheck="false"></textarea></label><label class="toggle"><input data-field="confirm" type="checkbox">Confirm before running</label></fieldset></template>
+{% endblock %}

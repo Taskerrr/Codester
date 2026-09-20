@@ -62,7 +62,7 @@ def test_github_activity_and_repository_sparklines(monkeypatch):
     )
     calls = []
 
-    def get(url, headers, params):
+    def get(url, headers, params, **kwargs):
         calls.append((url, params))
         if url.endswith("/user/repos"):
             return [
@@ -109,11 +109,7 @@ def test_github_uses_visible_repository_commits_when_private_calendar_is_empty(m
                         "contributionCalendar": {
                             "totalContributions": 0,
                             "weeks": [
-                                {
-                                    "contributionDays": [
-                                        {"date": today, "contributionCount": 0}
-                                    ]
-                                }
+                                {"contributionDays": [{"date": today, "contributionCount": 0}]}
                             ],
                         }
                     },
@@ -122,7 +118,7 @@ def test_github_uses_visible_repository_commits_when_private_calendar_is_empty(m
         },
     )
 
-    def get(url, headers, params):
+    def get(url, headers, params, **kwargs):
         if url.endswith("/user/repos"):
             return [{"full_name": "jack/private", "private": True}]
         return [{"commit": {"author": {"date": f"{today}T12:00:00Z"}}}]
@@ -140,7 +136,8 @@ def test_github_uses_visible_repository_commits_when_private_calendar_is_empty(m
     assert result["calendar_limited"] is False
 
 
-def test_signoz_v5_values_filters_and_units(monkeypatch):
+@pytest.mark.parametrize("seconds", [300, 900, 3600, 21600, 86400])
+def test_signoz_v5_values_filters_and_units(monkeypatch, seconds):
     requests = []
 
     def post(url, payload, headers):
@@ -182,11 +179,11 @@ def test_signoz_v5_values_filters_and_units(monkeypatch):
         return {"data": {"type": payload["requestType"], "data": {"results": results}}}
 
     monkeypatch.setattr(signoz, "post_json", post)
-    result = signoz.snapshot(CONFIG, "secret")
-    assert [p["value"] for p in result["panels"]] == [1, 2, 123]
+    result = signoz.snapshot({**CONFIG, "window_seconds": seconds}, "secret")
+    assert [p["value"] for p in result["panels"]] == [900 / seconds, 2, 123]
     assert result["top_apps"] == [
-        {"service": "checkout", "rate": 2},
-        {"service": "worker", "rate": 1},
+        {"service": "checkout", "rate": 600 / seconds, "requests": 600},
+        {"service": "worker", "rate": 300 / seconds, "requests": 300},
     ]
     assert result["errors"][0]["url"] == "http://localhost:8000/trace/abc123"
     assert (
@@ -197,8 +194,22 @@ def test_signoz_v5_values_filters_and_units(monkeypatch):
         "has_error = true"
         in requests[2]["compositeQuery"]["queries"][0]["spec"]["filter"]["expression"]
     )
-    assert requests[0]["end"] - requests[0]["start"] == 900000
-    assert requests[1]["end"] - requests[1]["start"] == 300000
+    assert all(request["end"] - request["start"] == seconds * 1000 for request in requests)
+    assert result["window_seconds"] == seconds
+
+
+def test_signoz_request_count_is_not_converted_to_rate(monkeypatch):
+    monkeypatch.setattr(signoz, "query", lambda *args, **kwargs: [scalar_result("p0", 1234)])
+    monkeypatch.setattr(signoz, "top_apps", lambda *args: [])
+    monkeypatch.setattr(signoz, "error_rows", lambda *args: [])
+    config = {
+        **CONFIG,
+        "window_seconds": 86400,
+        "panels": [{"service": "", "metric": "request_count"}],
+    }
+    result = signoz.snapshot(config, "secret")
+    assert result["panels"][0]["value"] == 1234
+    assert result["panels"][0]["unit"] == "requests"
 
 
 def test_signoz_service_discovery(monkeypatch):
@@ -240,6 +251,19 @@ def test_signoz_missing_values_never_become_zero():
         signoz.scalar([], "missing")
     with pytest.raises(IntegrationError):
         signoz.table_rows({"data": [["mismatch"]], "columns": []})
+
+
+@pytest.mark.parametrize("rows", [None, []])
+def test_signoz_empty_raw_results_are_not_connection_failures(rows):
+    result = {"queryName": "errors", "nextCursor": "", "rows": rows}
+    assert signoz.table_rows(result) == []
+    assert signoz.error_rows(CONFIG, [result]) == []
+
+
+@pytest.mark.parametrize("rows", [{}, "invalid", [None], [{"data": None}]])
+def test_signoz_malformed_raw_results_still_fail(rows):
+    with pytest.raises(IntegrationError, match="invalid raw rows"):
+        signoz.table_rows({"rows": rows})
 
 
 def test_signoz_requires_query_key():
@@ -515,9 +539,7 @@ def test_signoz_partial_result_is_not_reported_healthy(monkeypatch):
 @pytest.mark.parametrize("event,expected", [("task_complete", "idle"), ("turn_aborted", "stopped")])
 def test_codex_completion_before_tail_is_not_hidden_by_cached_start(tmp_path, event, expected):
     rollout = tmp_path / "rollout.jsonl"
-    rollout.write_text(
-        '{"type":"event_msg","payload":{"type":"task_started"}}\n', encoding="utf-8"
-    )
+    rollout.write_text('{"type":"event_msg","payload":{"type":"task_started"}}\n', encoding="utf-8")
     assert codex.rollout_activity(tmp_path, str(rollout)) == "active"
     with rollout.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps({"type": "event_msg", "payload": {"type": event}}) + "\n")
@@ -527,11 +549,12 @@ def test_codex_completion_before_tail_is_not_hidden_by_cached_start(tmp_path, ev
 
 def test_codex_large_completion_record_and_partial_write(tmp_path):
     rollout = tmp_path / "rollout.jsonl"
-    rollout.write_text(
-        '{"type":"event_msg","payload":{"type":"task_started"}}\n', encoding="utf-8"
-    )
+    rollout.write_text('{"type":"event_msg","payload":{"type":"task_started"}}\n', encoding="utf-8")
     completion = json.dumps(
-        {"type": "event_msg", "payload": {"type": "task_complete", "last_agent_message": "x" * 300_000}}
+        {
+            "type": "event_msg",
+            "payload": {"type": "task_complete", "last_agent_message": "x" * 300_000},
+        }
     )
     with rollout.open("a", encoding="utf-8") as stream:
         stream.write(completion[:-2])
@@ -543,9 +566,7 @@ def test_codex_large_completion_record_and_partial_write(tmp_path):
 
 def test_codex_rollout_replacement_does_not_reuse_active_state(tmp_path):
     rollout = tmp_path / "rollout.jsonl"
-    rollout.write_text(
-        '{"type":"event_msg","payload":{"type":"task_started"}}\n', encoding="utf-8"
-    )
+    rollout.write_text('{"type":"event_msg","payload":{"type":"task_started"}}\n', encoding="utf-8")
     assert codex.rollout_activity(tmp_path, str(rollout)) == "active"
     rollout.write_text('{"type":"session_meta","payload":{}}\n', encoding="utf-8")
     assert codex.rollout_activity(tmp_path, str(rollout)) is None

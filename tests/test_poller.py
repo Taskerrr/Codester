@@ -42,6 +42,8 @@ def test_config_change_discards_inflight_results(tmp_path, monkeypatch):
     release = threading.Event()
 
     def fetch(*args):
+        assert poller.snapshot()["services"]["dagster"]["refreshing"] is True
+        assert poller.snapshot()["services"]["dagster"]["next_refresh"] is None
         started.set()
         assert release.wait(2)
         return {"old_connection": "data"}
@@ -54,6 +56,7 @@ def test_config_change_discards_inflight_results(tmp_path, monkeypatch):
     release.set()
     thread.join(2)
     assert poller.snapshot()["services"]["dagster"]["data"] is None
+    assert poller.snapshot()["services"]["dagster"]["refreshing"] is False
 
 
 def test_demo_is_explicit_and_does_not_call_upstream(tmp_path, monkeypatch):
@@ -74,6 +77,9 @@ def test_failure_backoff_and_success_reset(tmp_path, monkeypatch):
     monkeypatch.setattr(poller, "refresh", lambda name: next(outcomes))
 
     def wait(delay):
+        state = poller.snapshot()["services"]["dagster"]
+        assert state["next_refresh"] is not None
+        assert state["refresh_interval"] == delay
         delays.append(delay)
         if len(delays) == 3:
             poller.stopped.set()

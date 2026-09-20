@@ -9,10 +9,13 @@ import sqlite3
 import subprocess
 import threading
 import uuid
+from contextlib import closing, contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
+
+from codester.credentials import PREFIX, CredentialStoreError, NativeCredentials
 
 DEFAULTS: dict = {
     "demo": True,
@@ -24,20 +27,27 @@ DEFAULTS: dict = {
         "api_url": "",
         "browser_url": "",
         "error_service": "",
-        "panels": [{"service": "", "metric": m} for m in ["request_rate", "error_rate", "p95"]],
+        "window_seconds": 3600,
+        "panels": [{"service": "", "metric": m} for m in ["request_count", "error_rate", "p95"]],
     },
     "github": {
         "enabled": False,
         "api_url": "https://api.github.com",
         "browser_url": "https://github.com",
+        "organization": "",
         "repositories": [],
     },
     "tunnels": [],
+    "postgres": {"enabled": False, "host": "127.0.0.1", "port": 5432, "database": "", "username": "", "sslmode": "require", "sslrootcert": "", "refresh_seconds": 10},
 }
-METRICS = {"request_rate": "Request rate", "error_rate": "Error rate", "p95": "p95 latency"}
-DASHBOARD_APPS = frozenset(
-    {"codex", "dagster", "signoz", "postgres", "server", "github", "docker"}
-)
+SIGNOZ_WINDOWS = {300: "5 min", 900: "15 min", 3600: "1 hour", 21600: "6 hours", 86400: "24 hours"}
+METRICS = {
+    "request_count": "Total requests",
+    "request_rate": "Request rate",
+    "error_rate": "Error rate",
+    "p95": "p95 latency",
+}
+DASHBOARD_APPS = frozenset({"codex", "dagster", "signoz", "postgres", "server", "github", "docker"})
 
 
 class ConfigurationError(ValueError):
@@ -124,9 +134,7 @@ def repository_identifier(repository: dict) -> str:
         if not isinstance(value, str) or not re.fullmatch(r"[a-f0-9-]{16,64}", value):
             raise ConfigurationError("Invalid repository identifier.")
         return value
-    return uuid.uuid5(
-        uuid.NAMESPACE_URL, f"codester:repository:{repository.get('repo', '')}"
-    ).hex
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"codester:repository:{repository.get('repo', '')}").hex
 
 
 def repository_text(value: object, label: str, maximum: int) -> str:
@@ -170,6 +178,33 @@ def validate(data: object) -> dict:
             result[name][field] = valid_url(item.get(field, ""))
         if item["enabled"] and not result[name]["api_url"]:
             raise ConfigurationError(f"Enter the {name} API URL before enabling it.")
+    pg = data.get("postgres", DEFAULTS["postgres"])
+    if not isinstance(pg, dict) or not isinstance(pg.get("enabled"), bool):
+        raise ConfigurationError("Choose whether to enable PostgreSQL.")
+    result["postgres"]["enabled"] = pg["enabled"]
+    for field in ("host", "database", "username", "sslrootcert"):
+        value = pg.get(field, DEFAULTS["postgres"][field])
+        if not isinstance(value, str) or len(value) > 1024 or any(ord(c) < 32 for c in value):
+            raise ConfigurationError(f"Invalid PostgreSQL {field}.")
+        result["postgres"][field] = value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9._:-]+", result["postgres"]["host"]):
+        raise ConfigurationError("Enter a PostgreSQL hostname or IP address.")
+    if pg["enabled"] and (not result["postgres"]["database"] or not result["postgres"]["username"]):
+        raise ConfigurationError("Enter the PostgreSQL database and username before enabling it.")
+    port = pg.get("port", 5432)
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise ConfigurationError("Use a PostgreSQL port from 1 to 65535.")
+    sslmode = pg.get("sslmode", "require")
+    if not isinstance(sslmode, str) or sslmode not in {"disable", "prefer", "require", "verify-ca", "verify-full"}:
+        raise ConfigurationError("Choose a supported PostgreSQL TLS mode.")
+    interval = pg.get("refresh_seconds", 10)
+    if type(interval) is not int or interval not in {10, 30, 60}:
+        raise ConfigurationError("Choose a PostgreSQL refresh interval of 10, 30 or 60 seconds.")
+    result["postgres"].update(port=port, sslmode=sslmode, refresh_seconds=interval)
+    window = data["signoz"].get("window_seconds", 3600)
+    if type(window) is not int or window not in SIGNOZ_WINDOWS:
+        raise ConfigurationError("Choose a supported SigNoz time window.")
+    result["signoz"]["window_seconds"] = window
     panels = data["signoz"].get("panels", [])
     if not isinstance(panels, list) or len(panels) > 3:
         raise ConfigurationError("Choose up to three SigNoz measurements.")
@@ -184,6 +219,13 @@ def validate(data: object) -> dict:
             }
         )
     result["signoz"]["error_service"] = service_name(data["signoz"].get("error_service", ""))
+    organization = data["github"].get("organization", "")
+    if not isinstance(organization, str) or (
+        organization.strip()
+        and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}", organization.strip())
+    ):
+        raise ConfigurationError("Enter a GitHub organisation name, not a URL.")
+    result["github"]["organization"] = organization.strip()
     repositories = data["github"].get("repositories", [])
     if not isinstance(repositories, list) or len(repositories) > 3:
         raise ConfigurationError("Add no more than three GitHub repositories.")
@@ -239,9 +281,7 @@ def validate(data: object) -> dict:
             raise ConfigurationError("Choose SSH agent or password authentication.")
         ssh_host = tunnel_text(tunnel.get("ssh_host"), "SSH host", r"[A-Za-z0-9._-]+", 253)
         username = tunnel_text(tunnel.get("username"), "username", r"[A-Za-z0-9._-]+", 64)
-        remote_host = tunnel_text(
-            tunnel.get("remote_host"), "remote host", r"[A-Za-z0-9._-]+", 253
-        )
+        remote_host = tunnel_text(tunnel.get("remote_host"), "remote host", r"[A-Za-z0-9._-]+", 253)
         ssh_port = tunnel_port(tunnel.get("ssh_port"), "SSH port")
         local_port = tunnel_port(tunnel.get("local_port"), "local port")
         remote_port = tunnel_port(tunnel.get("remote_port"), "remote port")
@@ -281,16 +321,23 @@ class Store:
         self.path = directory / "settings.sqlite"
         self.lock = threading.RLock()
         key_path = directory / "secret.key"
-        if not key_path.exists():
+        mode = os.environ.get("CODESTER_SECRET_STORAGE", "native")
+        if mode not in {"native", "file"}:
+            raise CredentialStoreError("CODESTER_SECRET_STORAGE must be native or file.")
+        if mode == "file" and not key_path.exists():
             # Exclusive creation prevents two starters from replacing each other's encryption key.
             with key_path.open("xb") as handle:
                 if os.name != "nt":
                     key_path.chmod(0o600)
                 handle.write(Fernet.generate_key())
-        self.cipher = Fernet(key_path.read_bytes())
-        with sqlite3.connect(self.path) as db:
+        self.cipher = NativeCredentials() if mode == "native" else Fernet(key_path.read_bytes())
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, value TEXT)")
             db.execute("CREATE TABLE IF NOT EXISTS secrets (name TEXT PRIMARY KEY, value BLOB)")
+            db.execute("CREATE TABLE IF NOT EXISTS credential_cleanup (value BLOB PRIMARY KEY)")
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS github_cache (signature TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
             db.execute(
                 "CREATE TABLE IF NOT EXISTS repository_state "
                 "(id TEXT PRIMARY KEY, deployed_head TEXT NOT NULL)"
@@ -298,31 +345,119 @@ class Store:
             db.execute("INSERT OR IGNORE INTO settings VALUES (1, ?)", (json.dumps(DEFAULTS),))
         if os.name != "nt":
             self.path.chmod(0o600)
+        if mode == "native":
+            with self._secret_transaction() as db:
+                rows = db.execute("SELECT name, value FROM secrets").fetchall()
+                legacy = [(name, value) for name, value in rows if not value.startswith(PREFIX)]
+                if legacy:
+                    if not key_path.exists():
+                        raise CredentialStoreError("The legacy credential encryption key is missing.")
+                    old_cipher = Fernet(key_path.read_bytes())
+                    for name, value in legacy:
+                        db.execute(
+                            "UPDATE secrets SET value=? WHERE name=?",
+                            (self.cipher.encrypt(old_cipher.decrypt(value)), name),
+                        )
+            # Only remove the legacy key after every replacement has been verified and committed.
+            if key_path.exists():
+                with closing(sqlite3.connect(self.path)) as db, db:
+                    db.execute("VACUUM")
+                key_path.unlink()
+        else:
+            with closing(sqlite3.connect(self.path)) as db, db:
+                if any(value.startswith(PREFIX) for (value,) in db.execute("SELECT value FROM secrets")):
+                    raise CredentialStoreError(
+                        "This installation uses OS credentials. Start with native storage; "
+                        "it cannot be downgraded to file storage automatically."
+                    )
+
+    @contextmanager
+    def _secret_transaction(self):
+        """Commit references atomically; retry deletion of superseded OS entries."""
+        with self.lock, closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("PRAGMA secure_delete=ON")
+            db.execute("BEGIN IMMEDIATE")
+            before = {value for (value,) in db.execute("SELECT value FROM secrets")}
+            native = isinstance(self.cipher, NativeCredentials)
+            if native:
+                self.cipher.created.clear()
+            try:
+                yield db
+                after = {value for (value,) in db.execute("SELECT value FROM secrets")}
+                obsolete = before - after
+                if native:
+                    obsolete |= set(self.cipher.created) - after
+                db.executemany(
+                    "INSERT OR IGNORE INTO credential_cleanup VALUES (?)",
+                    [(value,) for value in obsolete if value.startswith(PREFIX)],
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
+                if native:
+                    db.executemany(
+                        "INSERT OR IGNORE INTO credential_cleanup VALUES (?)",
+                        [(value,) for value in self.cipher.created],
+                    )
+                    db.commit()
+                raise
+            finally:
+                if native:
+                    self.cipher.created.clear()
+        if native:
+            with self.lock, closing(sqlite3.connect(self.path)) as db, db:
+                for (value,) in db.execute("SELECT value FROM credential_cleanup").fetchall():
+                    self.cipher.delete(value)
+                    db.execute("DELETE FROM credential_cleanup WHERE value=?", (value,))
 
     def read(self) -> dict:
-        with self.lock, sqlite3.connect(self.path) as db:
+        with self.lock, closing(sqlite3.connect(self.path)) as db, db:
             data = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()[0])
         data.setdefault("dashboard_apps", list(DEFAULTS["dashboard_apps"]))
         data.setdefault("tunnels", [])
+        data.setdefault("postgres", copy.deepcopy(DEFAULTS["postgres"]))
         data.setdefault("github", copy.deepcopy(DEFAULTS["github"]))
         data["github"].setdefault("repositories", [])
+        data["github"].setdefault("organization", "")
+        data["signoz"].setdefault("window_seconds", 3600)
         for tunnel in data["tunnels"]:
             tunnel.setdefault("id", tunnel_identifier(tunnel))
             tunnel.setdefault("auth", "agent")
         return data
 
+    def read_github_cache(self, signature: str) -> dict:
+        with self.lock, closing(sqlite3.connect(self.path)) as db, db:
+            row = db.execute(
+                "SELECT value FROM github_cache WHERE signature=?", (signature,)
+            ).fetchone()
+        if row is None:
+            return {}
+        try:
+            value = json.loads(row[0])
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        return value if isinstance(value, dict) and value.get("version") == 1 else {}
+
+    def save_github_cache(self, signature: str, value: dict) -> None:
+        with self.lock, closing(sqlite3.connect(self.path)) as db, db:
+            db.execute(
+                "INSERT OR REPLACE INTO github_cache VALUES (?, ?)", (signature, json.dumps(value))
+            )
+
     def public(self) -> dict:
         data = self.read()
-        data["signoz"]["has_key"] = bool(self.secret("signoz"))
-        data["github"]["has_token"] = bool(self.secret("github"))
+        # Settings must remain accessible when the OS vault is locked or an entry is missing.
+        with self.lock, closing(sqlite3.connect(self.path)) as db, db:
+            saved = {name for (name,) in db.execute("SELECT name FROM secrets")}
+        data["signoz"]["has_key"] = "signoz" in saved
+        data["github"]["has_token"] = "github" in saved
+        data["postgres"]["has_password"] = "postgres" in saved
         for tunnel in data["tunnels"]:
-            tunnel["has_password"] = bool(
-                self.secret(f"tunnel-password:{tunnel_identifier(tunnel)}")
-            )
+            tunnel["has_password"] = f"tunnel-password:{tunnel_identifier(tunnel)}" in saved
         return data
 
     def secret(self, name: str) -> str:
-        with self.lock, sqlite3.connect(self.path) as db:
+        with self.lock, closing(sqlite3.connect(self.path)) as db, db:
             row = db.execute("SELECT value FROM secrets WHERE name=?", (name,)).fetchone()
             return self.cipher.decrypt(row[0]).decode() if row else ""
 
@@ -346,10 +481,19 @@ class Store:
             raise ConfigurationError("Invalid GitHub token.")
         if not isinstance(clear_github_token, bool):
             raise ConfigurationError("Invalid GitHub token removal choice.")
+        pg = data.get("postgres", {})
+        pg_password = pg.get("password", "")
+        pg_clear = pg.get("clear_password", False)
+        if not isinstance(pg_password, str) or len(pg_password) > 4096 or "\x00" in pg_password:
+            raise ConfigurationError("Invalid PostgreSQL password.")
+        if not isinstance(pg_clear, bool):
+            raise ConfigurationError("Invalid PostgreSQL password removal choice.")
         raw_tunnels = data.get("tunnels", [])
         assert isinstance(raw_tunnels, list)
         # Blank means preserve, explicit clear means delete.
-        with self.lock, sqlite3.connect(self.path) as db:
+        with self._secret_transaction() as db:
+            source_tunnels = {item["id"]: item for item in self.read()["tunnels"]}
+            source_secrets = dict(db.execute("SELECT name, value FROM secrets"))
             retained_secrets: set[str] = set()
             for raw, tunnel in zip(raw_tunnels, settings["tunnels"], strict=True):
                 assert isinstance(raw, dict)
@@ -364,12 +508,36 @@ class Store:
                     raise ConfigurationError("Invalid SSH password.")
                 if not isinstance(clear_password, bool):
                     raise ConfigurationError("Invalid SSH password removal choice.")
+                source_id = raw.get("credential_source", "")
+                if not isinstance(source_id, str):
+                    raise ConfigurationError("Invalid saved SSH server selection.")
+                if source_id:
+                    source = source_tunnels.get(source_id)
+                    identity_fields = ("ssh_host", "ssh_port", "username", "auth")
+                    if (
+                        source is None
+                        or tunnel["auth"] != "password"
+                        or clear_password
+                        or any(source[field] != tunnel[field] for field in identity_fields)
+                    ):
+                        raise ConfigurationError(
+                            "The saved SSH server changed. Select it again or enter a password."
+                        )
+                    value = source_secrets.get(f"tunnel-password:{source_id}")
+                    if value is None:
+                        raise ConfigurationError("That SSH server has no saved password to copy.")
+                    if not password:
+                        password = self.cipher.decrypt(value).decode()
                 secret_name = f"tunnel-password:{tunnel['id']}"
                 retained_secrets.add(secret_name)
                 existing = db.execute(
                     "SELECT 1 FROM secrets WHERE name=?", (secret_name,)
                 ).fetchone()
-                if tunnel["auth"] == "password" and not password and (clear_password or not existing):
+                if (
+                    tunnel["auth"] == "password"
+                    and not password
+                    and (clear_password or not existing)
+                ):
                     raise ConfigurationError(f"Enter an SSH password for {tunnel['name']}.")
                 if tunnel["auth"] != "password" or clear_password:
                     db.execute("DELETE FROM secrets WHERE name=?", (secret_name,))
@@ -383,6 +551,10 @@ class Store:
             ).fetchall():
                 if secret_name not in retained_secrets:
                     db.execute("DELETE FROM secrets WHERE name=?", (secret_name,))
+            if pg_clear:
+                db.execute("DELETE FROM secrets WHERE name='postgres'")
+            elif pg_password:
+                db.execute("INSERT OR REPLACE INTO secrets VALUES ('postgres', ?)", (self.cipher.encrypt(pg_password.encode()),))
             db.execute("UPDATE settings SET value=? WHERE id=1", (json.dumps(settings),))
             if clear:
                 db.execute("DELETE FROM secrets WHERE name='signoz'")
@@ -400,14 +572,14 @@ class Store:
                 )
 
     def deployed_head(self, identifier: str) -> str:
-        with self.lock, sqlite3.connect(self.path) as db:
+        with self.lock, closing(sqlite3.connect(self.path)) as db, db:
             row = db.execute(
                 "SELECT deployed_head FROM repository_state WHERE id=?", (identifier,)
             ).fetchone()
             return row[0] if row else ""
 
     def set_deployed_head(self, identifier: str, head: str) -> None:
-        with self.lock, sqlite3.connect(self.path) as db:
+        with self.lock, closing(sqlite3.connect(self.path)) as db, db:
             db.execute(
                 "INSERT OR REPLACE INTO repository_state VALUES (?, ?)",
                 (identifier, head),

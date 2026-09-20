@@ -4,6 +4,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sysconfig
 import threading
 import time
 from pathlib import Path
@@ -11,6 +12,15 @@ from typing import Any
 
 from codester.store import ConfigurationError
 from codester.transport import IntegrationError
+
+
+def password_helper() -> str | None:
+    """Direct launches need not activate the environment or modify PATH."""
+    filename = "codester-askpass.exe" if os.name == "nt" else "codester-askpass"
+    installed = Path(sysconfig.get_path("scripts")) / filename
+    if installed.is_file() and os.access(installed, os.X_OK):
+        return str(installed.resolve())
+    return shutil.which("codester-askpass")
 
 
 class TunnelManager:
@@ -22,7 +32,7 @@ class TunnelManager:
             self.directory.chmod(0o700)
         self.known_hosts = self.directory / "known_hosts"
         self.ssh = shutil.which("ssh")
-        self.askpass = shutil.which("codester-askpass")
+        self.askpass = password_helper()
         self.lock = threading.RLock()
         self.wake = threading.Event()
         self.stopping = threading.Event()
@@ -38,9 +48,16 @@ class TunnelManager:
         with self.lock:
             if [item["config"] for item in self.items.values()] == tunnels:
                 return
-            self._stop_processes()
+            previous = {item["config"]["id"]: item for item in self.items.values()}
+            unchanged = {
+                tunnel["id"] for tunnel in tunnels
+                if tunnel["id"] in previous and previous[tunnel["id"]]["config"] == tunnel
+            }
+            for identifier, item in previous.items():
+                if identifier not in unchanged:
+                    self._stop_process(item)
             self.items = {
-                tunnel["name"]: {
+                tunnel["name"]: previous[tunnel["id"]] if tunnel["id"] in unchanged else {
                     "config": tunnel.copy(),
                     "process": None,
                     "started": None,
@@ -49,21 +66,33 @@ class TunnelManager:
                     "message": "",
                     "ever_connected": False,
                     "blocked": False,
+                    "desired": previous[tunnel["id"]]["desired"] if tunnel["id"] in previous else self.desired,
                 }
                 for tunnel in tunnels
             }
+            self.desired = any(item["desired"] for item in self.items.values())
         self.wake.set()
 
-    def connect(self) -> dict:
+    def _selected(self, identifier: str | None) -> list[dict[str, Any]]:
+        if identifier is None:
+            return list(self.items.values())
+        selected = [item for item in self.items.values() if item["config"]["id"] == identifier]
+        if not selected:
+            raise ConfigurationError("This SSH tunnel no longer exists. Refresh and try again.")
+        return selected
+
+    def connect(self, identifier: str | None = None) -> dict:
         with self.lock:
+            selected = self._selected(identifier)
             if not self.items:
                 raise ConfigurationError("Add and save at least one SSH tunnel first.")
             if not self.ssh:
                 raise ConfigurationError("OpenSSH is not installed or is not available on PATH.")
-            if any(item["config"]["auth"] == "password" for item in self.items.values()) and not self.askpass:
+            if any(item["config"]["auth"] == "password" for item in selected) and not self.askpass:
                 raise ConfigurationError("The Codester SSH password helper is unavailable.")
             self.desired = True
-            for item in self.items.values():
+            for item in selected:
+                item["desired"] = True
                 item["retry_at"] = 0.0
                 item["message"] = ""
                 item["blocked"] = False
@@ -72,10 +101,12 @@ class TunnelManager:
         self.wake.set()
         return result
 
-    def disconnect(self) -> dict:
+    def disconnect(self, identifier: str | None = None) -> dict:
         with self.lock:
-            self.desired = False
-            self._stop_processes()
+            for item in self._selected(identifier):
+                item["desired"] = False
+                self._stop_process(item)
+            self.desired = any(item["desired"] for item in self.items.values())
             return self.status()
 
     def test(self, identifier: str) -> dict:
@@ -147,7 +178,7 @@ class TunnelManager:
                 settled = alive and item["started"] is not None and now - item["started"] >= 12
                 if item["blocked"]:
                     state = "error"
-                elif not self.desired:
+                elif not item["desired"]:
                     state = "disconnected"
                 elif settled:
                     state = "connected"
@@ -157,8 +188,10 @@ class TunnelManager:
                     state = "reconnecting"
                 rows.append(
                     {
+                        "id": item["config"]["id"],
                         "name": item["config"]["name"],
                         "local_port": item["config"]["local_port"],
+                        "desired": item["desired"],
                         "state": state,
                         "message": item["message"],
                     }
@@ -236,6 +269,19 @@ class TunnelManager:
         )
         return command
 
+    def remote_session(self, config: dict, script: str) -> tuple[list[str], dict[str, str]]:
+        """Reuse the saved SSH identity without creating or changing any forwards."""
+        if not self.ssh:
+            raise ConfigurationError("OpenSSH is not installed or is not available on PATH.")
+        if config["auth"] == "password" and not self.askpass:
+            raise ConfigurationError("The Codester SSH password helper is unavailable.")
+        command = self._command(config)
+        command.remove("-N")
+        index = command.index("-L")
+        del command[index:index + 2]
+        command.append(script)
+        return command, self._environment(config)
+
     def _environment(self, config: dict) -> dict[str, str]:
         environment = os.environ.copy()
         if config["auth"] == "password":
@@ -244,7 +290,7 @@ class TunnelManager:
                 SSH_ASKPASS=self.askpass,
                 SSH_ASKPASS_REQUIRE="force",
                 DISPLAY=environment.get("DISPLAY", "codester"),
-                CODESTER_DATA_DIR=str(self.data_directory),
+                CODESTER_DATA_DIR=str(self.data_directory.resolve()),
                 CODESTER_SSH_SECRET=f"tunnel-password:{config['id']}",
             )
         return environment
@@ -298,16 +344,17 @@ class TunnelManager:
                     f"SSH exited ({code}). Check the host, network, and {auth_hint}."
                 )
             if (
-                self.desired
+                item["desired"]
                 and not item["blocked"]
                 and item["process"] is None
                 and now >= item["retry_at"]
             ):
                 self._launch(item, now)
-            elif not self.desired and item["process"] is not None:
+            elif not item["desired"] and item["process"] is not None:
                 self._stop_process(item)
-        if self.items and all(item["blocked"] for item in self.items.values()):
-            self.desired = False
+            if item["blocked"]:
+                item["desired"] = False
+        self.desired = any(item["desired"] for item in self.items.values())
 
     def _stop_process(self, item: dict[str, Any]) -> None:
         process = item["process"]
@@ -327,6 +374,7 @@ class TunnelManager:
 
     def _stop_processes(self) -> None:
         for item in self.items.values():
+            item["desired"] = False
             self._stop_process(item)
 
     def _run(self) -> None:

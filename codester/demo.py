@@ -5,6 +5,10 @@ import time
 
 def snapshot(service: str) -> dict:
     now = time.time()
+    if service == "postgres":
+        running = {"pid": 4101, "username": "app", "application_name": "api", "client": "10.0.0.12", "state": "active", "wait_event_type": "Lock", "wait_event": "transactionid", "query": "UPDATE orders SET status = 'processed' WHERE id = 42", "query_seconds": 24, "transaction_seconds": 24, "token": None}
+        blocker = {"pid": 4090, "username": "app", "application_name": "worker", "client": "10.0.0.13", "state": "idle in transaction", "query": "UPDATE orders SET status = 'pending' WHERE id = 42", "query_seconds": 95, "transaction_seconds": 100, "token": None}
+        return {"database": "demo", "username": "monitor", "sessions": 12, "active": 1, "idle_transactions": 1, "waiting": 1, "hidden_sessions": 0, "full_visibility": True, "tracking": True, "held_locks": 18, "waiting_locks": 1, "queries": [running, blocker], "blocking": [{"waiting_pid": 4101, "blocking_pid": 4090}], "lock_sessions": [running, blocker], "locks": [{"pid": 4101, "locktype": "transactionid", "mode": "ShareLock", "granted": False, "relation": None}], "query_limit": 50, "wait_limit": 20}
     if service == "codex":
         return {
             "plan": "Demo account",
@@ -170,10 +174,10 @@ def snapshot(service: str) -> dict:
         "panels": [
             {
                 "service": "checkout-api",
-                "label": "Request rate",
-                "metric": "request_rate",
-                "value": 42.8,
-                "unit": "req/s",
+                "label": "Total requests",
+                "metric": "request_count",
+                "value": 154080,
+                "unit": "requests",
             },
             {
                 "service": "checkout-api",
@@ -191,9 +195,9 @@ def snapshot(service: str) -> dict:
             },
         ],
         "top_apps": [
-            {"service": "Fuel Reporting", "rate": 18.2},
-            {"service": "Driver Logbook", "rate": 11.7},
-            {"service": "Plant Portal", "rate": 7.4},
+            {"service": "Fuel Reporting", "rate": 18.2, "requests": 65520},
+            {"service": "Driver Logbook", "rate": 11.7, "requests": 42120},
+            {"service": "Plant Portal", "rate": 7.4, "requests": 26640},
         ],
         "top_apps_message": "",
         "errors": [
@@ -212,7 +216,9 @@ def snapshot(service: str) -> dict:
                 "status": "Error",
             },
         ],
-        "note": "Last 15 minutes · incoming SERVER spans · sample data",
+        "window_seconds": 3600,
+        "window_label": "1 hour",
+        "note": "Last hour · incoming SERVER spans · sample data",
     }
 
 

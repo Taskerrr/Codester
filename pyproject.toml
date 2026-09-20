@@ -3,7 +3,14 @@ name = "codester"
 version = "0.1.0"
 description = "A local touchscreen dashboard for Codex, Dagster and SigNoz"
 requires-python = ">=3.12"
-dependencies = ["Flask>=3.1,<4", "waitress>=3,<4", "httpx>=0.28,<1", "cryptography>=44,<47"]
+dependencies = [
+    "Flask>=3.1,<4",
+    "waitress>=3,<4",
+    "httpx>=0.28,<1",
+    "cryptography>=44,<47",
+    "keyring>=25.6,<26",
+    "psycopg[binary]>=3.2,<4",
+]
 
 [project.scripts]
 codester-askpass = "codester.ssh_askpass:main"

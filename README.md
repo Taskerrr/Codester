@@ -1,5 +1,14 @@
 # Codester
 
+GitHub settings include an optional **Organisation** name. When set, the calendar counts
+your authored default-branch commits over 182 days across repositories visible to the token
+in that organisation, excluding personal repositories. The three most recently pushed
+repositories have charts; local repository actions do not limit the organisation calendar.
+Empty repositories count as zero activity. Queries are capped at 1,000 repositories and
+300 commits per repository; reaching either cap marks the results as partial. This is a
+commit calendar, not GitHub's full contribution calendar (issues, reviews and pull requests).
+The token needs access to the organisation's repositories and Contents read permission.
+
 A private, local dashboard for Codex subscription usage, Dagster runs, SigNoz service health, and local Docker containers. Designed for a 2560 × 720 touchscreen, with responsive layouts for other screens. Each developer runs their own instance and saves their own connections.
 
 ## Start locally
@@ -92,7 +101,7 @@ Add each local forward in **Settings → SSH tunnels**, save, then use the tunne
 
 Each tunnel card has a Test action. It saves the current form, creates a temporary forward on an unused local port, and confirms both SSH authentication and access to the configured remote service.
 
-Each forward can use either the operating system's SSH agent or a password entered in Settings. Passwords are encrypted in Codester's local secret store and are never returned by its API, written into the OpenSSH command, or logged. A small local askpass helper decrypts the selected password only when OpenSSH requests it. Private keys are never copied into Codester. The first connection records the server key in Codester's private data directory; a changed key is rejected.
+Each forward can use either the operating system's SSH agent or a password entered in Settings. Passwords use the operating system credential store in native installations (encrypted file storage in Docker) and are never returned by its API, written into the OpenSSH command, or logged. A small local askpass helper decrypts the selected password only when OpenSSH requests it. Private keys are never copied into Codester. The first connection records the server key in Codester's private data directory; a changed key is rejected.
 
 Use `http://127.0.0.1:LOCAL_PORT` as a Dagster or SigNoz API URL for a Codester-managed forward. Under Docker, the forward and Flask both run inside the Codester container. A browser cannot open that container-local address directly, so set the service's Browser URL to an address your host browser can reach when source links are needed.
 
@@ -127,15 +136,22 @@ Oldest queue age follows up to two additional 100-run pages. If that cannot cove
 
 Requires the **v5 query API** and a read-capable API key, not an ingestion key. Save the URL/key, use **Find services**, then choose up to three service/measurement pairs. Disable a numbered row to show fewer measurements. Services are discovered from traces in the last 24 hours, limited to 200. A saved service stays selected even when absent from discovery.
 
-Measurements cover the last 15 minutes of incoming SERVER spans (`kind = 2`):
+Measurements cover incoming SERVER spans (`kind = 2`) over the window selected in Settings:
+5 minutes, 15 minutes, 1 hour (default), 6 hours, or 24 hours. The same window applies
+to request totals and recent errors. Total requests is available alongside request rate,
+error rate, and p95 latency:
 
-- Request rate: span count / 900 seconds.
+- Total requests: incoming server span count within the selected window.
+- Request rate: span count / selected window in seconds.
 - Error rate: failed server spans / all server spans × 100. No requests means unavailable.
 - p95 latency: p95 duration in nanoseconds, converted to milliseconds.
 
 These are trace-derived values. Sampling, missing instrumentation, and services that only emit internal/consumer spans affect coverage. This version does not query arbitrary infrastructure metrics. Recent errors show failed spans (all kinds) filtered by the separately selected service. Details fetch up to 30 trace spans from the last day; use the source link for complete exception details.
 
-Top apps ranks the three services with the most incoming SERVER spans over the last five minutes and displays each count as requests per second. It is independent of the configured measurement rows. If the installed SigNoz version cannot run that grouped query, the dashboard keeps the other measurements and shows Top apps as unavailable.
+Requests by app ranks up to 200 services by their total recorded incoming requests within
+the selected window. It is independent of the configured measurement rows. Trace sampling
+can reduce these totals; they are not a replacement for an unsampled request counter.
+If the grouped query fails, the dashboard keeps the other measurements and marks totals unavailable.
 
 ### GitHub
 
@@ -145,7 +161,7 @@ Each local checkout reports its branch, uncommitted file count, and commits ahea
 
 Deploy commands are trusted local configuration and can run anything available to the Codester process. Keep credentials in the SSH agent, environment, operating-system credential store, or the deployment tool itself; do not paste secrets into commands. Docker runs commands inside the Codester container and can use its forwarded SSH agent. Native startup can use locally installed deployment tools. Ahead/behind uses the checkout's existing remote-tracking ref and does not automatically fetch.
 
-For private repositories, give a fine-grained token access to the repositories you want to display with **Metadata: read** and **Contents: read**. The token is encrypted in Codester's local data directory and is never returned to the browser after saving.
+For private repositories, give a fine-grained token access to the repositories you want to display with **Metadata: read** and **Contents: read**. The token is saved in the operating system credential store for native installations and is never returned to the browser after saving.
 
 The adapters are fixture/schema-tested, but your work-server versions, permissions, units, and deep links must be compared with the actual interfaces before relying on live values. Unsupported response shapes are explicit failures, never empty healthy dashboards.
 
@@ -157,15 +173,32 @@ Docker Desktop must be running and the current user must already have permission
 
 ## Storage and privacy
 
-Native storage is `.data/` in the project directory (ignored by Git). Docker storage is `/data`. Override with `CODESTER_DATA_DIR`. SQLite holds preferences and successful deployment commit markers; GitHub/SigNoz keys and saved SSH passwords are encrypted with Fernet using a per-installation `secret.key`. POSIX directories/files use 0700/0600. On Windows, startup removes inherited directory grants and grants the current user access through `icacls`; use a new private directory, since existing explicit grants are not removed. Windows ACL behavior still needs validation on your work machine. Encryption does not protect against someone with access to both database and key. Back up both together and keep them out of Git.
+Native storage is `.data/` in the project directory (ignored by Git). Docker storage is `/data`. Override with `CODESTER_DATA_DIR`. SQLite holds preferences, cached GitHub activity, deployment markers and credential references. Native installations save GitHub/SigNoz tokens and SSH passwords through Windows Credential Manager, macOS Keychain or Linux Secret Service. Enter secrets normally in Settings; no manual credential-store setup is required on Windows. Native storage never silently falls back to files when the OS vault is unavailable. Windows entries are scoped to the current user and local machine. Linux requires an available Secret Service keyring. POSIX directories/files use 0700/0600. On Windows, startup removes inherited directory grants and grants the current user access through `icacls`; use a new private directory, since existing explicit grants are not removed. Windows ACL behavior still needs validation on your work machine. On native startup, legacy encrypted credentials are copied to the OS vault and read back for verification before their database values and local encryption key are removed. A failed migration preserves the original credentials. Replaced/deleted vault entries are cleaned up, with failed cleanup retried on the next save or startup. Stop older Codester processes before upgrading. Database backups do not include OS credentials: moving to another machine/account requires re-entering secrets. Old backups may still contain legacy encrypted credentials and their key; protect or retire those separately. OS storage does not protect against malware running as your user.
 
-Blank key and saved-password fields preserve their existing secrets. Switching a tunnel back to agent authentication or removing it deletes its saved password. Credentials are never returned by settings APIs or logged. Live monitoring data is cached in memory, not saved as history. Task titles and source errors may contain work information and are visible on your screen.
+The Docker image explicitly sets `CODESTER_SECRET_STORAGE=file` and retains Fernet-encrypted storage with a per-installation `secret.key` in its private volume; it cannot access the host OS vault. Headless users can explicitly select this mode, accepting that possession of both database and key permits decryption. There is no automatic downgrade of existing native references to file storage. Back up Docker database and key together and keep them out of Git.
+
+Blank key and saved-password fields preserve their existing secrets. Switching a tunnel back to agent authentication or removing it deletes its saved password. Credentials are never returned by settings APIs or logged. Most monitoring data is cached in memory; GitHub activity is also persisted locally. Task titles and source errors may contain work information and are visible on your screen.
 
 The server binds to loopback by default. Docker publishes only `127.0.0.1`. Host validation, origin checks, CSRF tokens, response size limits, and a restrictive content security policy protect the local app. This is a single-user local tool with **no multi-user authentication**; do not publish it on a shared network. The process can access configured private URLs by design.
 
-The display has a clock/launcher rail and three configurable app channels. Settings stores three unique choices and their left-to-right order. Codex, Dagster, SigNoz, and GitHub have live overview renderers; Docker has a compact container summary and a full management screen. PostgreSQL and Linux servers remain selectable placeholders. Dagster spinners stop on stale connections or when reduced motion is enabled.
+The display has a clock/launcher rail and three configurable app channels. Settings stores three unique choices and their left-to-right order. Codex, Dagster, SigNoz, GitHub, and PostgreSQL have live overview renderers; Docker has a compact container summary and a full management screen. The Linux server tile remains a metrics placeholder; its launcher opens saved service commands. Dagster spinners stop on stale connections or when reduced motion is enabled.
 
-Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s, and GitHub 5 minutes. Local checkout status is cached centrally for four seconds. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results. Demo data is never used as a fallback for a failed live connection.
+Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s, GitHub sparklines 60s, and PostgreSQL 10s (configurable to 30s or 60s). Sparkline reads fetch only the three displayed repositories and their last 14 days of commits. Local checkout status is cached centrally for four seconds. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results. Demo data is never used as a fallback for a failed live connection.
+
+GitHub history and the last successful snapshot persist in the private local SQLite database.
+Saved data appears immediately after a restart, marked stale until checked. A separate history
+worker builds the initial calendar without blocking the repository charts and saves a checkpoint
+after each repository. Its hourly refresh skips unchanged repositories and replaces the last
+seven days of counts in changed repositories, preserving older history without double-counting.
+After longer downtime, it also fetches the missing period. A full reconciliation every 30 days
+accounts for rewritten or backdated history. Settings unrelated to GitHub do not discard history;
+cache entries are isolated by API, account token, organisation and repository selection.
+
+Each integration's header shows a muted grey countdown beside its title until the next scheduled refresh.
+Intervals start after the previous fetch finishes. Refreshing, retrying, and a disconnected
+browser are distinct states; hover or focus the countdown to see the last successful read.
+The initial GitHub history job scans up to 182 days of commits across visible repositories
+in the background. If interrupted, completed repository checkpoints survive a restart.
 
 ## Development and checks
 
@@ -180,3 +213,27 @@ uv run python -m codester
 Environment: `CODESTER_PORT` (8765), `CODESTER_HOST` (127.0.0.1), `CODESTER_DATA_DIR`, optional `CODESTER_CODEX_BIN`, `CODEX_HOME`, `CODESTER_DOCKER_SOCKET`, `CODESTER_REPOS_PATH` for Compose, and standard `SSH_AUTH_SOCK`. Both scripts forward `--port` and `--host` arguments. Run one application process per storage directory so pollers, managed tunnels, and the encryption key are not duplicated.
 
 See [validation notes](docs/VALIDATION.md), [API and adapter sources](docs/SOURCES.md), and [third-party marks](docs/THIRD_PARTY.md).
+
+
+### Saved service commands
+
+Open **Service commands** from Settings > Commands, the dashboard Linux launcher, or the Dagster header arrow. Add a service, choose an existing SSH connection and set its server folder. Commands are editable shell scripts, each with an optional confirmation checkbox. They run independently in that folder on the selected server, using the saved SSH identity without opening or changing a tunnel. Saving or viewing a service never executes its commands.
+
+For a checkout at `/srv/Dagster`, save `git pull` as Pull latest, then use Open Dagster to reload the appropriate code location manually. This is command execution, not a verified deployment: exit zero means the command finished, not that the service is healthy. Health checks, log queries and rollback procedures can be added as named commands. Each click starts a separate shell; changes to the working folder or environment do not carry between commands.
+
+Compare Git reads the **server** checkout, showing modified files, HEAD, and ahead/behind counts against its upstream and `origin/<comparison branch>`. These use the server's cached remote refs. Add/run `git fetch origin` when you want fresh refs; Compare Git does not fetch, pull, reload, or inspect a developer's local checkout. Git ownership and repository authentication errors are shown without automatically changing trust settings or credentials.
+
+The last command, output and result are saved locally in SQLite; output is limited to the last 64 KB. Do not place secrets in commands or log output. The saved SSH password is masked from captured output, but arbitrary application secrets cannot be reliably identified. One command per service can run at a time in this Codester instance; this is not a lock shared with another person's instance. Commands run without an interactive terminal and cannot answer sudo/password prompts. After a ten-minute timeout, SSH interruption or Codester restart, the outcome is marked unknown; a remote command may still be running. Inspect the server before retrying. No server-side deployment agent or automatic rollback is installed.
+
+
+### PostgreSQL activity and blocking locks
+
+In Settings > PostgreSQL, enter the host, port, database, username and database password, then enable monitoring and choose Save & test. The password uses the existing credential store and never returns to the browser. For an SSH forward, select the saved tunnel to fill `127.0.0.1` and its local port; start the tunnel separately. SSH and database credentials are different. TLS defaults to requiring encryption. Use certificate verification for authenticated TLS, or explicitly disable database TLS when relying on an encrypted SSH tunnel to a server without PostgreSQL TLS. CA paths refer to the machine/container running Codester.
+
+Select PostgreSQL in Settings > Display to show active queries, waiting sessions and blockers in one of the three dashboard columns. Click through to the activity page for SQL text, PID, user, application, query/transaction age, lock modes and blocker relationships. Idle transactions show their **last** query. Normal held locks are counted separately from blocked sessions. Monitoring covers the configured database, not every database on the server. Other-database and prepared-transaction blockers can be visible but are not controllable from this database's page.
+
+Reads use `pg_stat_activity`, `pg_locks` and `pg_blocking_pids`, with one shared background worker, autocommit connections, a four-second statement timeout, at most 50 query rows and blocker inspection for at most 20 waiting sessions per refresh. Browser polling reads the cache. Query text is capped at 4,000 characters (PostgreSQL may truncate it further) and retained only in the in-memory snapshot, not stored as query history. Short queries between samples may not appear. These system-view queries are modest for typical deployments, but are not free; increase the refresh interval on busy servers.
+
+For visibility into other users' activity, use a role with `pg_read_all_stats` or `pg_monitor`. PostgreSQL enforces cancellation/termination privileges; `pg_signal_backend` allows signalling other non-superuser sessions, while superuser sessions require a superuser. Codester does not grant roles. Limited visibility is explicitly labelled instead of treating hidden activity as zero workload.
+
+The activity page offers **Cancel query** and **End session**, each with a confirmation naming the PID and showing the SQL. Cancellation does not guarantee that an open transaction releases its locks. Ending a session rolls back its open transaction, and the application may reconnect. Successful responses report a signal request, not proof all locks disappeared. Controls are unavailable for demo, disabled or stale connections. Short-lived signed tokens bind the target connection, backend start, query start, transaction start, state and query fingerprint; a single SQL statement rechecks that identity before signalling. PostgreSQL signalling cannot eliminate every race with concurrently changing queries. No live work-database sessions were terminated during development; integration tests use an isolated local PostgreSQL container.
