@@ -5,6 +5,7 @@ import hmac
 import os
 import re
 import secrets
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -20,6 +21,7 @@ from codester.poller import INTERVALS, Poller
 from codester.repositories import RepositoryManager
 from codester.services import ServiceManager
 from codester.sql_workspace import SQLWorkspace
+from codester.startup import save_startup, startup_status
 from codester.store import METRICS, ConfigurationError, Store
 from codester.transport import IntegrationError
 from codester.tunnels import TunnelManager
@@ -130,6 +132,17 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
             return jsonify(tasks=[], note="Local activity is off.")
         tasks, note = activity_events.merge(*codex.local_activity())
         return jsonify(tasks=tasks, note=note, integration=activity_events.status())
+
+    @app.get("/api/startup")
+    def startup_read():
+        return jsonify(startup_status(store.path.parent))
+
+    @app.put("/api/startup")
+    def startup_save():
+        try:
+            return jsonify(save_startup(store.path.parent, request.get_json(silent=True)))
+        except (OSError, subprocess.SubprocessError):
+            return jsonify(error="Could not update login startup. Check your account permissions and try again."), 503
 
     @app.get("/api/settings")
     def settings_read():

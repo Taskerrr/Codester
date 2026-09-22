@@ -506,3 +506,39 @@ async function init() {
 init();
 
 $('#postgres-tunnel').addEventListener('change', () => { if ($('#postgres-tunnel').value) { $('#postgres-host').value = '127.0.0.1'; $('#postgres-port').value = $('#postgres-tunnel').value; $('#save-note').textContent = 'Unsaved changes'; } });
+
+// Startup preferences affect this computer and save independently of service settings.
+let startupSupported = false;
+function renderStartup(state) {
+  startupSupported = state.supported;
+  $('#startup-enabled').checked = state.enabled;
+  $('#startup-browser').checked = state.open_browser;
+  $('#startup-enabled').disabled = !state.supported;
+  $('#startup-browser').disabled = !state.supported;
+  $('#save-startup').disabled = !state.supported;
+  $('#startup-status').textContent = state.message || (state.enabled
+    ? 'Codester is set to start when you log in.' : 'Login startup is off.');
+}
+async function loadStartup() {
+  try { renderStartup(await api('/api/startup')); }
+  catch (error) { $('#startup-status').textContent = `Could not read startup preferences. ${error.message}`; }
+}
+$('#save-startup').addEventListener('click', async () => {
+  $('#save-startup').disabled = true;
+  $('#startup-enabled').disabled = true;
+  $('#startup-browser').disabled = true;
+  $('#startup-status').textContent = 'Saving startup preferences…';
+  try {
+    renderStartup(await api('/api/startup', {method:'PUT', body:JSON.stringify({
+      enabled:$('#startup-enabled').checked, open_browser:$('#startup-browser').checked,
+    })}));
+    $('#startup-status').textContent += ' Preferences saved for the next start.';
+  } catch (error) {
+    $('#startup-status').textContent = `Could not save startup preferences. ${error.message}`;
+  } finally {
+    $('#save-startup').disabled = !startupSupported;
+    $('#startup-enabled').disabled = !startupSupported;
+    $('#startup-browser').disabled = !startupSupported;
+  }
+});
+loadStartup();

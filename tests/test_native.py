@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from codester.codex_events import ActivityEvents
-from codester.native import configure_hooks, launch_agent, migrate_docker
+from codester.native import configure_hooks, migrate_docker
+from codester.startup import launch_agent
 from codester.store import Store
 
 

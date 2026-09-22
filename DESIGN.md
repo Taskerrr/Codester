@@ -33,5 +33,8 @@ The GitHub workspace adds a compact Update button beside each configured reposit
 Native installation runs the dashboard at 127.0.0.1:8765 and starts at user login
 (macOS LaunchAgent or Windows Startup shortcut). Docker is optional packaging;
 Docker workload controls still require a running Docker engine. Migration preserves
-settings and the source Docker volume. Startup management is provided through the
-installer and CLI, without adding dashboard controls.
+settings and the source Docker volume. Settings > Display includes a Startup section with independent login-start and
+browser-opening preferences. Save startup preferences applies them separately
+from service settings; disabling login startup leaves the current session running.
+The browser opens only after the local server is listening. Unsupported or
+uninstalled instances show a native-installer hint with disabled controls.

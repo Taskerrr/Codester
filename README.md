@@ -64,6 +64,16 @@ locally installed Docker, Git, SSH and Codex commands remain discoverable. Re-ru
 after moving the checkout or changing tool locations. macOS SSH agent access uses
 the login session's agent; passwords are stored in the OS credential vault.
 
+### Choose startup behaviour in Settings
+
+Open **Settings > Display > Startup**. Choose **Start Codester when I log in** and,
+optionally, **Open the dashboard in my browser when Codester starts**, then press
+**Save startup preferences**. These preferences save separately from service settings.
+Turning off login startup leaves the current session running. The browser opens
+in your default browser after the local server is listening, including manual
+native restarts. Browser opening defaults off; installer updates preserve your choices.
+The controls require the native installer. Docker and foreground runs show a setup hint.
+
 ### Switch an existing Docker installation
 
 Leave Docker running for this one-time migration, then run:

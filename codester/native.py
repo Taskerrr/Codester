@@ -11,31 +11,20 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import traceback
 import urllib.error
 import urllib.request
+import webbrowser
 from pathlib import Path
 
-from waitress import serve
+from waitress import create_server
 
 from codester.app import create_app
 from codester.codex_hook import configuration
+from codester.startup import LABEL, launch_agent, powershell, ps_quote, registration_path
 from codester.store import Store
-
-LABEL = "local.codester.dashboard"
-
-
-def powershell(script: str) -> None:
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
-    subprocess.run(
-        ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-        check=True,
-    )
-
-
-def ps_quote(value: str) -> str:
-    return "'" + value.replace("'", "''") + "'"
 
 
 def configure_hooks(home: Path, python: Path, directory: Path) -> None:
@@ -88,20 +77,6 @@ def migrate_docker(root: Path, directory: Path) -> None:
             print(f"Previous native data backed up to {backup}")
         shutil.move(str(staged), directory)
     print("Docker volume preserved. Its Codester container is stopped with automatic restart off.")
-
-
-def launch_agent(root: Path, python: Path, directory: Path) -> dict:
-    return {
-        "Label": LABEL,
-        "ProgramArguments": [str(python), "-m", "codester.native", "run"],
-        "WorkingDirectory": str(root),
-        "RunAtLoad": True,
-        "KeepAlive": {"SuccessfulExit": False},
-        "ThrottleInterval": 10,
-        "EnvironmentVariables": {"CODESTER_DATA_DIR": str(directory)},
-        "StandardOutPath": str(directory / "startup.log"),
-        "StandardErrorPath": str(directory / "startup.log"),
-    }
 
 
 def mac_service(action: str, root: Path, python: Path, directory: Path) -> None:
@@ -160,7 +135,7 @@ def wait_for_health() -> None:
         try:
             with urllib.request.urlopen("http://127.0.0.1:8765/api/health", timeout=1) as response:
                 if response.status == 200:
-                    print("Codester is running at http://127.0.0.1:8765 and will start at login.")
+                    print("Codester is running at http://127.0.0.1:8765.")
                     return
         except (OSError, urllib.error.URLError):
             pass
@@ -173,6 +148,7 @@ def run(root: Path, directory: Path) -> None:
     os.environ.update(config["environment"])
     os.environ["CODESTER_SECRET_STORAGE"] = "native"
     os.environ["CODESTER_DATA_DIR"] = str(directory)
+    os.environ["CODESTER_NATIVE"] = "1"
     os.chdir(root)
     # pythonw has no stdout/stderr; keep startup and application failures visible on disk.
     log = directory / "native.log"
@@ -182,7 +158,12 @@ def run(root: Path, directory: Path) -> None:
         sys.stdout = output
         sys.stderr = output
         try:
-            serve(create_app(), host="127.0.0.1", port=8765, threads=8)
+            server = create_server(create_app(), host="127.0.0.1", port=8765, threads=8)
+            if config.get("open_browser", False):
+                threading.Thread(
+                    target=webbrowser.open, args=("http://127.0.0.1:8765",), daemon=True,
+                ).start()
+            server.run()
         except Exception:
             traceback.print_exc()
             raise SystemExit(1) from None
@@ -229,14 +210,18 @@ def main() -> None:
         for key in ("CODESTER_CODEX_BIN", "CODESTER_CODEX_ACTIVITY_HOME", "CODESTER_DOCKER_SOCKET"):
             if key in os.environ:
                 environment[key] = os.environ[key]
-        (directory / "native.json").write_text(
-            json.dumps({"environment": environment}, indent=2), encoding="utf-8",
-        )
+        config_path = directory / "native.json"
+        config = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+        config["environment"] = environment
+        config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
         settings = store.read()
         settings["demo"] = False
         settings["codex"].update(enabled=True, activity=True)
         store.save(settings)
     service(args.action, root, directory)
+    preferences = json.loads((directory / "native.json").read_text(encoding="utf-8"))
+    if not preferences.get("login_enabled", True):
+        registration_path().unlink(missing_ok=True)
     wait_for_health()
     print("Review the updated activity hooks in Codex (/hooks); other hooks were preserved.")
 

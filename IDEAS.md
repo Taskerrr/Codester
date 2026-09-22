@@ -128,3 +128,13 @@ SQL execution/cancellation, keyboard use, and wide/narrow layouts.
   hooks; changed commands still require Codex's normal trust review.
 - macOS installs its runnable copy in Application Support, outside protected Documents/Desktop folders.
 - Windows login startup needs validation on a Windows machine.
+
+### Startup preferences in Settings, 22 September 2026
+
+- Display now provides login-start and browser-opening preferences with a dedicated save action.
+- Disabling login startup removes next-login registration without stopping the current session.
+- Browser opening uses the default browser after the native server is listening,
+  on each native start (including a manual restart). It defaults off until chosen.
+- Installer updates preserve these preferences. Container/foreground instances
+  show a native-installer hint instead of attempting to change host startup.
+- Windows registration generation is tested; a live Windows login remains unverified.
