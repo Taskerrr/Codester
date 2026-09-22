@@ -416,7 +416,10 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
             with poller.lock:
                 snapshot = poller.snapshot()
                 data = snapshot["services"][name]["data"] or {}
-                if identifier not in {item["id"] for item in data.get("errors", [])}:
+                allowed = list(data.get("errors", []))
+                if name == "dagster":
+                    allowed.extend(data.get("jobs", []))
+                if identifier not in {item["id"] for item in allowed}:
                     abort(404)
                 if snapshot["demo"]:
                     return jsonify(demo.detail(name, identifier))

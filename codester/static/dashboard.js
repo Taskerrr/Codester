@@ -81,11 +81,13 @@ function renderMetrics(target, html) {
   });
 }
 
+const jobLabel = title => String(title ?? '').replaceAll('_', ' ');
+
 function errors(name, rows, limit = 3) {
   if (!rows.length) return '<div class="all-clear"><span>✓</span> Clear</div>';
   return `<div class="deck-errors">${rows.slice(0, limit).map(row => `<button class="deck-error" type="button" data-service="${name}" data-id="${e(row.id)}">
     <span class="failure-mark" aria-label="Failed">!</span>
-    <span class="error-title">${e(row.title)}</span>
+    <span class="error-title" title="${e(row.title)}">${e(name === 'dagster' ? jobLabel(row.title) : row.title)}</span>
     <time title="${ago(row.timestamp)}">${compactTime(row.timestamp)}</time>
   </button>`).join('')}</div>`;
 }
@@ -112,11 +114,11 @@ function dagster(data) {
   const running = number(data.running);
   const queued = number(data.queued);
   const total = running + queued;
-  const jobs = data.jobs.slice(0, 3).map(job => `<div class="compact-row">
+  const jobs = data.jobs.slice(0, 3).map(job => `<button type="button" class="compact-row dagster-job" data-service="dagster" data-id="${e(job.id)}" aria-label="View run: ${e(jobLabel(job.title))}">
     ${dagsterState(job.status)}
-    <strong title="${e(job.title)}">${e(job.title)}</strong>
+    <strong title="${e(job.title)}">${e(jobLabel(job.title))}</strong>
     <time>${job.status === 'QUEUED' ? 'queued' : duration(job.duration)}</time>
-  </div>`).join('');
+  </button>`).join('');
   return `<div class="dagster-hero hero-rings">
         ${ring({value: running, label: 'RUNNING', progress: total ? running / total * 100 : 0})}
         ${ring({value: queued, label: 'QUEUED', progress: total ? queued / total * 100 : 0, detail: queued && data.oldest != null ? `oldest ${duration(data.oldest)}` : ''})}

@@ -47,3 +47,7 @@ The feed checks every five seconds only while the workspace is visible. It shows
 up to 100 logs from the last 15 minutes, explicitly noting that busy periods can
 skip entries. Loading, empty, demo, stale and unavailable states are distinct.
 The Home overview remains compact; log reads are independent of trace charts.
+
+Dagster job and error labels display underscores as spaces, retaining the exact
+job name in hover text. Recent job rows, including running and queued jobs, open
+the shared run-detail view with a snapshot of events and a link to Dagster.

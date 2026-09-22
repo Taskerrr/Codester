@@ -223,6 +223,15 @@ def snapshot(service: str) -> dict:
 
 
 def detail(service: str, identifier: str) -> dict:
+    if service == "dagster":
+        job = next((job for job in snapshot("dagster")["jobs"] if job["id"] == identifier), None)
+        if job:
+            return {
+                "title": job["title"].replace("_", " "),
+                "text": f"DEMO DATA\n\nRun {identifier}\nStatus: {job['status']}\nProcessing job steps…",
+                "note": "Synthetic run. Live runs include a link to Dagster and a snapshot of run events.",
+                "url": "",
+            }
     return {
         "title": "Payment provider timeout"
         if service == "signoz"

@@ -151,3 +151,10 @@ SQL execution/cancellation, keyboard use, and wide/narrow layouts.
   characters and truncation is labelled. No local persistent log history.
 - Log response normalization and browser behavior are fixture/demo tested. A live
   server response still needs verification because this installation has SigNoz disabled.
+
+### Dagster job readability and run details, 22 September 2026
+
+- Job labels use spaces in place of underscores; source names and IDs are unchanged.
+- All displayed recent job rows open run details, including running/queued jobs.
+- Detail lookups remain restricted to known snapshot run IDs; demo running jobs
+  show a running example rather than a fabricated failure.

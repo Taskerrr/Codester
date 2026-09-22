@@ -297,3 +297,26 @@ def test_docker_project_api_membership_and_csrf(client, monkeypatch):
     assert calls == [(project_id,'stop',[member_id])]
     assert client.post(f'/api/docker/projects/{project_id}/remove', headers=csrf(client)).status_code == 404
     assert client.post(path, json=[], headers=csrf(client)).status_code == 400
+
+
+def test_running_dagster_job_details(app, client, monkeypatch):
+    poller = app.extensions["poller"]
+    poller.refresh("dagster")
+    response = client.get("/api/errors/dagster/r1")
+    assert response.status_code == 200
+    assert response.json is not None
+    assert response.json["title"] == "sync customer events"
+    assert "STARTED" in response.json["text"]
+    assert "TimeoutError" not in response.json["text"]
+    config = app.extensions["store"].read()
+    config["demo"] = False
+    app.extensions["store"].save(config)
+    called = []
+    def detail(config, identifier):
+        called.append(identifier)
+        return {"title": "Run " + identifier, "text": "Processing", "url": "", "note": ""}
+    monkeypatch.setattr("codester.app.dagster.detail", detail)
+    assert client.get("/api/errors/dagster/r1").status_code == 200
+    assert called == ["r1"]
+    assert client.get("/api/errors/dagster/unknown-run").status_code == 404
+    assert called == ["r1"]

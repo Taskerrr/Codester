@@ -410,3 +410,6 @@
   .channel .repo-row,
   .channel .pg-mini-row { min-height:var(--overview-row-height); }
 }
+
+.dagster-job { width:100%; padding:7px 0; border-right:0; border-bottom:0; border-left:0; border-radius:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.dagster-job:hover { color:var(--channel-color); }
