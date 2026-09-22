@@ -66,7 +66,7 @@ def table_rows(result: dict) -> list[dict]:
             not isinstance(r, dict) or not isinstance(r.get("data"), dict) for r in rows
         ):
             raise IntegrationError("SigNoz returned invalid raw rows.")
-        return [{**row["data"], "timestamp": row.get("timestamp")} for row in rows]
+        return [{**row["data"], "timestamp": row.get("timestamp", row["data"].get("timestamp"))} for row in rows]
     columns, values = result.get("columns"), result.get("data")
     if not isinstance(columns, list) or not isinstance(values, list):
         raise IntegrationError("SigNoz did not return the expected v5 scalar format.")

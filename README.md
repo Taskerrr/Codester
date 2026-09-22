@@ -377,3 +377,23 @@ latest result survives reloads. Success means the command exited successfully,
 not that deployment health was checked. Interrupted SSH sessions and commands
 still running when Codester restarts report an unknown outcome. Demo mode never
 runs remote repository updates. Existing local Push/Deploy controls remain separate.
+
+### SigNoz log feed
+
+Open the SigNoz workspace from the left rail to see logs below the charts. **Recent**
+shows all levels; **Errors** queries error/fatal logs separately. Each row shows
+app (`service.name`), `user.id` when present as a log attribute, timestamp, level
+and message. Click the message to expand it. **Pause** freezes updates for reading.
+
+Uses the saved SigNoz URL and query API key with the
+[v5 Logs API](https://signoz.io/docs/logs-management/logs-api/search-logs/).
+Logs must already be ingested into SigNoz; trace instrumentation alone does not
+supply them. The app must send user.id for it to appear, otherwise the column shows
+an em dash. There is no user identity inference.
+
+Checks every five seconds while the workspace is visible, sharing reads across tabs.
+Shows at most 100 latest logs in the last 15 minutes; this is a sampled view of busy
+periods, not a lossless live tail. Use SigNoz for the full history. Messages are capped
+at 4,000 characters, rendered as text and labelled when truncated. Log data is kept
+only in memory. Query failures show an explicit error or last-read time and do not
+interrupt the trace charts. Demo mode uses sample logs without contacting SigNoz.

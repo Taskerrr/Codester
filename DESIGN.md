@@ -38,3 +38,12 @@ browser-opening preferences. Save startup preferences applies them separately
 from service settings; disabling login startup leaves the current session running.
 The browser opens only after the local server is listening. Unsupported or
 uninstalled instances show a native-installer hint with disabled controls.
+
+The expanded SigNoz workspace keeps its charts above a log feed. Recent and Errors
+buttons select separately queried feeds, with time, level, app (`service.name`),
+`user.id` when supplied, and message columns. Messages expand inline; refreshes
+preserve expansion, keyboard focus and scroll. Pause freezes the current view.
+The feed checks every five seconds only while the workspace is visible. It shows
+up to 100 logs from the last 15 minutes, explicitly noting that busy periods can
+skip entries. Loading, empty, demo, stale and unavailable states are distinct.
+The Home overview remains compact; log reads are independent of trace charts.

@@ -20,6 +20,7 @@ from codester.credentials import CredentialStoreError
 from codester.poller import INTERVALS, Poller
 from codester.repositories import RepositoryManager
 from codester.services import ServiceManager
+from codester.signoz_logs import LogFeed
 from codester.sql_workspace import SQLWorkspace
 from codester.startup import save_startup, startup_status
 from codester.store import METRICS, ConfigurationError, Store
@@ -32,6 +33,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     app.config.update(MAX_CONTENT_LENGTH=32768, TRUSTED_HOSTS=["localhost", "127.0.0.1", "[::1]"])
     store = Store(data_dir or Path(os.environ.get("CODESTER_DATA_DIR", ".data")))
     activity_events = ActivityEvents(store.path.parent)
+    log_feed = LogFeed(store)
     poller = Poller(store)
     tunnel_manager = TunnelManager(store.path.parent, store.read()["tunnels"], autostart=start_poller)
     repository_manager = RepositoryManager(store)
@@ -132,6 +134,10 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
             return jsonify(tasks=[], note="Local activity is off.")
         tasks, note = activity_events.merge(*codex.local_activity())
         return jsonify(tasks=tasks, note=note, integration=activity_events.status())
+
+    @app.get("/api/signoz/logs")
+    def signoz_logs():
+        return jsonify(log_feed.read(request.args.get("mode", "recent")))
 
     @app.get("/api/startup")
     def startup_read():

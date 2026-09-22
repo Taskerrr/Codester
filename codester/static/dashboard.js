@@ -2,6 +2,7 @@ import {$, api, escape as e, duration, ago, compactTime} from './common.js';
 import {applyWorkspaceLayout, activeWorkspace, currentLayout, layoutEpoch} from './workspaces.js';
 import {DockerGroups} from './docker-groups.js';
 import {GitHubUpdates} from './github-updates.js';
+import './signoz-logs.js';
 
 let latest;
 let snapshotReceivedAt = 0;

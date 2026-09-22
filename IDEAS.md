@@ -138,3 +138,16 @@ SQL execution/cancellation, keyboard use, and wide/narrow layouts.
 - Installer updates preserve these preferences. Container/foreground instances
   show a native-installer hint instead of attempting to change host startup.
 - Windows registration generation is tested; a live Windows login remains unverified.
+
+### SigNoz log feed, 22 September 2026
+
+- Expanded SigNoz workspace now shows logs below the existing charts, with Recent
+  and Errors views, app name, optional user.id, timestamp, level and message.
+- Queries the v5 Logs API independently of trace errors. Errors uses severity
+  number 17+ or common error/fatal severity names, filtered upstream.
+- A five-second, on-demand shared cache bounds reads across tabs. Paused/hidden
+  workspaces stop requesting; errors back off and retain visibly stale same-source data.
+- Latest 100 logs in 15 minutes, not a lossless stream. Bodies are capped at 4,000
+  characters and truncation is labelled. No local persistent log history.
+- Log response normalization and browser behavior are fixture/demo tested. A live
+  server response still needs verification because this installation has SigNoz disabled.
