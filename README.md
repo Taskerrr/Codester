@@ -33,12 +33,12 @@ The server uses Waitress, not Flask's development server. No JavaScript build or
 
 Move the browser onto your secondary display and use the expand icon below the clock or your browser's fullscreen command. The settings cog is in the top-right corner. Touch errors to read details, then open the source service if needed. Browser tab placement is managed by your OS, not Codester. Monitor/touch-driver compatibility, particularly on macOS, is separate from this web app.
 
-## Install with live Codex activity
+## Install once and start at login (recommended)
 
-With Docker Desktop running, use the installer from this checkout:
+Install Python 3.12+ or uv, then run from this checkout:
 
 ```sh
-# macOS / Linux
+# macOS
 ./scripts/install.sh
 ```
 
@@ -47,13 +47,83 @@ With Docker Desktop running, use the installer from this checkout:
 .\scripts\install.ps1
 ```
 
-The installer builds and starts Codester, bundles Python and its libraries in the container, and registers user-level Codex hooks for all local projects. It preserves other hooks and backs up an existing `hooks.json` before changing it. Re-running it keeps the same hook definitions when the Docker executable and container name are unchanged.
+This installs Python dependencies in `.venv`, registers startup for your user, and
+starts the dashboard at **http://127.0.0.1:8765**. No Docker, terminal window,
+JavaScript build or administrator elevation is needed. macOS uses a LaunchAgent;
+Windows uses a shortcut in your Startup folder and `pythonw.exe`. Company policies
+can still restrict Python or scripts; the installer does not bypass those policies.
+Windows startup is implemented but still needs verification on a Windows machine.
+Linux users can continue using `scripts/start.sh` in the foreground.
 
-**One-time approval:** in the Codex VS Code extension, open Settings → Hooks, select **All projects**, reload hooks if needed, and trust the four **User config** commands containing `codester.codex_hook`. The Codex CLI also provides `/hooks`. Start a new turn after approval. Changed hook definitions require another approval; ordinary project switches do not. Codester does not modify Codex's trust records.
+macOS installs a runnable copy under `~/Library/Application Support/Codester` so
+login startup does not depend on access to protected Documents/Desktop folders.
+Windows runs from this checkout; keep it and its `.venv` in place.
+Login startup runs the installed Python
+directly, without downloading dependencies. The installer captures your PATH so
+locally installed Docker, Git, SSH and Codex commands remain discoverable. Re-run it
+after moving the checkout or changing tool locations. macOS SSH agent access uses
+the login session's agent; passwords are stored in the OS credential vault.
 
-Codex invokes a short command in the existing Codester container on prompt submission, stop, interruption, and session end. Direct deliveries override mounted rollout files, avoiding Docker file-sharing delays. No host Python installation, API key, or background helper is needed. The hook command stays the same when application code is updated. A stopped container makes the hook a silent no-op; events while it is stopped are not replayed. Windows installation is included but has not yet been verified on Windows. Remote SSH/WSL Codex environments require installation where that Codex runtime runs.
+### Switch an existing Docker installation
 
-The dashboard remains at `http://127.0.0.1:8765`. The installer enables live activity; account usage is a separate connection described below. You can disable activity in Settings. Hook input may contain prompt or response text, but Codester stores only session ID, turn ID, project folder name, event type, and receipt time in its private data volume. No prompt or response bodies are logged or persisted. The activity API's `integration` field reports whether an event has been delivered and when; an installed hook alone is not proof of a working connection.
+Leave Docker running for this one-time migration, then run:
+
+```sh
+./scripts/install.sh --from-docker
+```
+
+```powershell
+.\scripts\install.ps1 --from-docker
+```
+
+Migration stops only the Codester container, disables its automatic restart, and
+copies its complete `/data` directory to the native installation’s `.data` folder. Existing native data is renamed
+to `.data.before-native-<timestamp>`; the original Docker volume is retained.
+Saved credentials migrate to your OS vault and are verified before the copied
+encryption key is removed. If migration/startup fails, the Docker volume remains
+available: stop native startup and use `docker compose up -d codester` to return.
+Do not run both instances on the same port.
+
+Review Docker-specific saved paths (`/repos/...`, certificate paths) and
+`host.docker.internal` addresses in Settings: native installations use host paths
+and usually `127.0.0.1` for host-local services. Your existing host Codex login is
+used; Docker's copied login is not installed over it. Docker container controls
+still require Docker Desktop, but the rest of Codester can run without it.
+
+### Restart, stop, remove startup and update
+
+On macOS:
+
+```sh
+"$HOME/Library/Application Support/Codester/.venv/bin/python" -m codester.native restart
+"$HOME/Library/Application Support/Codester/.venv/bin/python" -m codester.native stop
+"$HOME/Library/Application Support/Codester/.venv/bin/python" -m codester.native uninstall
+```
+
+On Windows, use `.venv\Scripts\python.exe -m codester.native restart` (or `stop` / `uninstall`) from the checkout.
+`stop` stops the current instance; `uninstall` also removes login startup. Both
+preserve settings and activity hooks. Disable activity in Settings if you no longer
+want hooks recording activity. To update, stop Codester, pull the repository updates,
+then re-run the installer. Logs are in the installation’s `.data/native.log` (plus `.data/startup.log`
+on macOS); the native log rotates at startup once it exceeds 5 MB.
+
+### Live Codex activity
+
+The installer registers native Python hooks for all local projects, preserving
+other hooks and backing up the previous file as `hooks.json.before-codester-native`.
+It enables live activity and switches off demo mode. Other saved settings remain.
+
+**One-time review:** changed hook commands require review and trust in Codex's Hooks
+settings or CLI `/hooks`, then a new turn. The installer never changes trust records.
+See the [official hooks documentation](https://developers.openai.com/codex/hooks).
+
+Hooks record only lifecycle metadata, never prompt or response bodies. They use an
+absolute Python path and data directory, so work from any project. Native hooks can
+record while the dashboard is stopped. Account usage is a separate connection;
+remote SSH/WSL environments need installation where their Codex runtime runs.
+
+Docker remains optional: `scripts/install-docker.sh` / `scripts/install-docker.ps1`
+retain the container installer and Docker activity hooks.
 
 ## Docker
 
@@ -177,7 +247,7 @@ Docker Desktop must be running and the current user must already have permission
 
 ## Storage and privacy
 
-Native storage is `.data/` in the project directory (ignored by Git). Docker storage is `/data`. Override with `CODESTER_DATA_DIR`. SQLite holds preferences, cached GitHub activity, deployment markers and credential references. Native installations save GitHub/SigNoz tokens and SSH passwords through Windows Credential Manager, macOS Keychain or Linux Secret Service. Enter secrets normally in Settings; no manual credential-store setup is required on Windows. Native storage never silently falls back to files when the OS vault is unavailable. Windows entries are scoped to the current user and local machine. Linux requires an available Secret Service keyring. POSIX directories/files use 0700/0600. On Windows, startup removes inherited directory grants and grants the current user access through `icacls`; use a new private directory, since existing explicit grants are not removed. Windows ACL behavior still needs validation on your work machine. On native startup, legacy encrypted credentials are copied to the OS vault and read back for verification before their database values and local encryption key are removed. A failed migration preserves the original credentials. Replaced/deleted vault entries are cleaned up, with failed cleanup retried on the next save or startup. Stop older Codester processes before upgrading. Database backups do not include OS credentials: moving to another machine/account requires re-entering secrets. Old backups may still contain legacy encrypted credentials and their key; protect or retire those separately. OS storage does not protect against malware running as your user.
+Native storage is `.data/` in the project directory (ignored by Git) for foreground/Windows startup, or `~/Library/Application Support/Codester/.data/` for the macOS installer. Docker storage is `/data`. Override with `CODESTER_DATA_DIR`. SQLite holds preferences, cached GitHub activity, deployment markers and credential references. Native installations save GitHub/SigNoz tokens and SSH passwords through Windows Credential Manager, macOS Keychain or Linux Secret Service. Enter secrets normally in Settings; no manual credential-store setup is required on Windows. Native storage never silently falls back to files when the OS vault is unavailable. Windows entries are scoped to the current user and local machine. Linux requires an available Secret Service keyring. POSIX directories/files use 0700/0600. On Windows, startup removes inherited directory grants and grants the current user access through `icacls`; use a new private directory, since existing explicit grants are not removed. Windows ACL behavior still needs validation on your work machine. On native startup, legacy encrypted credentials are copied to the OS vault and read back for verification before their database values and local encryption key are removed. A failed migration preserves the original credentials. Replaced/deleted vault entries are cleaned up, with failed cleanup retried on the next save or startup. Stop older Codester processes before upgrading. Database backups do not include OS credentials: moving to another machine/account requires re-entering secrets. Old backups may still contain legacy encrypted credentials and their key; protect or retire those separately. OS storage does not protect against malware running as your user.
 
 The Docker image explicitly sets `CODESTER_SECRET_STORAGE=file` and retains Fernet-encrypted storage with a per-installation `secret.key` in its private volume; it cannot access the host OS vault. Headless users can explicitly select this mode, accepting that possession of both database and key permits decryption. There is no automatic downgrade of existing native references to file storage. Back up Docker database and key together and keep them out of Git.
 

@@ -29,3 +29,9 @@ Docker uses collapsed Compose project rows in the Home panel, shared workspace a
 The embedded Activity & locks view reuses the workspace heading; only the standalone PostgreSQL activity page renders its own title and logo. Database and freshness information remain available in both views.
 
 The GitHub workspace adds a compact Update button beside each configured repository. Settings > GitHub > Repository actions selects an existing SSH connection, absolute server folder, multiline script and optional confirmation. Local checkout actions remain in a separate disclosure. A remote-only repository needs no local checkout or GitHub monitoring connection; configured repositories stay visible alongside recent repositories. Update runs the saved script directly using the SSH identity, independently of port forwarding. The button disables during execution and shows Updating with elapsed seconds. A Finished, Failed or Unknown indicator expands the exact script, target, timestamp and escaped output inline; expansion and log scroll position survive polling. Results persist through reloads. Demo mode disables execution, and changed target/script revisions require a fresh review. Command completion does not claim verified deployment health.
+
+Native installation runs the dashboard at 127.0.0.1:8765 and starts at user login
+(macOS LaunchAgent or Windows Startup shortcut). Docker is optional packaging;
+Docker workload controls still require a running Docker engine. Migration preserves
+settings and the source Docker volume. Startup management is provided through the
+installer and CLI, without adding dashboard controls.

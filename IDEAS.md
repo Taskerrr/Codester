@@ -115,3 +115,16 @@ SQL execution/cancellation, keyboard use, and wide/narrow layouts.
   Duplicate executions, demo execution and changed target/script revisions are rejected.
 - Configured repositories remain visible even outside the three most recent GitHub rows.
 - Restart/rollback menus and automatic deployment health verification remain outside this feature.
+
+### Native Python startup, 20 September 2026
+
+- Native installation is now the recommended default for local/work laptops.
+- Per-user macOS LaunchAgent and Windows Startup shortcut start the installed
+  Python server at login, without Docker or dependency downloads at startup.
+- Install, restart, stop and remove-startup commands preserve local settings.
+- Optional Docker migration stops Codester, disables its container restart, copies
+  data and backs up previous native data. The Docker volume remains a recovery copy.
+- Native activity hooks replace Docker hook commands while preserving unrelated
+  hooks; changed commands still require Codex's normal trust review.
+- macOS installs its runnable copy in Application Support, outside protected Documents/Desktop folders.
+- Windows login startup needs validation on a Windows machine.
