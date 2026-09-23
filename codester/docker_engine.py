@@ -101,6 +101,16 @@ def _normalize_cli(output: str) -> list[dict]:
     return containers
 
 
+def _port_text(port: dict) -> str:
+    container = f"{port.get('PrivatePort', '')}/{port.get('Type', '')}"
+    if not port.get("PublicPort"):
+        return container
+    address = str(port.get("IP") or "")
+    if ":" in address and not address.startswith("["):
+        address = f"[{address}]"
+    return f"{address + ':' if address else ''}{port['PublicPort']}→{container}"
+
+
 def _normalize_socket(payload: object) -> list[dict]:
     if not isinstance(payload, list):
         raise IntegrationError("Docker returned an unsupported container list.")
@@ -115,8 +125,7 @@ def _normalize_socket(payload: object) -> list[dict]:
         name = names[0].lstrip("/") if isinstance(names, list) and names else identifier[:12]
         ports = row.get("Ports") if isinstance(row.get("Ports"), list) else []
         port_text = ", ".join(
-            f"{port.get('IP', '') + ':' if port.get('IP') else ''}{port.get('PublicPort', '')}"
-            f"→{port.get('PrivatePort', '')}/{port.get('Type', '')}"
+            _port_text(port)
             for port in ports[:12]
             if isinstance(port, dict)
         )

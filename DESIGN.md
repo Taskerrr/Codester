@@ -28,6 +28,13 @@ Docker uses collapsed Compose project rows in the Home panel, shared workspace a
 
 The embedded Activity & locks view reuses the workspace heading; only the standalone PostgreSQL activity page renders its own title and logo. Database and freshness information remain available in both views.
 
+Docker component rows show port mappings beneath the container/image names;
+standalone containers show them beneath their heading. The same renderer is used
+on Home, in the workspace and on the standalone page. Mappings read host address
+and port → container port/protocol, preserving IPv4/IPv6 bindings. Exposed ports
+without a published binding are labelled internal; an empty list reads Ports not
+reported. Ports remain plain text because a published port need not serve HTTP.
+
 The GitHub workspace adds a compact Update button beside each configured repository. Settings > GitHub > Repository actions selects an existing SSH connection, absolute server folder, multiline script and optional confirmation. Local checkout actions remain in a separate disclosure. A remote-only repository needs no local checkout or GitHub monitoring connection; configured repositories stay visible alongside recent repositories. Update runs the saved script directly using the SSH identity, independently of port forwarding. The button disables during execution and shows Updating with elapsed seconds. A Finished, Failed or Unknown indicator expands the exact script, target, timestamp and escaped output inline; expansion and log scroll position survive polling. Results persist through reloads. Demo mode disables execution, and changed target/script revisions require a fresh review. Command completion does not claim verified deployment health.
 
 Repository actions now also offer Repository script, the default for new entries.

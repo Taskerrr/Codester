@@ -247,6 +247,13 @@ The adapters are fixture/schema-tested, but your work-server versions, permissio
 
 ### Docker Desktop
 
+Expand a Compose project to see each service's ports beneath its name/image;
+standalone containers show ports beneath their heading. For example,
+`127.0.0.1:8080 → 80/tcp` maps host port 8080 to container port 80. Ports labelled
+`internal` have no published host binding. `Ports not reported` means Docker
+returned no port mappings, not proof the process has no listening sockets.
+The display preserves bind addresses, IPv6 and TCP/UDP; it does not assume HTTP.
+
 Docker shows Compose projects as collapsed rows, in both the Home panel/workspace and the larger Docker page. Expand a project to inspect its component containers and their status. Grouping uses Docker's Compose project labels; similarly named standalone containers remain separate. One-off Compose jobs stay separate so starting a project does not rerun them.
 
 Small play/pause controls start or gracefully stop all existing containers in a project. Partially running projects show a count such as `1/2` and offer both icons. Component times use compact units such as `4m` or `2h`; full status is available on hover, and exit codes and unhealthy states remain visible. Stop requires a second tap within five seconds and requests a ten-second graceful stop. Expanded rows survive polling. Failed components are named explicitly, and the list refreshes to show the resulting state. Project membership is checked again before an action; changed projects must be refreshed first.

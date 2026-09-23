@@ -234,3 +234,17 @@ def test_paused_project_can_be_stopped(monkeypatch):
     monkeypatch.setattr(docker_engine, "_control_known", lambda *args: calls.append(args))
     docker_engine.control_project(group["id"], "stop", [item["id"]])
     assert calls == [(item["id"], "stop")]
+
+
+def test_socket_ports_distinguish_host_bindings_ipv6_and_internal_ports():
+    row = docker_engine._normalize_socket([{
+        "Id": "a" * 64,
+        "Ports": [
+            {"IP": "127.0.0.1", "PublicPort": 8080, "PrivatePort": 80, "Type": "tcp"},
+            {"IP": "::", "PublicPort": 8080, "PrivatePort": 80, "Type": "tcp"},
+            {"PrivatePort": 5432, "Type": "tcp"},
+            {"IP": "0.0.0.0", "PublicPort": 5353, "PrivatePort": 53, "Type": "udp"},
+        ],
+    }])[0]
+    assert row["ports"] == "127.0.0.1:8080→80/tcp, [::]:8080→80/tcp, 5432/tcp, 0.0.0.0:5353→53/udp"
+    assert docker_engine._normalize_cli(container_row())[0]["ports"] == "127.0.0.1:8765->8765/tcp"

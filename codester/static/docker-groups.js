@@ -21,6 +21,14 @@ function compactStatus(row) {
     .trim();
 }
 
+function portsMarkup(row) {
+  const ports = String(row.ports || '').split(/,\s*/).filter(Boolean).map(port => {
+    const formatted = port.replace(/\s*(?:->|→)\s*/g, ' → ');
+    return /(?:->|→)/.test(port) ? formatted : `${formatted} (internal)`;
+  });
+  return `<small class="docker-ports"><span>${ports.length ? 'Ports' : 'Ports not reported'}</span>${ports.length ? `<code title="Host address and port → container port / protocol. Internal ports have no published host binding.">${e(ports.join(' · '))}</code>` : ''}</small>`;
+}
+
 export class DockerGroups {
   constructor(root, report, refresh) {
     this.root = root;
@@ -60,8 +68,9 @@ export class DockerGroups {
           }).join('')}</div>
         </div>
         <p class="docker-group-confirmation" role="status" hidden></p>
+        ${!project ? portsMarkup(group.containers[0]) : ''}
         ${protectedNote ? `<p class="docker-group-note">${e(protectedNote)}</p>` : ''}
-        ${project ? `<ul id="docker-members-${e(group.id)}" class="docker-members" ${expanded ? '' : 'hidden'}>${group.containers.map(row => `<li><div><strong>${e(row.service || row.name)}</strong><small>${e(row.name)} · ${e(row.image)}</small></div><span data-state="${row.running ? 'running' : 'stopped'}" title="${e(row.status || row.state)}" aria-label="${e(row.status || row.state)}">${e(compactStatus(row))}</span></li>`).join('')}</ul>` : ''}
+        ${project ? `<ul id="docker-members-${e(group.id)}" class="docker-members" ${expanded ? '' : 'hidden'}>${group.containers.map(row => `<li><div><strong>${e(row.service || row.name)}</strong><small>${e(row.name)} · ${e(row.image)}</small>${portsMarkup(row)}</div><span data-state="${row.running ? 'running' : 'stopped'}" title="${e(row.status || row.state)}" aria-label="${e(row.status || row.state)}">${e(compactStatus(row))}</span></li>`).join('')}</ul>` : ''}
       </section>`;
     }).join('') || '<p class="docker-groups-empty">No containers</p>';
   }

@@ -25,6 +25,10 @@
 .docker-members li > div { min-width:0; }
 .docker-members strong { font-size:.78rem; font-weight:500; }
 .docker-members small { display:block; color:var(--muted); font-size:.67rem; margin-top:4px; overflow-wrap:anywhere; }
+.docker-ports, .docker-members .docker-ports { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; color:var(--muted); font-size:.7rem; margin:5px 0 8px; overflow-wrap:anywhere; }
+.docker-ports > span { flex-shrink:0; }
+.docker-ports code { min-width:0; color:var(--text); font:inherit; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+.docker-members .docker-ports { margin-bottom:0; }
 .docker-members li > span { color:var(--muted); font-size:.7rem; text-align:right; }
 .docker-members li > span[data-state=running] { color:var(--accent); }
 .docker-groups-empty { color:var(--muted); padding:20px 0; }

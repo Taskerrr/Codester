@@ -7,6 +7,21 @@ reason rather than leaving conflicting requirements behind.
 
 ## Exploring
 
+- Broaden Codester into a configurable workspace for development and home use.
+  Work/Home profiles could select their own apps, layouts, accounts and notification
+  preferences. This is exploration, not a shipped profile or marketplace feature.
+- A plugin ecosystem could provide compact overview widgets, full workspaces and
+  settings through a shared interface. Start with a few first-party plugins and a
+  curated catalog before public marketplace distribution. Permission boundaries,
+  credential access, compatibility and isolation need design before third-party code.
+- Development candidates: project launchers linking repositories/ports/logs/databases;
+  Docker logs and health details; PR/review/CI status; an API request scratchpad;
+  saved SQL; deployment history and release comparisons; local process/port lookup.
+- Home candidates: Spotify controls, TradingView charts/watchlists, Home Assistant
+  scenes/sensors, weather/travel, NAS/backups/media status and personal routines.
+  Calendar, email summaries, notes/tasks, timers and notifications could serve both.
+  Provider API availability and supported embedding must be checked per integration.
+
 - Saved SQL queries and persistent query history may make repeated tasks easier.
   Neither is part of the current runner. Current drafts and results live only in
   browser memory and survive workspace switching, not page reloads.
@@ -31,6 +46,14 @@ and tools remain to be planned. Existing dedicated Docker and service-command
 pages remain accessible through their header links.
 
 ## Shipped
+
+### Docker port visibility, 23 September 2026
+
+- Compose members and standalone containers now show Docker-reported ports in all
+  three views. Published mappings retain host addresses and TCP/UDP protocols;
+  unbound exposed ports are labelled internal. Missing mappings are explicit.
+- Corrected socket formatting for internal ports and bracketed IPv6 bindings.
+  Ports do not imply HTTP support or independently verified reachability.
 
 ### Repository deployment scripts, 23 September 2026
 
