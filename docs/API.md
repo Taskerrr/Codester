@@ -91,6 +91,23 @@ health/dependency orchestration. Existing individual container routes remain.
 
 ## Remote GitHub updates
 
+Repository actions additionally accept `update_mode` (`command`, the legacy default,
+or `script`), `update_script_file` (a relative path up to 1,024 characters) and
+`update_pull` (boolean, default false). Script mode requires the saved SSH connection,
+absolute checkout root and script path instead of an inline `update_script`. Paths
+cannot be absolute, traverse parents, contain control characters, backslashes or
+colon separators. Values are shell-quoted, not interpolated as command syntax.
+
+The updates snapshot includes `mode`, `script_file` and `pull`; `script` contains the
+exact generated wrapper for script mode. Revision hashes include all new settings.
+The same start endpoint, confirmation, demo rejection and persisted action output apply.
+The wrapper holds a nonblocking `flock` in the checkout's Git metadata, requires a
+clean checkout, optionally pulls with `--ff-only`, checks the tracked non-symlink file,
+exports `CODESTER_DEPLOY_COMMIT`, prints the commit and invokes Bash with `-e -o pipefail`.
+These checks occur during execution, so remote preflight failures appear in action output.
+Script runs have a 1,800-second timeout; custom commands retain 600 seconds. Timeout or
+SSH disconnection remains unknown rather than proof the remote command was stopped.
+
 Repository settings accept optional `update_host_id`, `update_path`, `update_script`
 and boolean `update_confirm`. Enabling an update requires all three text fields:
 a saved SSH connection, absolute remote folder and script (up to 8,000 characters).

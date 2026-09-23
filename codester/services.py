@@ -175,7 +175,8 @@ class ServiceManager:
             return self._start_script(identifier, host, service["path"], script, label)
 
     def _start_script(
-        self, identifier: str, host: dict, path: str, script: str, label: str
+        self, identifier: str, host: dict, path: str, script: str, label: str,
+        *, timeout: int | None = None,
     ) -> dict:
         """Start one saved command under the shared execution lock."""
         with self.lock:
@@ -200,6 +201,7 @@ class ServiceManager:
                 "output": "",
                 "message": "Running",
                 "truncated": False,
+                "timeout": COMMAND_TIMEOUT if timeout is None else timeout,
             }
             self._persist(identifier)
             threading.Thread(
@@ -208,10 +210,43 @@ class ServiceManager:
             return copy.deepcopy(self.actions[identifier])
 
     @staticmethod
+    def repository_script(repository: dict) -> str:
+        """Resolve the configured action without reading or executing remote files."""
+        if repository.get("update_mode", "command") != "script":
+            return repository.get("update_script", "")
+        path = repository.get("update_script_file", "")
+        if not path:
+            return ""
+        script = shlex.quote("./" + path)
+        lines = [
+            "set -euo pipefail",
+            'prefix=$(git rev-parse --show-prefix)',
+            'test -z "$prefix" || { echo "Use the repository root as Server folder." >&2; exit 1; }',
+            'exec 9> "$(git rev-parse --git-path codester-deploy.lock)"',
+            'flock -n 9 || { echo "A deployment is already running in this checkout." >&2; exit 1; }',
+            'changes=$(git status --porcelain)',
+            'test -z "$changes" || { echo "Checkout has uncommitted changes. Commit or remove them before deploying." >&2; exit 1; }',
+        ]
+        if repository.get("update_pull"):
+            lines += ['printf "Pulling latest commit…\\n"', "git pull --ff-only"]
+        lines += [
+            f"git ls-files --error-unmatch -- {script} >/dev/null",
+            f'test -f {script} || {{ echo "Deployment script is missing." >&2; exit 1; }}',
+            f'test ! -L {script} || {{ echo "Deployment script must not be a symbolic link." >&2; exit 1; }}',
+            'CODESTER_DEPLOY_COMMIT=$(git rev-parse HEAD)',
+            "export CODESTER_DEPLOY_COMMIT",
+            'printf "Deploying commit %s\\n" "$CODESTER_DEPLOY_COMMIT"',
+            f"bash -e -o pipefail -- {script}",
+        ]
+        # A fresh shell keeps fail-fast semantics even inside the runner's cd && group.
+        return "bash -c " + shlex.quote("\n".join(lines))
+
+    @staticmethod
     def repository_revision(repository: dict, host: dict | None) -> str:
         target = {
             key: repository.get(key)
-            for key in ("repo", "update_host_id", "update_path", "update_script", "update_confirm")
+            for key in ("repo", "update_host_id", "update_path", "update_script", "update_confirm",
+                        "update_mode", "update_script_file", "update_pull")
         }
         target["host"] = host
         return hashlib.sha256(json.dumps(target, sort_keys=True).encode()).hexdigest()
@@ -236,12 +271,15 @@ class ServiceManager:
                         "url": config["github"]["browser_url"].rstrip("/")
                         + "/"
                         + repository["repo"],
-                        "configured": bool(repository.get("update_script") and host),
+                        "configured": bool(self.repository_script(repository) and host),
                         "target": f"{host['username']}@{host['ssh_host']}:{host['ssh_port']}"
                         if host
                         else "",
                         "path": repository.get("update_path", ""),
-                        "script": repository.get("update_script", ""),
+                        "script": self.repository_script(repository),
+                        "mode": repository.get("update_mode", "command"),
+                        "script_file": repository.get("update_script_file", ""),
+                        "pull": repository.get("update_pull", False),
                         "confirm": repository.get("update_confirm", False),
                         "revision": self.repository_revision(repository, host),
                         "action": copy.deepcopy(self.actions.get("github:" + repository["id"])),
@@ -265,7 +303,8 @@ class ServiceManager:
                 (row for row in config["tunnels"] if row["id"] == repository.get("update_host_id")),
                 None,
             )
-            if host is None or not repository.get("update_script"):
+            script = self.repository_script(repository)
+            if host is None or not script:
                 raise ConfigurationError(
                     "Configure an SSH connection and update script in Settings."
                 )
@@ -279,8 +318,9 @@ class ServiceManager:
                 "github:" + identifier,
                 host,
                 repository["update_path"],
-                repository["update_script"],
-                "Update " + repository["repo"],
+                script,
+                ("Deploy " if repository.get("update_mode") == "script" else "Update ") + repository["repo"],
+                timeout=1800 if repository.get("update_mode") == "script" else COMMAND_TIMEOUT,
             )
 
     @staticmethod
@@ -319,11 +359,12 @@ class ServiceManager:
 
             reader = threading.Thread(target=collect, daemon=True)
             reader.start()
-            code = process.wait(timeout=COMMAND_TIMEOUT)
+            timeout = action.get("timeout", COMMAND_TIMEOUT)
+            code = process.wait(timeout=timeout)
             reader.join(timeout=2)
             state = "success" if code == 0 else "unknown" if code == 255 else "error"
             message = (
-                "Command finished. Reload and health checks are separate."
+                "Command finished successfully. Check the output for deployment and health results."
                 if code == 0
                 else "SSH ended unexpectedly. Check the server before retrying."
                 if code == 255
@@ -335,7 +376,7 @@ class ServiceManager:
             process.wait(timeout=5)
             state, message = (
                 "unknown",
-                "Timed out after 10 minutes. The remote command may still be running; check the server.",
+                f"Timed out after {action.get('timeout', COMMAND_TIMEOUT) // 60} minutes. The remote command may still be running; check the server.",
             )
         except OSError:
             state, message = "error", "Could not start SSH."

@@ -1,0 +1,13 @@
+# Copy to your website repository and adapt its port/health endpoint.
+services:
+  web:
+    image: ${CODESTER_DEPLOY_IMAGE:?Run scripts/deploy.sh or supply a release image}
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s

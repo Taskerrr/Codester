@@ -246,7 +246,7 @@ def validate(data: object) -> dict:
         if path and not Path(path).is_absolute():
             raise ConfigurationError("Repository checkout paths must be absolute.")
         update = {}
-        for field, limit in {"update_host_id": 64, "update_path": 1024, "update_script": 8000}.items():
+        for field, limit in {"update_host_id": 64, "update_path": 1024, "update_script": 8000, "update_script_file": 1024}.items():
             value = repository.get(field, "")
             if not isinstance(value, str) or len(value) > limit or "\x00" in value:
                 raise ConfigurationError(f"Invalid repository {field}.")
@@ -255,8 +255,25 @@ def validate(data: object) -> dict:
         if not isinstance(confirm, bool):
             raise ConfigurationError("Choose whether repository updates require confirmation.")
         update["update_confirm"] = confirm
-        if any(update[field] for field in ("update_host_id", "update_path", "update_script")):
-            if not all(update[field] for field in ("update_host_id", "update_path", "update_script")):
+        mode = repository.get("update_mode", "command")
+        if mode not in ("command", "script"):
+            raise ConfigurationError("Choose Repository script or Custom command.")
+        update["update_mode"] = mode
+        pull = repository.get("update_pull", False)
+        if not isinstance(pull, bool):
+            raise ConfigurationError("Choose whether to pull before deploying.")
+        update["update_pull"] = pull
+        script_file = update["update_script_file"]
+        if script_file and (
+            script_file.startswith(("/", "-"))
+            or "\\" in script_file or ":" in script_file
+            or any(part in {"", ".", ".."} for part in script_file.split("/"))
+            or any(ord(character) < 32 for character in script_file)
+        ):
+            raise ConfigurationError("Use a script path relative to the checkout, such as scripts/deploy.sh.")
+        script_field = "update_script_file" if mode == "script" else "update_script"
+        if any(update[field] for field in ("update_host_id", "update_path", script_field)):
+            if not all(update[field] for field in ("update_host_id", "update_path", script_field)):
                 raise ConfigurationError("Repository updates need an SSH connection, folder and script.")
             if not update["update_path"].startswith("/"):
                 raise ConfigurationError("Use an absolute server folder for repository updates.")

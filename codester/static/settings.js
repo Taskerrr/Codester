@@ -257,7 +257,16 @@ function addTunnel(data = {}) {
 function addRepository(data = {}) {
   const row = $('#repository-template').content.firstElementChild.cloneNode(true);
   row.dataset.id = data.id || crypto.randomUUID();
-  for (const field of ['repo','path','deploy_command','update_path','update_script']) row.querySelector(`[data-repository-field="${field}"]`).value = data[field] || '';
+  for (const field of ['repo','path','deploy_command','update_path','update_script','update_script_file']) row.querySelector(`[data-repository-field="${field}"]`).value = data[field] || '';
+  const mode = row.querySelector('[data-repository-field="update_mode"]');
+  mode.value = data.update_mode || (data.update_script ? 'command' : 'script');
+  const showMode = () => {
+    for (const element of row.querySelectorAll('[data-script-option]')) element.hidden = mode.value !== 'script';
+    for (const element of row.querySelectorAll('[data-command-option]')) element.hidden = mode.value !== 'command';
+  };
+  mode.addEventListener('change', showMode);
+  showMode();
+  row.querySelector('[data-repository-field="update_pull"]').checked = Boolean(data.update_pull);
   const host = row.querySelector('[data-repository-field="update_host_id"]');
   host.add(new Option('No remote update', ''));
   for (const tunnel of saved?.tunnels || []) host.add(new Option(`${tunnel.name} · ${tunnel.username}@${tunnel.ssh_host}`, tunnel.id));
@@ -350,6 +359,9 @@ function read() {
     update_host_id:row.querySelector('[data-repository-field="update_host_id"]').value,
     update_path:row.querySelector('[data-repository-field="update_host_id"]').value ? row.querySelector('[data-repository-field="update_path"]').value : '',
     update_script:row.querySelector('[data-repository-field="update_host_id"]').value ? row.querySelector('[data-repository-field="update_script"]').value : '',
+    update_mode:row.querySelector('[data-repository-field="update_mode"]').value,
+    update_script_file:row.querySelector('[data-repository-field="update_host_id"]').value ? row.querySelector('[data-repository-field="update_script_file"]').value : '',
+    update_pull:row.querySelector('[data-repository-field="update_pull"]').checked,
     update_confirm:row.querySelector('[data-repository-field="update_confirm"]').checked,
   }));
   data.postgres = {enabled:$('#postgres-enabled').checked, password:$('#postgres-password').value, clear_password:$('#postgres-clear_password').checked};

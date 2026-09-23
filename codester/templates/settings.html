@@ -103,7 +103,7 @@
     <button type="button" class="secondary-button test" data-service="github">Test connection</button><p id="github-test" role="status" class="test-result"></p>
     <p class="help">Organisation mode needs repository Contents read access. Account calendar: classic token with <code>read:user</code>; when empty, visible repository commits are used. Only repositories accessible to the saved token can be counted.</p>
     <h3>Repository actions</h3>
-    <p class="help">Update runs your script on a saved SSH server. The tunnel can remain off.</p>
+    <p class="help">Run a deployment script from your repository on a saved SSH server. Staging is optional; the tunnel can remain off.</p>
     <div id="repository-list" class="repository-list"></div>
     <button id="add-repository" type="button" class="secondary-button">+ Add repository</button>
   </fieldset>
@@ -114,8 +114,12 @@
         <label>GitHub repository<input data-repository-field="repo" type="text" maxlength="200" placeholder="Taskerrr/Codester" autocomplete="off" required></label>
         <label>SSH connection<select data-repository-field="update_host_id"></select></label>
         <label>Server folder<input data-repository-field="update_path" type="text" maxlength="1024" placeholder="/srv/Codester" autocomplete="off"></label>
-        <label class="repository-command">Update script<textarea data-repository-field="update_script" rows="4" maxlength="8000" spellcheck="false" placeholder="git pull --ff-only &amp;&amp; docker compose up -d --build"></textarea></label>
-        <label class="toggle"><input data-repository-field="update_confirm" type="checkbox"> Confirm before updating</label>
+        <label>Run<select data-repository-field="update_mode"><option value="script">Repository script</option><option value="command">Custom command</option></select></label>
+        <label class="repository-command" data-script-option>Script path<input data-repository-field="update_script_file" type="text" maxlength="1024" placeholder="scripts/deploy.sh" autocomplete="off"><span class="help">Relative to the server checkout. The committed Bash script owns build, pytest, deployment and health checks.</span></label>
+        <label class="toggle" data-script-option><input data-repository-field="update_pull" type="checkbox"> Pull latest before running (fast-forward only)</label>
+        <p class="help repository-command" data-script-option>Requires Bash, Git and flock on the server, and a clean checkout. No staging server is required.</p>
+        <label class="repository-command" data-command-option>Update script<textarea data-repository-field="update_script" rows="4" maxlength="8000" spellcheck="false" placeholder="git pull --ff-only &amp;&amp; docker compose up -d --build"></textarea></label>
+        <label class="toggle"><input data-repository-field="update_confirm" type="checkbox"> Confirm before running</label>
       </div>
       <details><summary>Local checkout actions</summary><div class="repository-grid">
         <label>Local checkout path<input data-repository-field="path" type="text" maxlength="4096" placeholder="/repos/Codester" autocomplete="off"></label>

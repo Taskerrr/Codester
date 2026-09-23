@@ -30,6 +30,17 @@ The embedded Activity & locks view reuses the workspace heading; only the standa
 
 The GitHub workspace adds a compact Update button beside each configured repository. Settings > GitHub > Repository actions selects an existing SSH connection, absolute server folder, multiline script and optional confirmation. Local checkout actions remain in a separate disclosure. A remote-only repository needs no local checkout or GitHub monitoring connection; configured repositories stay visible alongside recent repositories. Update runs the saved script directly using the SSH identity, independently of port forwarding. The button disables during execution and shows Updating with elapsed seconds. A Finished, Failed or Unknown indicator expands the exact script, target, timestamp and escaped output inline; expansion and log scroll position survive polling. Results persist through reloads. Demo mode disables execution, and changed target/script revisions require a fresh review. Command completion does not claim verified deployment health.
 
+Repository actions now also offer Repository script, the default for new entries.
+This reveals a checkout-relative Bash script path and optional fast-forward pull;
+Custom command retains the multiline editor and existing saved commands. The
+workspace button reads Deploy/Deploying for repository scripts and Update/Updating
+for custom commands. Optional confirmation names the script, target and pull choice.
+Script mode requires a clean Git checkout, locks the server checkout, prints the
+resolved commit and runs the tracked script with Bash failure handling. Its output
+can contain build, pytest, deployment and health-check stages owned by the repository.
+Staging is not required. Script runs allow 30 minutes; custom commands retain ten.
+Finished means script exit zero, not independently verified health or test coverage.
+
 Native installation runs the dashboard at 127.0.0.1:8765 and starts at user login
 (macOS LaunchAgent or Windows Startup shortcut). Docker is optional packaging;
 Docker workload controls still require a running Docker engine. Migration preserves

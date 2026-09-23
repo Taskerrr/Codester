@@ -162,3 +162,62 @@ def test_invalid_update_configuration(app, changes):
     config["github"]["repositories"][0].update(changes)
     with pytest.raises(ConfigurationError):
         store.save(config)
+
+
+def configure_script(app, **changes):
+    store = app.extensions["store"]
+    config = store.read()
+    config["github"]["repositories"][0].update(
+        update_mode="script", update_script_file="scripts/deploy.sh", update_script=""
+    )
+    config["github"]["repositories"][0].update(changes)
+    store.save(config)
+    return config["github"]["repositories"][0]
+
+
+def test_repository_script_preview_and_execution(app, monkeypatch):
+    configure_script(app, update_script_file="scripts/deploy site's.sh", update_pull=True)
+    manager = app.extensions["service_manager"]
+    captured = []
+    monkeypatch.setattr(manager.tunnels, "remote_session", lambda host, script: (captured.append(script) or ["ssh"], {}))
+    monkeypatch.setattr(manager, "_run", lambda *args: None)
+    row = saved_row(manager)
+    assert row["mode"] == "script" and row["configured"] and row["pull"]
+    assert "git pull --ff-only" in row["script"]
+    assert "CODESTER_DEPLOY_COMMIT" in row["script"]
+    action = manager.start_repository(REPO_ID, row["revision"], confirmed=True)
+    assert action["timeout"] == 1800
+    assert action["label"] == "Deploy owner/project"
+    assert action["script"] == row["script"]
+    assert captured == [f"cd {shlex.quote(row['path'])} && {{\n{row['script']}\n}}"]
+
+
+@pytest.mark.parametrize("field,value", [
+    ("update_script_file", "scripts/other.sh"), ("update_pull", True),
+    ("update_mode", "command"),
+])
+def test_script_configuration_changes_require_new_revision(app, monkeypatch, field, value):
+    configure_script(app, update_script="printf legacy")
+    manager = app.extensions["service_manager"]
+    revision = saved_row(manager)["revision"]
+    config = manager.store.read()
+    config["github"]["repositories"][0][field] = value
+    manager.store.save(config)
+    with pytest.raises(ConfigurationError, match="changed"):
+        manager.start_repository(REPO_ID, revision, confirmed=True)
+
+
+@pytest.mark.parametrize("path", ["", "/tmp/deploy.sh", "../deploy.sh", "scripts/../deploy.sh",
+                                  "scripts//deploy.sh", "-script", "C:/deploy.sh", "scripts\\deploy.sh", "a\nb"])
+def test_invalid_repository_script_paths(app, path):
+    with pytest.raises(ConfigurationError):
+        configure_script(app, update_script_file=path)
+
+
+def test_legacy_command_mode_is_preserved(app):
+    row = saved_row(app.extensions["service_manager"])
+    assert row["mode"] == "command"
+    assert row["script"] == "git pull --ff-only &&\nprintf done"
+    assert "git pull" not in ServiceManager.repository_script({
+        "update_mode": "script", "update_script_file": "scripts/deploy.sh", "update_pull": False,
+    })

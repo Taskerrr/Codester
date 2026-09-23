@@ -139,3 +139,20 @@ The display removes the header/footer and explanatory copy, adds a clock rail, r
 - Used a temporary demo data directory, without modifying the user's settings.
   No live work-server SigNoz queries were made; installed-server API compatibility
   remains to be verified.
+
+## Repository deployment scripts, 23 September 2026
+
+- `uv run pytest -q`: 267 passed, 10 skipped. Lint and targeted type checks on
+  services/store and the new deployment-script tests pass.
+- Real Bash/Git in temporary checkouts verifies paths containing spaces/apostrophes,
+  commit propagation, fail-fast behavior, dirty/missing scripts, failed pulls and
+  checkout-lock contention. Docker/curl stand-ins verify the example's stage order:
+  build, pytest failures and no collected tests prevent production replacement;
+  deployment and health failures propagate. No real deployment was performed.
+- API tests cover legacy command preservation, script configuration validation,
+  generated command execution, 30-minute limits and revision changes.
+- Isolated Chrome at 1280×720 and 390×844 verifies mode switching, settings save/reload,
+  legacy-script preservation, Deploy/Update labels, disabled demo execution and no
+  horizontal overflow or JavaScript errors. Used temporary demo settings only.
+- Real SSH/Docker deployment and each website's pytest/health configuration remain
+  unverified until the example is adapted in that website repository.

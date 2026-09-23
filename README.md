@@ -364,6 +364,30 @@ selected connection; existing session-control permissions and confirmations appl
 
 ### Remote repository updates
 
+For repository-owned deployments, choose **Repository script** under **Settings >
+GitHub > Repository actions**. Select the SSH connection, enter the absolute checkout
+root and a relative script path such as `scripts/deploy.sh`. Optionally enable
+**Pull latest before running** for a fast-forward update from the current branch's
+upstream. Save, then use **Deploy** in the GitHub workspace. No staging server is needed.
+
+The server needs Bash, Git and `flock`. Codester requires a clean checkout, holds a
+server-side lock for that checkout, and runs the committed script with Bash error
+and pipeline failure handling. It prints the commit and exports `CODESTER_DEPLOY_COMMIT`.
+The script owns build, pytest, production replacement and health checks. A script
+path is configuration, not a copy of the script; future changes stay in the website repo.
+
+See the [Docker + pytest deployment example](examples/deployment/README.md), including
+an adaptable script and Compose file. It tests the same image it deploys and retains
+the previous image. Each website needs its own Dockerfile/test dependencies, Compose
+settings and health endpoint. Codester does not add these to other repositories.
+
+Repository-script runs have a 30-minute limit. Failed scripts report failure; SSH
+interruption, timeout or app restart can leave an unknown remote outcome. Inspect the
+server before retrying. Exit zero only confirms the script's own result. Staging,
+automatic rollback and database migration recovery are not built into this runner.
+
+**Custom command** keeps the existing multiline-script workflow below:
+
 In **Settings > GitHub > Repository actions**, add a repository, select an existing
 SSH connection, enter its absolute server folder and save an update script. For
 example, `git pull --ff-only && docker compose up -d --build`. Multiline scripts

@@ -32,6 +32,24 @@ pages remain accessible through their header links.
 
 ## Shipped
 
+### Repository deployment scripts, 23 September 2026
+
+- Added Repository script alongside existing custom SSH commands. Settings stores
+  the server checkout, relative script path and optional fast-forward pull. New UI
+  entries default to script mode; existing custom commands remain unchanged.
+- Deploy uses the existing persisted runner/output and optional confirmation.
+  A clean checkout, tracked regular script, server-side checkout lock and printed
+  commit make the execution reproducible and prevent overlapping Codester deploys
+  into that same checkout. Script runs have a 30-minute timeout.
+- Added an adaptable Docker/pytest example: build a commit-tagged image, test the
+  exact image, replace production only after successful tests, check health and
+  retain the previous image. No staging environment is required.
+- Tests and deployment policy live in each website repository; Codester does not
+  infer that arbitrary script success proves tests or health checks ran. Website
+  setup, database migrations and automatic rollback are not supplied by the runner.
+- Backend and browser validation covers persistence, legacy configuration,
+  confirmation/revision boundaries, path quoting, lock contention and failure gates.
+
 ### SigNoz debugging workspace, 22 September 2026
 
 - Expanded the log feed into a full-height Debug workspace; existing charts are

@@ -78,15 +78,18 @@ export class GitHubUpdates {
     const running = action?.state === 'running';
     const pending = this.pending.has(row.id);
     const disabled = this.demo || this.stale || !row.configured || running || pending;
+    const verb = row.mode === 'script' ? 'Deploy' : 'Update';
     const title = this.demo ? 'Updates unavailable in demo mode' : this.stale ? 'Update status unavailable' : !row.configured ? 'Configure a remote update in Settings → GitHub' : `${row.target} / ${row.path}`;
     const status = action ? `<button type="button" class="repo-update-status" data-state="${e(action.state)}" data-github-update="output" data-id="${e(row.id)}" aria-expanded="${this.expanded.has(row.id)}" aria-label="Show update output for ${e(name)}">${running ? `<span data-update-start="${action.started_at}">${this.elapsed(action.started_at)}</span>` : ({success:'Finished',error:'Failed',unknown:'Unknown'}[action.state] || '')}</button>` : '';
-    return `<button type="button" class="repo-update-button" data-github-update="run" data-id="${e(row.id)}" ${disabled ? 'disabled' : ''} title="${e(title)}" aria-label="Update ${e(name)}">${running || pending ? 'Updating…' : 'Update'}</button>${status}`;
+    return `<button type="button" class="repo-update-button" data-github-update="run" data-id="${e(row.id)}" ${disabled ? 'disabled' : ''} title="${e(title)}" aria-label="${verb} ${e(name)}">${running || pending ? (row.mode === 'script' ? 'Deploying…' : 'Updating…') : verb}</button>${status}`;
   }
   detail(name) {
     const row = this.row(name);
     if (!row) return '';
     const id = e(row.id);
-    const confirmation = this.confirmations.has(row.id) ? `<div class="repo-update-confirm"><p>Update ${e(name)} on ${e(row.target)} / ${e(row.path)}?</p><pre>${e(row.script)}</pre><button type="button" class="quiet-button" data-github-update="confirm" data-id="${id}">Confirm update</button><button type="button" class="quiet-button" data-github-update="back" data-id="${id}">Back</button></div>` : '';
+    const verb = row.mode === 'script' ? 'Deploy' : 'Update';
+    const description = row.mode === 'script' ? `<p>Run ${e(row.script_file)}${row.pull ? ' after pulling latest' : ' at the current server commit'}. Build, tests and health checks follow the repository script.</p>` : '';
+    const confirmation = this.confirmations.has(row.id) ? `<div class="repo-update-confirm"><p>${verb} ${e(name)} on ${e(row.target)} / ${e(row.path)}?</p>${description}<pre>${e(row.script)}</pre><button type="button" class="quiet-button" data-github-update="confirm" data-id="${id}">Confirm ${verb.toLowerCase()}</button><button type="button" class="quiet-button" data-github-update="back" data-id="${id}">Back</button></div>` : '';
     const action = row.action;
     const output = this.expanded.has(row.id) && action ? `<div class="repo-update-output"><p>${e(action.host)} / ${e(action.path)} · ${e(new Date(action.started_at * 1000).toLocaleString())}</p><pre>${e(action.script)}</pre><pre class="repo-update-log" tabindex="0" aria-label="Update output for ${e(name)}">${e(action.output || (action.state === 'running' ? 'Waiting for output…' : 'No output.'))}</pre><p>${e(action.message)}${action.truncated ? ' Showing the last 64 KB.' : ''}</p></div>` : '';
     const error = this.errors.get(row.id);
