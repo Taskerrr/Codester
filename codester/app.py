@@ -137,7 +137,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
 
     @app.get("/api/signoz/logs")
     def signoz_logs():
-        return jsonify(log_feed.read(request.args.get("mode", "recent")))
+        return jsonify(log_feed.read(request.args.get("mode", "recent"), request.args.to_dict()))
 
     @app.get("/api/startup")
     def startup_read():

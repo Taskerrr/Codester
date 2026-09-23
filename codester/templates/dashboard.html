@@ -49,15 +49,7 @@
       <div id="{{ name }}-message" class="channel-message" role="status"></div>
       <div id="{{ name }}-content" class="channel-content"><span class="loading-ring" role="status" aria-label="Loading {{ label }}"></span></div>
       {% if name == 'signoz' %}
-      <section id="signoz-log-feed" aria-labelledby="signoz-log-title">
-        <div class="log-toolbar"><h3 id="signoz-log-title">Logs</h3>
-          <div class="log-modes" role="group" aria-label="Log filter"><button type="button" data-log-mode="recent" aria-pressed="true">Recent</button><button type="button" data-log-mode="errors" aria-pressed="false">Errors</button></div>
-          <button type="button" id="logs-pause" aria-pressed="false">Pause</button>
-        </div>
-        <p id="logs-status" role="status">Waiting for logs…</p>
-        <div id="logs-table" tabindex="0" aria-label="SigNoz log feed"></div>
-        <p class="log-footnote">Latest 100 · last 15 minutes · checks every 5s. High-volume periods can skip entries.</p>
-      </section>
+      {% include 'signoz_debug.html' %}
       {% endif %}
     </section>
     {% endfor %}

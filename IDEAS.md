@@ -32,6 +32,22 @@ pages remain accessible through their header links.
 
 ## Shipped
 
+### SigNoz debugging workspace, 22 September 2026
+
+- Expanded the log feed into a full-height Debug workspace; existing charts are
+  available on demand and Home is unchanged.
+- Upstream message, app, user, severity and trace filters; five-minute through
+  24-hour ranges, with explicit Search and keyboard submission.
+- Click app/user values to filter. Inspect messages and supplied attributes in a
+  detail pane; selection pauses updates. Copy a message or debugging context and
+  follow a supplied trace into SigNoz. Trace filtering clears competing filters.
+- Browse 100-row pages in a fixed time window, up to 1,000 rows. Live polling remains
+  bounded and visible-only. Search caches are isolated and limited to 16 entries.
+- Filters and investigation state remain in browser memory; logs are not persisted.
+- Backend fixtures and isolated-browser checks cover filtering, paging, clipboard,
+  malformed inputs, stale/error states, escaping, response races and responsive layouts.
+  Live work-server compatibility still needs verification.
+
 ### Shared workspaces and configurable Home, 20 September 2026
 
 - Every launcher opens its app across the main content area with the clock, SSH

@@ -39,14 +39,27 @@ from service settings; disabling login startup leaves the current session runnin
 The browser opens only after the local server is listening. Unsupported or
 uninstalled instances show a native-installer hint with disabled controls.
 
-The expanded SigNoz workspace keeps its charts above a log feed. Recent and Errors
-buttons select separately queried feeds, with time, level, app (`service.name`),
-`user.id` when supplied, and message columns. Messages expand inline; refreshes
-preserve expansion, keyboard focus and scroll. Pause freezes the current view.
-The feed checks every five seconds only while the workspace is visible. It shows
-up to 100 logs from the last 15 minutes, explicitly noting that busy periods can
-skip entries. Loading, empty, demo, stale and unavailable states are distinct.
-The Home overview remains compact; log reads are independent of trace charts.
+The expanded SigNoz workspace opens a full-height Debug screen. Charts are available
+through a toggle; Home retains its compact overview. All logs and Errors shortcuts
+combine with labelled message-substring, exact app/user/trace, severity and time-range
+filters. Search (or Ctrl/Command+Enter) applies changes upstream; ranges span five
+minutes to 24 hours. Clicking an app or user filters immediately. App suggestions
+come from the current results and do not restrict typed searches.
+
+Results show time, severity, app, user and message. Selecting a message pauses live
+updates and opens a scrolling detail pane with timestamp, supplied identities,
+message/stack text, bounded attributes, copy-message/context buttons and a source
+trace link when available. Copy controls stay at the top. On narrow screens the
+detail replaces the list; Close or Escape returns focus to the selected message.
+Logs for this trace clears other filters and searches all levels in the chosen range.
+
+Live reads check every five seconds only while visible. Older/Newer pages use a fixed
+time window, 100 rows per page and at most 1,000 rows; Resume live returns to latest.
+Busy live periods can skip entries, and late ingestion can change historical pages.
+Draft filters, applied filters and paused state survive workspace switches in memory.
+Loading, empty, demo, stale and unavailable states remain distinct. Same-search stale
+results are retained; changed searches never reuse another filter's rows. Log reads
+remain independent of trace charts. Message and attribute truncation is labelled.
 
 Dagster job and error labels display underscores as spaces, retaining the exact
 job name in hover text. Recent job rows, including running and queued jobs, open

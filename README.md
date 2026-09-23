@@ -378,12 +378,20 @@ not that deployment health was checked. Interrupted SSH sessions and commands
 still running when Codester restarts report an unknown outcome. Demo mode never
 runs remote repository updates. Existing local Push/Deploy controls remain separate.
 
-### SigNoz log feed
+### SigNoz debugging workspace
 
-Open the SigNoz workspace from the left rail to see logs below the charts. **Recent**
-shows all levels; **Errors** queries error/fatal logs separately. Each row shows
-app (`service.name`), `user.id` when present as a log attribute, timestamp, level
-and message. Click the message to expand it. **Pause** freezes updates for reading.
+Open **SigNoz** from the left rail for the full-height Debug screen. **Charts** reveals
+the existing overview charts. **All logs** and **Errors** select the feed; use the
+labelled fields to search message substrings (case-sensitive), exact app/user/trace,
+severity and a range from five minutes to 24 hours. Press **Search** or Ctrl/Command+Enter
+to apply filters upstream. Clicking an app or user searches that value immediately.
+
+Select a message to pause updates and inspect its timestamp, identities, message,
+stack text and supplied attributes. **Copy debug context** includes the source, log
+and trace IDs, filters, message and attributes; **Copy message** copies just the body.
+**Open trace** links to SigNoz when a valid trace ID is supplied. **Logs for this trace**
+clears other filters and searches all levels within the selected range. On narrow
+screens, details replace the list; **Close** or Escape returns to the selected log.
 
 Uses the saved SigNoz URL and query API key with the
 [v5 Logs API](https://signoz.io/docs/logs-management/logs-api/search-logs/).
@@ -391,9 +399,12 @@ Logs must already be ingested into SigNoz; trace instrumentation alone does not
 supply them. The app must send user.id for it to appear, otherwise the column shows
 an em dash. There is no user identity inference.
 
-Checks every five seconds while the workspace is visible, sharing reads across tabs.
-Shows at most 100 latest logs in the last 15 minutes; this is a sampled view of busy
-periods, not a lossless live tail. Use SigNoz for the full history. Messages are capped
-at 4,000 characters, rendered as text and labelled when truncated. Log data is kept
-only in memory. Query failures show an explicit error or last-read time and do not
-interrupt the trace charts. Demo mode uses sample logs without contacting SigNoz.
+Checks every five seconds while the workspace is visible, sharing identical searches
+across tabs. **Older/Newer** browse 100-row pages with a fixed time window, up to 1,000
+rows. **Resume live** returns to latest. Busy periods can skip live entries; late
+ingestion may change historical pages. Use SigNoz for the full history. Messages
+are capped at 4,000 characters; attributes at 60 fields, 1,000 characters each and
+12,000 total characters. Truncation is labelled. Content is rendered as text.
+Logs and investigation state stay in memory. Failed searches retain only same-search
+stale data and do not interrupt trace charts. Demo filters work without contacting
+SigNoz. Live compatibility with the work server still needs verification.

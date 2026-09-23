@@ -106,3 +106,32 @@ The local `path` is optional for remote-only repositories.
 - Actions share the service-command runner: bounded output, ten-minute timeout,
   persisted terminal results and unknown outcome after interrupted execution.
   `success` indicates command exit zero, not verified application health.
+
+## SigNoz debugging searches
+
+`GET /api/signoz/logs` accepts `mode=recent|errors`, `app`, `user_id`, `text`,
+`trace_id`, `level`, `seconds`, `offset` and `end_ms`. App/user/trace use exact
+matches; text uses case-sensitive `body CONTAINS` upstream. Literals are escaped;
+raw query expressions are not accepted. Trace IDs require 32 hexadecimal digits.
+Severity is TRACE, DEBUG, INFO, WARN, ERROR or FATAL (or empty for all levels).
+Numeric severity ranges and common text aliases are supported.
+
+`seconds` is 300, 900 (default), 3600, 21600 or 86400. Each page has at most 100
+rows. `offset` is a multiple of 100, from 0 to 900; nonzero offsets require the
+previous response's `end_ms`. This fixes the query window while paging, but does
+not create an immutable upstream snapshot. Late-ingested logs can move page boundaries.
+
+Responses include `status`, `message`, `last_success`, `rows`, `filters`, `mode`,
+`start_ms`, `end_ms`, `window_seconds`, `offset`, `limit`, `page_full` and
+`source_url`. `page_full` indicates the row limit was reached, not proof another
+page exists. Rows include `id`, `timestamp`, `app`, `user_id`, `severity`, `body`,
+`truncated`, `trace_id`, `span_id`, `trace_url`, `attributes` and
+`attributes_truncated`. Trace URLs use the saved browser URL (or API URL).
+Attributes are bounded to 60 fields, 1,000 characters each and 12,000 characters
+including field names; bodies retain the existing 4,000-character preview limit.
+
+Up to 16 search caches share identical reads across tabs for five seconds, with
+failure backoff. Cache identities include filters, range, paging, mode and connection
+configuration/credentials. Connection changes discard in-flight results. Failed
+searches retain only their own previous snapshot, labelled stale. Logs remain in
+memory. Demo queries filter local samples and return no external source links.

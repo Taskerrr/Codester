@@ -15,11 +15,12 @@ def literal(value: str) -> str:
 
 
 def query(
-    config: dict, key: str, specs: list[dict], kind: str = "scalar", seconds: int = 900
+    config: dict, key: str, specs: list[dict], kind: str = "scalar", seconds: int = 900,
+    *, end_ms: int | None = None,
 ) -> list[dict]:
     if not key:
         raise IntegrationError("Add a SigNoz query API key in settings (not an ingestion key).")
-    now = int(time.time() * 1000)
+    now = end_ms if end_ms is not None else int(time.time() * 1000)
     payload = {
         "start": now - seconds * 1000,
         "end": now,

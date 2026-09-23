@@ -1,0 +1,38 @@
+<section id="signoz-log-feed" aria-labelledby="signoz-log-title">
+  <div class="log-toolbar">
+    <h3 id="signoz-log-title">Debug</h3>
+    <div class="log-modes" role="group" aria-label="Log filter">
+      <button type="button" data-log-mode="recent" aria-pressed="true">All logs</button>
+      <button type="button" data-log-mode="errors" aria-pressed="false">Errors</button>
+    </div>
+    <button type="button" id="logs-charts" aria-pressed="false" aria-controls="signoz-content">Charts</button>
+    <a id="logs-source" target="_blank" rel="noopener noreferrer" hidden>Open SigNoz ↗</a>
+    <button type="button" id="logs-pause" aria-pressed="false">Pause</button>
+  </div>
+  <form id="logs-filters" class="log-filters" aria-label="Search SigNoz logs">
+    <label class="log-search">Message contains<input name="text" type="search" placeholder="Search messages…" maxlength="500"></label>
+    <label>App<input name="app" list="logs-apps" placeholder="All apps" maxlength="200" autocomplete="off"></label>
+    <label>User ID<input name="user_id" placeholder="Any user" maxlength="200" autocomplete="off"></label>
+    <label>Severity<select name="level"><option value="">All levels</option><option>TRACE</option><option>DEBUG</option><option>INFO</option><option>WARN</option><option>ERROR</option><option>FATAL</option></select></label>
+    <label>Time range<select name="seconds"><option value="300">Last 5 minutes</option><option value="900" selected>Last 15 minutes</option><option value="3600">Last hour</option><option value="21600">Last 6 hours</option><option value="86400">Last 24 hours</option></select></label>
+    <label class="log-trace-filter">Trace ID<input name="trace_id" placeholder="Any trace" maxlength="32" pattern="[a-fA-F0-9]{32}" autocomplete="off"></label>
+    <div class="log-filter-actions"><button type="submit" class="log-primary">Search</button><button type="button" id="logs-clear">Clear</button></div>
+    <datalist id="logs-apps"></datalist>
+  </form>
+  <div class="log-status-row"><p id="logs-status" role="status">Waiting for logs…</p><span id="logs-filter-state"></span></div>
+  <div class="log-investigation">
+    <div id="logs-table" tabindex="0" aria-label="SigNoz log results"></div>
+    <aside id="logs-detail" aria-labelledby="logs-detail-title" hidden>
+      <div class="log-detail-header">
+        <div class="log-detail-heading"><h4 id="logs-detail-title" tabindex="-1">Log detail</h4><button type="button" id="logs-close" aria-label="Close log detail">Close</button></div>
+        <div class="log-detail-actions"><button type="button" id="logs-copy" class="log-primary">Copy debug context</button><button type="button" id="logs-copy-message">Copy message</button></div>
+        <p id="logs-copy-status" role="status"></p>
+      </div>
+      <div id="logs-detail-content"></div>
+    </aside>
+  </div>
+  <div class="log-footer">
+    <p id="logs-range" class="log-footnote">Latest 100 logs. Updates every 5s; busy periods can skip entries.</p>
+    <nav class="log-pages" aria-label="Log pages"><button type="button" id="logs-newest" disabled>Latest</button><button type="button" id="logs-newer" disabled>Newer</button><span id="logs-page">Page 1</span><button type="button" id="logs-older" disabled>Older</button></nav>
+  </div>
+</section>

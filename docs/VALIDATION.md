@@ -120,3 +120,22 @@ The display removes the header/footer and explanatory copy, adds a clock rail, r
 - Desktop layouts fit 2560×720 and 1707×480 without page overflow; 390×844 has no
   horizontal overflow. Browser execution responses were simulated and runner tests
   used local subprocesses; no remote server was updated during verification.
+
+## SigNoz Debug workspace, 22 September 2026
+
+- `uv run pytest -q`: 243 passed, 10 skipped. New log fixtures cover escaped
+  upstream filters, anchored page ranges, invalid-input rejection, bounded and
+  isolated search caches, trace links, attribute truncation and demo filtering.
+- `uv run ruff check .`: passed. Targeted `ty check` for `signoz.py`,
+  `signoz_logs.py` and `test_signoz_logs.py`: passed. Full `ty check` reports 18
+  diagnostics in unchanged demo/PostgreSQL code and other existing tests.
+- Isolated Chrome checks at 2560×720, 1920×720, 1280×720, 768×1024 and 390×844:
+  no horizontal page overflow; desktop fits without page scroll. Detail panes,
+  clipboard copy, filter submission, empty searches, trace filtering, charts toggle,
+  mobile Close and restored keyboard focus were exercised.
+- Mocked-browser searches verified fixed-window Older/Newer/Latest paging,
+  out-of-order response rejection, stale/unavailable states, escaped markup in
+  messages/attributes and source trace links. No browser JavaScript errors.
+- Used a temporary demo data directory, without modifying the user's settings.
+  No live work-server SigNoz queries were made; installed-server API compatibility
+  remains to be verified.
