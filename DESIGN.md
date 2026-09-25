@@ -6,9 +6,12 @@ The dashboard is a full-height ultrawide instrument display with a narrow clock/
 
 Codester uses the transparent `codester-mark-concept.png` angular C and lightning mark. The PNG is the browser favicon, accompanies the wordmark on utility pages, and identifies the compact Home button beside Settings in the dashboard rail. The SVG alternative is retained but is not displayed.
 
-The former large Home tile is a compact weather area with an icon, temperature,
-condition and town. Next 6 hours toggles a small hourly forecast panel; Close,
-Escape and outside-click dismiss it. Home remains available beside Settings.
+The clock is enlarged at the top of the rail, with the date and a compact weather
+icon/temperature on one line beneath it. Hover or keyboard focus reveals location,
+conditions and the hourly forecast; tapping pins the panel open. Close, Escape and
+outside-click dismiss it. There is no separate Next hours button. Home remains
+available beside Settings. Stale/demo readings have an indicator and accessible
+state text; detailed status is inside the panel.
 Settings > Display > Weather enables weather, searches for a town, selects an
 explicit result and chooses Celsius/Fahrenheit. Nothing is inferred from GPS or IP,
 and weather stays disabled until configured and saved. Clearing a location also

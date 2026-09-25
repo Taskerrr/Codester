@@ -47,6 +47,13 @@ pages remain accessible through their header links.
 
 ## Shipped
 
+### Date-row weather and larger clock, 25 September 2026
+
+- Weather now shows only icon and temperature to the right of the date, below a
+  larger clock. Location, conditions and hourly forecast appear on hover/focus.
+- Tap pins the panel; Escape, Close and outside-click dismiss it. This replaces
+  the separate weather block and Next 6 hours button without a server restart.
+
 ### Configurable rail weather, 25 September 2026
 
 - Replaced the oversized Home emblem with weather; Home now sits beside Settings.

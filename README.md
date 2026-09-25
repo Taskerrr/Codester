@@ -14,8 +14,9 @@ A private, local dashboard for Codex subscription usage, Dagster runs, SigNoz se
 ## Start locally
 
 Weather is optional: **Settings > Display > Weather**, search for a town, choose a
-result and units, then save. The rail shows current modelled conditions and a
-**Next 6 hours** toggle. Forecasts refresh roughly hourly while the dashboard is
+result and units, then save. Weather sits beside the date below the larger clock.
+Hover, focus or tap its icon/temperature for conditions and the hourly forecast.
+Forecasts refresh roughly hourly while the dashboard is
 visible. Home is beside Settings. Weather uses [MET Norway](https://api.met.no/)
 under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), summarised for
 display; town search uses [Photon](https://github.com/komoot/photon) and
