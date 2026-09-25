@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 from cryptography.fernet import Fernet
 
 from codester.credentials import PREFIX, CredentialStoreError, NativeCredentials
+from codester.subprocesses import hidden_subprocess_creation_flags
 
 DEFAULTS: dict = {
     "demo": True,
@@ -56,7 +57,11 @@ class ConfigurationError(ValueError):
 
 def restrict_windows_directory(directory: Path) -> None:
     identity = subprocess.run(
-        ["whoami", "/user", "/fo", "csv", "/nh"], check=True, capture_output=True, text=True
+        ["whoami", "/user", "/fo", "csv", "/nh"],
+        check=True,
+        capture_output=True,
+        text=True,
+        creationflags=hidden_subprocess_creation_flags(),
     )
     rows = list(csv.reader(identity.stdout.strip().splitlines()))
     if len(rows) != 1 or len(rows[0]) != 2 or not re.fullmatch(r"S-[0-9-]+", rows[0][1]):
@@ -65,6 +70,7 @@ def restrict_windows_directory(directory: Path) -> None:
         ["icacls", str(directory), "/inheritance:r", "/grant:r", f"*{rows[0][1]}:(OI)(CI)F"],
         check=True,
         capture_output=True,
+        creationflags=hidden_subprocess_creation_flags(),
     )
 
 

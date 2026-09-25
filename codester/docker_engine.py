@@ -13,6 +13,7 @@ from pathlib import Path
 
 import httpx
 
+from codester.subprocesses import hidden_subprocess_creation_flags
 from codester.transport import IntegrationError
 
 MAX_OUTPUT = 1_000_000
@@ -41,6 +42,7 @@ def _cli(args: list[str], *, timeout: int = TIMEOUT) -> str:
             capture_output=True,
             text=True,
             timeout=timeout,
+            creationflags=hidden_subprocess_creation_flags(),
         )
     except subprocess.TimeoutExpired as exc:
         raise IntegrationError("Docker Desktop did not respond in time.") from exc

@@ -81,6 +81,7 @@ def test_manager_builds_loopback_forward_and_stops(monkeypatch, tmp_path):
         return Process()
 
     monkeypatch.setattr("codester.tunnels.subprocess.Popen", popen)
+    monkeypatch.setattr("codester.tunnels.hidden_subprocess_creation_flags", lambda: 123)
     manager = TunnelManager(tmp_path, [tunnel()], autostart=False)
     manager.ssh = "/usr/bin/ssh"
 
@@ -93,6 +94,7 @@ def test_manager_builds_loopback_forward_and_stops(monkeypatch, tmp_path):
     assert "127.0.0.1:3417:127.0.0.1:3417" in command
     assert command[-1] == "jack@192.168.1.90"
     assert options["stdin"] is not None and options["stderr"] is not None
+    assert options["creationflags"] == 123
 
     status = manager.disconnect()
     assert status["state"] == "disconnected"

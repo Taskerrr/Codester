@@ -55,7 +55,9 @@ settings and the source Docker volume. Settings > Display includes a Startup sec
 browser-opening preferences. Save startup preferences applies them separately
 from service settings; disabling login startup leaves the current session running.
 The browser opens only after the local server is listening. Unsupported or
-uninstalled instances show a native-installer hint with disabled controls.
+uninstalled instances show a native-installer hint with disabled controls. Native
+Windows background commands run without creating visible console windows; this
+includes SSH tunnels, integration checks, repository actions and startup updates.
 
 The expanded SigNoz workspace opens a full-height Debug screen. Charts are available
 through a toggle; Home retains its compact overview. All logs and Errors shortcuts

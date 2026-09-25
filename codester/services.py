@@ -14,6 +14,7 @@ from contextlib import closing
 from io import BufferedReader
 
 from codester.store import ConfigurationError, Store
+from codester.subprocesses import hidden_subprocess_creation_flags
 from codester.tunnels import TunnelManager
 
 OUTPUT_LIMIT = 65536
@@ -345,6 +346,7 @@ class ServiceManager:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 env=environment,
+                creationflags=hidden_subprocess_creation_flags(),
             )  # noqa: S603
 
             def collect() -> None:

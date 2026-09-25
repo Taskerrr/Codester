@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from codester.store import Store
+from codester.subprocesses import hidden_subprocess_creation_flags
 from codester.transport import IntegrationError
 
 STATUS_TIMEOUT = 6
@@ -59,6 +60,7 @@ class RepositoryManager:
                 text=True,
                 timeout=timeout,
                 env=self._environment(),
+                creationflags=hidden_subprocess_creation_flags(),
             )
         except subprocess.TimeoutExpired as exc:
             raise IntegrationError("Repository command timed out.") from exc
@@ -203,6 +205,7 @@ class RepositoryManager:
                     timeout=ACTION_TIMEOUT,
                     check=False,
                     env=self._environment(),
+                    creationflags=hidden_subprocess_creation_flags(),
                 )
                 if result.returncode:
                     raise IntegrationError(f"Deploy exited with code {result.returncode}.")

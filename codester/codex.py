@@ -12,6 +12,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from codester.subprocesses import hidden_subprocess_creation_flags
 from codester.transport import IntegrationError
 
 ACTIVE_ACTIVITY_SECONDS = 180
@@ -140,6 +141,7 @@ def account_limits() -> dict:
             stderr=subprocess.DEVNULL,
             text=True,
             encoding="utf-8",
+            creationflags=hidden_subprocess_creation_flags(),
         )
     except OSError as exc:
         raise IntegrationError(

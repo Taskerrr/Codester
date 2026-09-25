@@ -47,6 +47,13 @@ pages remain accessible through their header links.
 
 ## Shipped
 
+### Quiet Windows background commands, 25 September 2026
+
+- Native Windows launches SSH, Codex, Docker, Git, PowerShell and other background
+  helpers without creating transient console windows. Saving settings, refreshing
+  integrations and connecting several tunnels no longer causes window flashes.
+- Foreground installation commands retain their console so setup failures remain visible.
+
 ### Docker port visibility, 23 September 2026
 
 - Compose members and standalone containers now show Docker-reported ports in all

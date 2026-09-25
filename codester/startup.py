@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 
 from codester.store import ConfigurationError
+from codester.subprocesses import hidden_subprocess_creation_flags
 
 LABEL = "local.codester.dashboard"
 LOCK = threading.Lock()
@@ -20,6 +21,7 @@ def powershell(script: str) -> None:
     subprocess.run(
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
         check=True,
+        creationflags=hidden_subprocess_creation_flags(),
     )
 
 

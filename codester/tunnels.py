@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from codester.store import ConfigurationError
+from codester.subprocesses import hidden_subprocess_creation_flags
 from codester.transport import IntegrationError
 
 
@@ -145,6 +146,7 @@ class TunnelManager:
             stderr=subprocess.PIPE,
             start_new_session=os.name != "nt",
             env=self._environment(config),
+            creationflags=hidden_subprocess_creation_flags(),
         )
         deadline = time.monotonic() + 15
         try:
@@ -304,6 +306,7 @@ class TunnelManager:
                 stderr=subprocess.PIPE,
                 start_new_session=os.name != "nt",
                 env=self._environment(item["config"]),
+                creationflags=hidden_subprocess_creation_flags(),
             )
             item["started"] = now
             item["message"] = ""

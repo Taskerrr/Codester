@@ -94,6 +94,21 @@ def test_windows_registration_never_starts_or_stops_current_app(installation, mo
     assert "space''s" in scripts[0]
 
 
+def test_powershell_uses_hidden_background_process(monkeypatch):
+    captured = {}
+
+    def run(command, **kwargs):
+        captured.update(command=command, **kwargs)
+
+    monkeypatch.setattr(startup.subprocess, "run", run)
+    monkeypatch.setattr(startup, "hidden_subprocess_creation_flags", lambda: 123)
+
+    startup.powershell("Write-Output 'test'")
+
+    assert captured["creationflags"] == 123
+    assert "-EncodedCommand" in captured["command"]
+
+
 @pytest.mark.parametrize("open_browser", [True, False])
 def test_browser_opens_only_after_server_is_ready(installation, monkeypatch, open_browser):
     directory, _ = installation
