@@ -49,6 +49,12 @@
     <p class="help">Uses your default browser. Turning off login startup leaves this session running.</p>
     <button type="button" id="save-startup" class="secondary-button" disabled>Save startup preferences</button>
   </fieldset>
+  <fieldset class="settings-section" id="update-settings"><legend>Codester updates</legend>
+    <p id="update-status" class="help" role="status">Checking this installation…</p>
+    <p class="help">Pulls source changes from this branch’s configured upstream. Local edits block updates. Saved settings and credentials stay on this device. Restart Codester afterwards; dependency changes may require the installer.</p>
+    <button type="button" id="check-update" class="secondary-button">Check readiness</button>
+    <button type="button" id="pull-update" class="secondary-button" disabled>Pull updates</button>
+  </fieldset>
   </section>
   <section id="settings-codex" class="settings-panel" role="tabpanel" aria-labelledby="tab-codex" tabindex="0" hidden>
   <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/codex.svg" alt=""> Codex</legend>
@@ -80,6 +86,8 @@
     <p id="signoz-test" role="status" class="test-result"></p><p id="discovery-status" role="status" class="help">Save the connection first, then find services observed in the last 24 hours.</p>
     <label>Time window<select id="signoz-window_seconds"><option value="300">Last 5 minutes</option><option value="900">Last 15 minutes</option><option value="3600">Last hour</option><option value="21600">Last 6 hours</option><option value="86400">Last 24 hours</option></select></label>
     <p class="help">Applies to measurements, requests per app, and recent errors. Refreshes every 30 seconds after each query finishes.</p>
+    <label>Home panel content<select id="signoz-home_content"><option value="overview">Overview</option><option value="recent">Latest logs</option><option value="errors">Errors only</option></select></label>
+    <p class="help">Log modes show the latest six entries and update every five seconds while the SigNoz Home panel is visible.</p>
     <h3>Measurements</h3><p class="help">Choose up to three. Totals count recorded incoming server spans, so trace sampling can reduce the counts. The app list shows up to 200 services.</p>
     {% for i in range(3) %}
     <div class="panel-config"><label class="toggle panel-toggle"><input id="panel-{{ i }}-enabled" type="checkbox" checked> {{ i + 1 }}</label>

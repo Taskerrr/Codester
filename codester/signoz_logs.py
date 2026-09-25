@@ -11,6 +11,7 @@ from codester.store import ConfigurationError, Store
 from codester.transport import IntegrationError
 
 LIMIT = 100
+HOME_LIMIT = 6
 WINDOW = 900
 WINDOWS = {300, 900, 3600, 21600, 86400}
 CACHE_LIMIT = 16
@@ -37,15 +38,19 @@ def filters_from(data: dict | None) -> dict:
     result["trace_id"] = result["trace_id"].lower()
     if result["level"] and result["level"] not in LEVELS:
         raise ConfigurationError("Choose a supported severity level.")
-    for name, default in (("seconds", WINDOW), ("offset", 0), ("end_ms", 0)):
+    for name, default in (("seconds", WINDOW), ("offset", 0), ("end_ms", 0), ("limit", LIMIT)):
         value = str(data.get(name, default))
         if not re.fullmatch(r"[0-9]{1,13}", value):
             raise ConfigurationError(f"Invalid log {name}.")
         result[name] = int(value)
     if result["seconds"] not in WINDOWS:
         raise ConfigurationError("Choose a log range between 5 minutes and 24 hours.")
+    if result["limit"] not in {HOME_LIMIT, LIMIT}:
+        raise ConfigurationError("Choose a supported log result limit.")
     if result["offset"] not in range(0, 1000, LIMIT):
         raise ConfigurationError("Browse up to 1,000 logs; narrow the filters to see more.")
+    if result["limit"] == HOME_LIMIT and result["offset"]:
+        raise ConfigurationError("The Home log preview only supports the latest results.")
     if result["offset"] and not result["end_ms"]:
         raise ConfigurationError("Older log pages require a fixed end time.")
     if result["end_ms"] and not 946684800000 <= result["end_ms"] <= int(time.time() * 1000) + 60000:
@@ -94,6 +99,27 @@ def text(value: object, limit: int) -> str:
     return rendered[:limit]
 
 
+def request_fields(row: dict) -> dict[str, str]:
+    aliases = {
+        "method": ("http.request.method", "http.method"),
+        "path": ("url.path", "http.route", "http.target"),
+        "status": ("http.response.status_code", "http.status_code"),
+    }
+    result = {}
+    for label, names in aliases.items():
+        value = next(
+            (
+                attribute(row, name, "attributes")
+                for name in names
+                if attribute(row, name, "attributes") is not None
+            ),
+            None,
+        )
+        result[label] = text(value, 240 if label == "path" else 16)
+    result["method"] = result["method"].upper()
+    return result
+
+
 def fields(row: dict) -> tuple[dict, bool]:
     """Keep resource/log fields bounded independently of the message preview."""
     result = {}
@@ -127,7 +153,7 @@ def fetch_logs(config: dict, key: str, mode: str, filters: dict | None = None) -
                 "order": [
                     {"key": {"name": field}, "direction": "desc"} for field in ("timestamp", "id")
                 ],
-                "limit": LIMIT,
+                "limit": filters["limit"],
                 "offset": filters["offset"],
             }
         ],
@@ -169,6 +195,7 @@ def fetch_logs(config: dict, key: str, mode: str, filters: dict | None = None) -
                 else "",
                 "attributes": attributes,
                 "attributes_truncated": attributes_truncated,
+                "request": request_fields(row),
             }
             severity = row.get("severity_number")
             if not normalized["severity"] and str(severity).isdigit():
@@ -183,7 +210,7 @@ def fetch_logs(config: dict, key: str, mode: str, filters: dict | None = None) -
             if identifier not in seen:
                 seen.add(identifier)
                 rows.append({"id": identifier, **normalized})
-            if len(rows) == LIMIT:
+            if len(rows) == filters["limit"]:
                 return rows
     return rows
 
@@ -207,6 +234,7 @@ def demo_rows(mode: str, filters: dict, end_ms: int) -> list[dict]:
                 "attributes.user.id": "user-42",
                 "attributes.exception.type": "TimeoutError",
             },
+            request={"method": "POST", "path": "/api/checkout", "status": "504"},
         ),
         dict(
             id="demo-info",
@@ -216,6 +244,7 @@ def demo_rows(mode: str, filters: dict, end_ms: int) -> list[dict]:
             body="Session started",
             trace_id="",
             attributes={"resources.service.name": "web"},
+            request={"method": "", "path": "", "status": ""},
         ),
     ]
     matching = []
@@ -240,7 +269,7 @@ def demo_rows(mode: str, filters: dict, end_ms: int) -> list[dict]:
                 "attributes_truncated": False,
             }
         )
-    return matching[filters["offset"] : filters["offset"] + LIMIT]
+    return matching[filters["offset"] : filters["offset"] + filters["limit"]]
 
 
 class LogFeed:
@@ -277,7 +306,7 @@ class LogFeed:
                 status="disabled",
                 message="Enable SigNoz in Settings to see logs.",
                 last_success=None,
-                limit=LIMIT,
+                limit=filters["limit"],
                 window_seconds=filters["seconds"],
                 mode=mode,
                 filters=filters,
@@ -308,7 +337,7 @@ class LogFeed:
                     "status": "connected",
                     "message": "",
                     "last_success": time.time(),
-                    "page_full": len(rows) == LIMIT,
+                    "page_full": len(rows) == filters["limit"],
                 }
                 self.failures[cache_key] = 0
             except IntegrationError as exc:

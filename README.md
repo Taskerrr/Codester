@@ -66,6 +66,14 @@ the login session's agent; passwords are stored in the OS credential vault.
 
 ### Choose startup behaviour in Settings
 
+For a native Git checkout, **Settings > Display > Codester updates** can pull
+fast-forward changes from your branch's configured upstream. Commit or review local
+edits first: this action will not stash, reset or discard them. It leaves saved
+settings and credentials alone and refuses tracked local-data paths. It updates
+source only. Restart Codester afterwards (`.venv\Scripts\python.exe -m codester.native restart`
+on Windows); if dependencies changed, rerun the native installer instead. The UI
+reports which step is needed. Packaged/copied installations use their installer.
+
 Open **Settings > Display > Startup**. Choose **Start Codester when I log in** and,
 optionally, **Open the dashboard in my browser when Codester starts**, then press
 **Save startup preferences**. These preferences save separately from service settings.
@@ -275,6 +283,8 @@ The server binds to loopback by default. Docker publishes only `127.0.0.1`. Host
 The display has a clock/launcher rail and three configurable app channels. Settings stores three unique choices and their left-to-right order. Codex, Dagster, SigNoz, GitHub, and PostgreSQL have live overview renderers; Docker has a compact container summary and a full management screen. The Linux server tile remains a metrics placeholder; its launcher opens saved service commands. Dagster spinners stop on stale connections or when reduced motion is enabled.
 
 Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s, GitHub sparklines 60s, and PostgreSQL 10s (configurable to 30s or 60s). Sparkline reads fetch only the three displayed repositories and their last 14 days of commits. Local checkout status is cached centrally for four seconds. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results. Demo data is never used as a fallback for a failed live connection.
+
+Settings > SigNoz can keep the Home overview or replace it with Latest logs or Errors only. Log modes request the newest six rows every five seconds only while the Home panel is visible. Each row shows the app, shortened user ID and structured HTTP status/method/path when supplied, falling back to severity and message. Selecting a row opens its full in-memory detail in Debug. These Home rows are not saved to SQLite and are not a lossless log stream.
 
 GitHub history and the last successful snapshot persist in the private local SQLite database.
 Saved data appears immediately after a restart, marked stale until checked. A separate history

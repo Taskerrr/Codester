@@ -15,7 +15,7 @@
   <p id="tunnel-warning" class="deck-warning tunnel-warning" role="status" hidden></p>
   <div id="overview" class="deck-layout">
     <aside class="clock-rail" aria-label="Workspace overview">
-      <button id="workspace-home" class="rail-emblem" type="button" aria-label="Home" title="Home" aria-pressed="true"><span aria-hidden="true">&lt;</span><i aria-hidden="true"></i><small>Home</small></button>
+      <button id="workspace-home" class="rail-emblem" type="button" aria-label="Home" title="Home" aria-pressed="true"><img src="{{ url_for('static', filename='codester-mark-concept.png') }}" alt=""><small>Home</small></button>
       <div class="rail-clock"><time id="clock"></time><span id="date"></span><div id="tunnel-dots" class="tunnel-dots" aria-label="SSH tunnels" hidden></div></div>
       <nav class="deck-buttons" aria-label="App workspaces">
         <button class="deck-button codex" data-app="codex" type="button" aria-label="Codex" title="Codex"><img src="{{ url_for('static', filename='codex.svg') }}" alt=""></button>
@@ -55,7 +55,7 @@
     {% endfor %}
     {% include 'sql_workspace.html' %}
   </div>
-  <div id="panel-picker" class="panel-picker" role="dialog" aria-label="Replace panel" hidden><strong>Show on Home</strong><div id="panel-picker-options"></div><p id="panel-picker-error" role="alert"></p><button id="panel-picker-close" type="button" class="quiet-button">Close</button></div>
+  <div id="panel-picker" class="panel-picker" role="dialog" aria-label="Replace panel" hidden><div id="panel-picker-options"></div><p id="panel-picker-error" role="alert"></p><button id="panel-picker-close" type="button" class="quiet-button">Close</button></div>
   <div id="tunnel-popover" class="tunnel-popover" role="dialog" aria-labelledby="tunnel-popover-name" hidden>
     <div class="tunnel-list-heading"><strong id="tunnel-popover-name">SSH tunnels</strong>
       <button id="tunnels" class="tunnel-toggle" type="button" role="switch" data-state="loading" aria-checked="false" aria-label="Connect all SSH tunnels"><span class="tunnel-label" aria-hidden="true">All</span><span class="tunnel-track" aria-hidden="true"><span class="tunnel-knob"></span></span></button>

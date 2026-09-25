@@ -1,8 +1,8 @@
 import {$, api, escape as e, duration, ago, compactTime} from './common.js';
-import {applyWorkspaceLayout, activeWorkspace, currentLayout, layoutEpoch} from './workspaces.js';
+import {applyWorkspaceLayout, activeWorkspace, currentLayout, layoutEpoch, navigate} from './workspaces.js';
 import {DockerGroups} from './docker-groups.js';
 import {GitHubUpdates} from './github-updates.js';
-import './signoz-logs.js';
+import {openHomeLog} from './signoz-logs.js';
 
 let latest;
 let snapshotReceivedAt = 0;
@@ -27,6 +27,11 @@ let tunnelLoading = false;
 let tunnelMutation = 0;
 let repositoryOperations = new Map();
 let repositoriesLoading = false;
+let signozHomeLogs;
+let signozHomeMode = 'overview';
+let signozHomeLoading = false;
+let signozHomeTimer;
+let pendingHomeLog;
 const githubUpdates = new GitHubUpdates(redrawGithub, () => activeWorkspace() === 'github');
 function redrawGithub() {
   const target = $('#github-content');
@@ -147,7 +152,41 @@ function reading(panel, fallbackLabel) {
   return ring({value, label: panel.unit, detail: panel.label, live: true});
 }
 
-function signoz(data) {
+function shortUser(value) {
+  const user = String(value || '');
+  return user.length > 14 ? `${user.slice(0, 6)}â€¦${user.slice(-4)}` : user;
+}
+
+function signozHomeFeed(data, mode) {
+  const title = mode === 'errors' ? 'Latest errors' : 'Latest logs';
+  if (!data) {
+    return `${sectionHeading(title, 'Connecting')}
+      <div class="home-log-list" aria-label="${e(title)}">${Array.from({length:6}, () => '<span class="home-log-skeleton" aria-hidden="true"></span>').join('')}</div>`;
+  }
+  const healthy = ['connected', 'demo'].includes(data.status);
+  const freshness = data.last_success ? `${data.status === 'stale' ? 'Stale Â· ' : data.status === 'demo' ? 'Demo Â· ' : 'Live Â· '}${ago(data.last_success)}` : data.status === 'disabled' ? 'Not connected' : 'Unavailable';
+  const rows = data.rows.map(row => {
+    const request = row.request || {};
+    const message = String(row.body || '').split('\n')[0] || '(empty message)';
+    const requestText = [request.method, request.path].filter(Boolean).join(' ') || message;
+    const signal = request.status || row.severity || 'LOG';
+    const numericStatus = Number(request.status);
+    const problem = ['ERROR','FATAL','CRITICAL'].includes(String(row.severity).toUpperCase()) || (Number.isFinite(numericStatus) && numericStatus >= 400);
+    const app = row.app || 'Unknown app';
+    const user = shortUser(row.user_id);
+    const label = [compactTime(row.timestamp), app, row.user_id ? `user ${row.user_id}` : '', signal, requestText].filter(Boolean).join(', ');
+    return `<button class="home-log-row ${problem ? 'is-error' : ''}" type="button" data-home-log-id="${e(row.id)}" data-id="${e(row.id)}" aria-label="${e(label)}">
+      <span class="home-log-meta"><time>${e(compactTime(row.timestamp))}</time><strong title="${e(app)}">${e(app)}</strong>${user ? `<span class="home-log-user" title="${e(row.user_id)}">${e(user)}</span>` : ''}</span>
+      <span class="home-log-request"><b>${e(signal)}</b><span title="${e(requestText)}">${e(requestText)}</span></span>
+    </button>`;
+  }).join('');
+  const emptyMessage = healthy ? (mode === 'errors' ? 'No recent errors' : 'No recent logs') : data.message || 'Logs unavailable';
+  return `${sectionHeading(title, freshness)}
+    <div class="home-log-list" aria-label="${e(title)}">${rows || empty(emptyMessage)}</div>`;
+}
+
+function signoz(data, homeContent = 'overview', homeLogs = undefined) {
+  if (activeWorkspace() === 'home' && homeContent !== 'overview') return signozHomeFeed(homeLogs, homeContent);
   const panels = data.panels || [];
   const requestRate = panels.find(panel => panel.metric === 'request_count') || selectPanel(panels, 'request_rate', 0);
   const latency = selectPanel(panels, 'p95', requestRate === panels[0] ? 1 : 0);
@@ -249,6 +288,50 @@ function postgres(data) {
 }
 const renderers = {codex, dagster, signoz, github, postgres};
 
+function signozHomeVisible() {
+  return activeWorkspace() === 'home' && !document.hidden && currentLayout().includes('signoz') && signozHomeMode !== 'overview';
+}
+
+function redrawSignozHome() {
+  if (!latest || !signozHomeVisible()) return;
+  const target = $('#signoz-content');
+  const focusedId = target.contains(document.activeElement) ? document.activeElement.dataset.id : null;
+  const scrollTop = target.scrollTop;
+  renderMetrics(target, signoz(latest.services.signoz.data || {}, signozHomeMode, signozHomeLogs));
+  target.scrollTop = scrollTop;
+  if (focusedId) target.querySelector(`[data-id="${CSS.escape(focusedId)}"]`)?.focus({preventScroll:true});
+}
+
+async function refreshSignozHome() {
+  clearTimeout(signozHomeTimer);
+  if (!signozHomeVisible()) {
+    signozHomeTimer = setTimeout(refreshSignozHome, 5000);
+    return;
+  }
+  if (signozHomeLoading) return;
+  signozHomeLoading = true;
+  const requestedMode = signozHomeMode;
+  try {
+    const params = new URLSearchParams({mode:requestedMode, seconds:'900', limit:'6'});
+    const data = await api(`/api/signoz/logs?${params}`, {timeout:20000});
+    if (requestedMode !== signozHomeMode || !signozHomeVisible()) return;
+    signozHomeLogs = data;
+    redrawSignozHome();
+  } catch (error) {
+    if (requestedMode === signozHomeMode && signozHomeVisible()) {
+      signozHomeLogs = {
+        ...(signozHomeLogs || {rows:[], last_success:null, mode:requestedMode}),
+        status:signozHomeLogs?.last_success ? 'stale' : 'error',
+        message:`Logs unavailable. ${error.message}`,
+      };
+      redrawSignozHome();
+    }
+  } finally {
+    signozHomeLoading = false;
+    signozHomeTimer = setTimeout(refreshSignozHome, 5000);
+  }
+}
+
 function bytes(value) {
   if (!Number.isFinite(Number(value))) return '—';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -325,6 +408,11 @@ async function controlRepository(button) {
 
 function render(snapshot) {
   const layout = snapshot.layout || ['codex', 'dagster', 'signoz'];
+  const nextSignozHomeMode = ['recent', 'errors'].includes(snapshot.signoz_home_content) ? snapshot.signoz_home_content : 'overview';
+  if (nextSignozHomeMode !== signozHomeMode) {
+    signozHomeMode = nextSignozHomeMode;
+    signozHomeLogs = undefined;
+  }
   applyWorkspaceLayout(layout);
   for (const [name, state] of Object.entries(snapshot.services)) {
     if (name === 'codex' && state.data && liveCodexActivity) {
@@ -352,7 +440,9 @@ function render(snapshot) {
     const focusedId = target.contains(active) ? active.dataset.id : null;
     const scrollTop = target.scrollTop;
     renderMetrics(target, state.data
-      ? renderers[name](state.data)
+      ? name === 'signoz'
+        ? signoz(state.data, signozHomeMode, signozHomeLogs)
+        : renderers[name](state.data)
       : state.status === 'loading'
         ? spinner('Loading')
         : empty(state.status === 'disabled' ? 'Not connected' : 'No data') + '<a class="connect-link" href="/settings">Connect ↗</a>');
@@ -364,6 +454,10 @@ function render(snapshot) {
   }
   if (layout.includes('docker') || activeWorkspace() === 'docker') refreshDockerPanel();
   if (layout.includes('github') || activeWorkspace() === 'github') refreshGithubRepositories();
+  if (signozHomeVisible()) {
+    clearTimeout(signozHomeTimer);
+    signozHomeTimer = setTimeout(refreshSignozHome, signozHomeLogs ? 5000 : 0);
+  }
 }
 
 function updateRefreshIndicators() {
@@ -463,6 +557,12 @@ async function openDetail(button) {
 }
 
 $('#overview').addEventListener('click', event => {
+  const homeLog = event.target.closest('[data-home-log-id]');
+  if (homeLog && signozHomeLogs) {
+    pendingHomeLog = {data:signozHomeLogs, identifier:homeLog.dataset.homeLogId};
+    navigate('signoz');
+    return;
+  }
   const repositoryButton = event.target.closest('[data-repository-action]');
   if (repositoryButton && !repositoryButton.disabled) {
     controlRepository(repositoryButton);
@@ -475,10 +575,18 @@ $('#overview').addEventListener('click', event => {
 document.addEventListener('workspacechange', () => {
   detailController = null;
   $('#overview').classList.remove('detail-open');
+  if (activeWorkspace() === 'signoz' && pendingHomeLog) {
+    openHomeLog(pendingHomeLog.data, pendingHomeLog.identifier);
+    pendingHomeLog = undefined;
+  }
+  clearTimeout(signozHomeTimer);
+  signozHomeTimer = setTimeout(refreshSignozHome, 0);
   if (latest) render(latest);
 });
 document.addEventListener('layoutchange', event => {
   if (latest) { latest.layout = event.detail; render(latest); }
+  clearTimeout(signozHomeTimer);
+  signozHomeTimer = setTimeout(refreshSignozHome, 0);
 });
 
 function back() {
@@ -537,11 +645,13 @@ function updateTunnelPopover() {
     }
     row.querySelector('strong').textContent = tunnel.name;
     row.querySelector('small').textContent = tunnelStatusAvailable
-      ? `${tunnelNames[tunnel.state] || tunnel.state} / localhost:${tunnel.local_port}${tunnel.message ? ` / ${tunnel.message}` : ''}`
+      ? `${tunnel.ssh_host || 'SSH host unavailable'}${tunnel.message ? ` / ${tunnel.message}` : ''}`
       : 'Status unavailable';
+    row.querySelector('small').title = `localhost:${tunnel.local_port} → ${tunnel.remote_host || 'remote'}:${tunnel.remote_port || '?'} via ${tunnel.ssh_host || 'SSH'}`;
     const toggle = row.querySelector('button');
     toggle.dataset.id = tunnel.id;
     toggle.dataset.state = tunnelStatusAvailable ? tunnel.state : 'unknown';
+    toggle.setAttribute('aria-busy', String(['connecting', 'reconnecting'].includes(toggle.dataset.state)));
     toggle.setAttribute('aria-checked', String(Boolean(tunnel.desired)));
     toggle.setAttribute('aria-label', `${tunnel.name}: ${tunnelStatusAvailable ? tunnelNames[tunnel.state] || tunnel.state : 'Status unavailable'}`);
     toggle.setAttribute('aria-disabled', String(tunnelLoading || !tunnelStatusAvailable));
@@ -633,6 +743,7 @@ $('#tunnel-list').addEventListener('click', async event => {
   tunnelLoading = true;
   tunnelMutation += 1;
   updateTunnelPopover();
+  toggle.dataset.state = 'connecting';
   try {
     const action = tunnel.desired ? 'disconnect' : 'connect';
     showTunnelStatus(await api(`/api/tunnels/${encodeURIComponent(tunnel.id)}/${action}`, {method:'POST', timeout:15000}));
@@ -662,10 +773,11 @@ function showTunnelStatus(data) {
     error:'Retry SSH tunnels',
   };
   const label = labels[data.state] || 'SSH tunnel error';
-  button.dataset.state = data.state;
-  button.setAttribute('aria-label', label);
+  const connecting = data.tunnels?.some(tunnel => ['connecting', 'reconnecting'].includes(tunnel.state));
+  button.dataset.state = connecting ? 'connecting' : data.state;
+  button.setAttribute('aria-busy', String(Boolean(connecting)));
   button.setAttribute('aria-checked', String(Boolean(count && data.tunnels.every(tunnel => tunnel.desired))));
-  button.setAttribute('aria-label', count && data.tunnels.every(tunnel => tunnel.desired) ? 'Disconnect all SSH tunnels' : 'Connect all SSH tunnels');
+  button.setAttribute('aria-label', connecting ? 'SSH tunnels connecting. Disconnect all SSH tunnels' : label);
   const problem = data.tunnels?.find(tunnel => tunnel.message)?.message;
   $('#tunnel-warning').hidden = !problem;
   $('#tunnel-warning').textContent = problem ? `SSH · ${problem}` : '';

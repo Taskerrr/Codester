@@ -16,6 +16,23 @@ def test_signoz_window_is_saved(tmp_path, seconds):
     assert Store(tmp_path).read()["signoz"]["window_seconds"] == seconds
 
 
+@pytest.mark.parametrize("content", ["overview", "recent", "errors"])
+def test_signoz_home_content_is_saved(tmp_path, content):
+    store = Store(tmp_path)
+    config = store.read()
+    config["signoz"]["home_content"] = content
+    store.save(config)
+    assert Store(tmp_path).read()["signoz"]["home_content"] == content
+
+
+@pytest.mark.parametrize("content", [None, True, "all", "", 6])
+def test_invalid_signoz_home_content_is_rejected(content):
+    config = copy.deepcopy(DEFAULTS)
+    config["signoz"]["home_content"] = content
+    with pytest.raises(ConfigurationError, match="SigNoz Home"):
+        validate(config)
+
+
 @pytest.mark.parametrize("seconds", [True, 0, -1, 100, "3600", None])
 def test_invalid_signoz_window_is_rejected(seconds):
     config = copy.deepcopy(DEFAULTS)
@@ -196,9 +213,7 @@ def test_tunnel_settings_and_controls(app, client, monkeypatch):
     assert client.get("/api/tunnels").status_code == 200
     assert client.post("/api/tunnels/connect", headers=csrf(client)).json["desired"] is True
     assert client.post("/api/tunnels/disconnect", headers=csrf(client)).json["desired"] is False
-    response = client.post(
-        "/api/tunnels/1234567890abcdef/test", headers=csrf(client)
-    )
+    response = client.post("/api/tunnels/1234567890abcdef/test", headers=csrf(client))
     assert response.json["ok"] is True
     assert client.post("/api/tunnels/not-valid/test", headers=csrf(client)).status_code == 404
 
@@ -236,14 +251,13 @@ def test_docker_page_and_controls(app, client, monkeypatch):
     assert response.json["running"] == 1 and response.json["total"] == 1
     assert response.json["memory_used"] == 128
     assert response.json["memory_limit"] == 1024
-    response = client.post(
-        f"/api/docker/containers/{'a' * 64}/stop", headers=csrf(client)
-    )
+    response = client.post(f"/api/docker/containers/{'a' * 64}/stop", headers=csrf(client))
     assert response.status_code == 200
     assert actions == [("a" * 64, "stop")]
-    assert client.post(
-        f"/api/docker/containers/{'a' * 64}/remove", headers=csrf(client)
-    ).status_code == 404
+    assert (
+        client.post(f"/api/docker/containers/{'a' * 64}/remove", headers=csrf(client)).status_code
+        == 404
+    )
 
 
 def test_private_permissions(tmp_path):
@@ -273,29 +287,38 @@ def test_service_discovery_uses_saved_real_connection(app, client, monkeypatch):
 def test_individual_tunnel_controls_require_csrf_and_valid_action(app, client, monkeypatch):
     manager = app.extensions["tunnel_manager"]
     calls = []
-    monkeypatch.setattr(manager, "connect", lambda identifier: calls.append(identifier) or {"ok": True})
+    monkeypatch.setattr(
+        manager, "connect", lambda identifier: calls.append(identifier) or {"ok": True}
+    )
     path = "/api/tunnels/1234567890abcdef/connect"
     assert client.post(path).status_code == 403
     assert not calls
     assert client.post(path, headers=csrf(client)).status_code == 200
     assert calls == ["1234567890abcdef"]
-    assert client.post("/api/tunnels/1234567890abcdef/delete", headers=csrf(client)).status_code == 404
+    assert (
+        client.post("/api/tunnels/1234567890abcdef/delete", headers=csrf(client)).status_code == 404
+    )
     assert client.post("/api/tunnels/invalid/connect", headers=csrf(client)).status_code == 404
 
 
 def test_docker_project_api_membership_and_csrf(client, monkeypatch):
     calls = []
-    project_id = 'a' * 64
-    member_id = 'b' * 64
+    project_id = "a" * 64
+    member_id = "b" * 64
+
     def control(project, action, members):
         calls.append((project, action, members))
-        return {'ok':True, 'message':'Stop requested.'}
-    monkeypatch.setattr('codester.docker_engine.control_project', control)
-    path = f'/api/docker/projects/{project_id}/stop'
-    assert client.post(path, json={'container_ids':[member_id]}).status_code == 403
-    assert client.post(path, json={'container_ids':[member_id]}, headers=csrf(client)).json['ok']
-    assert calls == [(project_id,'stop',[member_id])]
-    assert client.post(f'/api/docker/projects/{project_id}/remove', headers=csrf(client)).status_code == 404
+        return {"ok": True, "message": "Stop requested."}
+
+    monkeypatch.setattr("codester.docker_engine.control_project", control)
+    path = f"/api/docker/projects/{project_id}/stop"
+    assert client.post(path, json={"container_ids": [member_id]}).status_code == 403
+    assert client.post(path, json={"container_ids": [member_id]}, headers=csrf(client)).json["ok"]
+    assert calls == [(project_id, "stop", [member_id])]
+    assert (
+        client.post(f"/api/docker/projects/{project_id}/remove", headers=csrf(client)).status_code
+        == 404
+    )
     assert client.post(path, json=[], headers=csrf(client)).status_code == 400
 
 
@@ -312,9 +335,11 @@ def test_running_dagster_job_details(app, client, monkeypatch):
     config["demo"] = False
     app.extensions["store"].save(config)
     called = []
+
     def detail(config, identifier):
         called.append(identifier)
         return {"title": "Run " + identifier, "text": "Processing", "url": "", "note": ""}
+
     monkeypatch.setattr("codester.app.dagster.detail", detail)
     assert client.get("/api/errors/dagster/r1").status_code == 200
     assert called == ["r1"]

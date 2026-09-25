@@ -29,6 +29,7 @@ DEFAULTS: dict = {
         "browser_url": "",
         "error_service": "",
         "window_seconds": 3600,
+        "home_content": "overview",
         "panels": [{"service": "", "metric": m} for m in ["request_count", "error_rate", "p95"]],
     },
     "github": {
@@ -39,9 +40,19 @@ DEFAULTS: dict = {
         "repositories": [],
     },
     "tunnels": [],
-    "postgres": {"enabled": False, "host": "127.0.0.1", "port": 5432, "database": "", "username": "", "sslmode": "require", "sslrootcert": "", "refresh_seconds": 10},
+    "postgres": {
+        "enabled": False,
+        "host": "127.0.0.1",
+        "port": 5432,
+        "database": "",
+        "username": "",
+        "sslmode": "require",
+        "sslrootcert": "",
+        "refresh_seconds": 10,
+    },
 }
 SIGNOZ_WINDOWS = {300: "5 min", 900: "15 min", 3600: "1 hour", 21600: "6 hours", 86400: "24 hours"}
+SIGNOZ_HOME_CONTENT = frozenset({"overview", "recent", "errors"})
 METRICS = {
     "request_count": "Total requests",
     "request_rate": "Request rate",
@@ -201,7 +212,13 @@ def validate(data: object) -> dict:
     if type(port) is not int or not 1 <= port <= 65535:
         raise ConfigurationError("Use a PostgreSQL port from 1 to 65535.")
     sslmode = pg.get("sslmode", "require")
-    if not isinstance(sslmode, str) or sslmode not in {"disable", "prefer", "require", "verify-ca", "verify-full"}:
+    if not isinstance(sslmode, str) or sslmode not in {
+        "disable",
+        "prefer",
+        "require",
+        "verify-ca",
+        "verify-full",
+    }:
         raise ConfigurationError("Choose a supported PostgreSQL TLS mode.")
     interval = pg.get("refresh_seconds", 10)
     if type(interval) is not int or interval not in {10, 30, 60}:
@@ -211,6 +228,10 @@ def validate(data: object) -> dict:
     if type(window) is not int or window not in SIGNOZ_WINDOWS:
         raise ConfigurationError("Choose a supported SigNoz time window.")
     result["signoz"]["window_seconds"] = window
+    home_content = data["signoz"].get("home_content", "overview")
+    if not isinstance(home_content, str) or home_content not in SIGNOZ_HOME_CONTENT:
+        raise ConfigurationError("Choose Overview, Latest logs or Errors only for SigNoz Home.")
+    result["signoz"]["home_content"] = home_content
     panels = data["signoz"].get("panels", [])
     if not isinstance(panels, list) or len(panels) > 3:
         raise ConfigurationError("Choose up to three SigNoz measurements.")
@@ -252,7 +273,12 @@ def validate(data: object) -> dict:
         if path and not Path(path).is_absolute():
             raise ConfigurationError("Repository checkout paths must be absolute.")
         update = {}
-        for field, limit in {"update_host_id": 64, "update_path": 1024, "update_script": 8000, "update_script_file": 1024}.items():
+        for field, limit in {
+            "update_host_id": 64,
+            "update_path": 1024,
+            "update_script": 8000,
+            "update_script_file": 1024,
+        }.items():
             value = repository.get(field, "")
             if not isinstance(value, str) or len(value) > limit or "\x00" in value:
                 raise ConfigurationError(f"Invalid repository {field}.")
@@ -272,15 +298,20 @@ def validate(data: object) -> dict:
         script_file = update["update_script_file"]
         if script_file and (
             script_file.startswith(("/", "-"))
-            or "\\" in script_file or ":" in script_file
+            or "\\" in script_file
+            or ":" in script_file
             or any(part in {"", ".", ".."} for part in script_file.split("/"))
             or any(ord(character) < 32 for character in script_file)
         ):
-            raise ConfigurationError("Use a script path relative to the checkout, such as scripts/deploy.sh.")
+            raise ConfigurationError(
+                "Use a script path relative to the checkout, such as scripts/deploy.sh."
+            )
         script_field = "update_script_file" if mode == "script" else "update_script"
         if any(update[field] for field in ("update_host_id", "update_path", script_field)):
             if not all(update[field] for field in ("update_host_id", "update_path", script_field)):
-                raise ConfigurationError("Repository updates need an SSH connection, folder and script.")
+                raise ConfigurationError(
+                    "Repository updates need an SSH connection, folder and script."
+                )
             if not update["update_path"].startswith("/"):
                 raise ConfigurationError("Use an absolute server folder for repository updates.")
             if not any(
@@ -398,7 +429,9 @@ class Store:
                 legacy = [(name, value) for name, value in rows if not value.startswith(PREFIX)]
                 if legacy:
                     if not key_path.exists():
-                        raise CredentialStoreError("The legacy credential encryption key is missing.")
+                        raise CredentialStoreError(
+                            "The legacy credential encryption key is missing."
+                        )
                     old_cipher = Fernet(key_path.read_bytes())
                     for name, value in legacy:
                         db.execute(
@@ -412,7 +445,9 @@ class Store:
                 key_path.unlink()
         else:
             with closing(sqlite3.connect(self.path)) as db, db:
-                if any(value.startswith(PREFIX) for (value,) in db.execute("SELECT value FROM secrets")):
+                if any(
+                    value.startswith(PREFIX) for (value,) in db.execute("SELECT value FROM secrets")
+                ):
                     raise CredentialStoreError(
                         "This installation uses OS credentials. Start with native storage; "
                         "it cannot be downgraded to file storage automatically."
@@ -467,6 +502,7 @@ class Store:
         data["github"].setdefault("repositories", [])
         data["github"].setdefault("organization", "")
         data["signoz"].setdefault("window_seconds", 3600)
+        data["signoz"].setdefault("home_content", "overview")
         for tunnel in data["tunnels"]:
             tunnel.setdefault("id", tunnel_identifier(tunnel))
             tunnel.setdefault("auth", "agent")
@@ -610,7 +646,10 @@ class Store:
             if pg_clear:
                 db.execute("DELETE FROM secrets WHERE name='postgres'")
             elif pg_password:
-                db.execute("INSERT OR REPLACE INTO secrets VALUES ('postgres', ?)", (self.cipher.encrypt(pg_password.encode()),))
+                db.execute(
+                    "INSERT OR REPLACE INTO secrets VALUES ('postgres', ?)",
+                    (self.cipher.encrypt(pg_password.encode()),),
+                )
             db.execute("UPDATE settings SET value=? WHERE id=1", (json.dumps(settings),))
             if clear:
                 db.execute("DELETE FROM secrets WHERE name='signoz'")

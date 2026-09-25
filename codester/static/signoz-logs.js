@@ -117,6 +117,21 @@ function showDetail(row) {
   updateStatus();
   $('#logs-detail-title').focus({preventScroll:true});
 }
+export function openHomeLog(data, identifier) {
+  const row = data?.rows?.find(item => item.id === identifier);
+  if (!row) return;
+  filters = {...defaults};
+  mode = data.mode === 'errors' ? 'errors' : 'recent';
+  offset = 0;
+  end = 0;
+  revision += 1;
+  snapshot = data;
+  syncMode();
+  form.reset();
+  $('#logs-filter-state').textContent = '';
+  closeDetail();
+  showDetail(row);
+}
 async function refresh(manual = false) {
   clearTimeout(timer);
   if (busy) { queued ||= manual; return; }

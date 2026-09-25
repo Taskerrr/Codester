@@ -42,7 +42,7 @@ function selectWorkspace(name) {
   applyWorkspaceLayout();
   document.dispatchEvent(new CustomEvent('workspacechange', {detail:selected}));
 }
-function navigate(name) {
+export function navigate(name) {
   const hash = name === 'home' ? '#home' : `#workspace/${name}`;
   if (location.hash === hash) selectWorkspace(name);
   else location.hash = hash;
@@ -63,11 +63,9 @@ function openPicker(trigger) {
   pickerTrigger = trigger;
   trigger.setAttribute('aria-expanded', 'true');
   $('#panel-picker-error').textContent = '';
-  $('#panel-picker-options').innerHTML = Object.entries(labels).map(([name,label]) => {
-    const current = name === trigger.dataset.picker;
-    const occupied = homeLayout.includes(name) && !current;
+  $('#panel-picker-options').innerHTML = Object.entries(labels).filter(([name]) => !homeLayout.includes(name)).map(([name,label]) => {
     const icon = $(`.deck-buttons [data-app="${name}"]`).innerHTML;
-    return `<button type="button" data-replace="${name}" ${occupied || current ? 'disabled' : ''}>${icon}<span>${e(label)}</span><small>${occupied ? 'Already shown' : current ? 'Current' : ''}</small></button>`;
+    return `<button type="button" data-replace="${name}">${icon}<span>${e(label)}</span></button>`;
   }).join('');
   const popup = $('#panel-picker');
   popup.hidden = false;

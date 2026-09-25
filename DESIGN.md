@@ -4,9 +4,11 @@ Settings uses labelled icon tabs for Display, Codex, Dagster, SigNoz, GitHub, Do
 
 The dashboard is a full-height ultrawide instrument display with a narrow clock/launcher rail on the left and three configurable app channels. There is no dashboard header, marketing text, or freshness footer. Settings sits beside fullscreen at the bottom of the overview rail.
 
+Codester uses the transparent `codester-mark-concept.png` angular C and lightning mark. The PNG is the browser favicon, accompanies the wordmark on utility pages, and identifies Home in the dashboard rail. The SVG alternative is retained but is not displayed.
+
 The rail's Home button returns to the three selected channels. Each launcher opens its app across the content area and indicates the selected workspace; the clock, SSH controls and rail remain visible. Home selections are independent of workspace navigation. Apps initially expand their existing overview content, with PostgreSQL providing the first dedicated workspace. Error details also retain the rail. Browser back/forward follows workspace navigation.
 
-On Home, each channel's heading icon opens a compact app picker containing icons and names. Choosing an app replaces that slot and saves the existing layout configuration, also used by Settings. Already shown apps and the current app are disabled and labelled. The picker supports touch, keyboard navigation, visible focus, Escape, and outside-click dismissal.
+On Home, each channel's heading icon opens a compact app picker containing only unused apps, with icon and name and a Close action at the bottom. Choosing an app replaces that slot and saves the existing layout configuration, also used by Settings. The picker supports touch, keyboard navigation, visible focus, Escape, and outside-click dismissal.
 
 The PostgreSQL workspace puts Query and Activity & locks tabs beside its heading, with a single connection dropdown for selecting, adding and editing connections. With no saved connections it reads New connection. The selected option shows name, environment and database; its tooltip includes the endpoint and username. A full-width, single-line SQL bar grows with content up to ten lines (capped at 35% of viewport height on short displays), leaving the remaining height for results. Read/write is always enabled; Play executes directly without a mode selector or separate confirmation. The green play icon becomes a red pause icon that requests cancellation, with elapsed time beside it. Empty results show no instructional copy. Results preserve duplicate column names, distinguish NULL from empty text, escape content, and report row count and preview truncation. Drafts, results and duration remain in browser memory per connection while switching workspaces; they are not persistent query history. Activity & locks uses the selected connection with the existing session confirmation controls. New/Edit connection opens an inline form; passwords are never returned. The monitoring connection is offered when configured and is edited through Settings.
 
@@ -24,16 +26,29 @@ Service commands use a dedicated two-column screen: service names on the left, n
 
 PostgreSQL has a connection form in its Settings tab and a dedicated activity page with Queries and Blocking locks tabs. The dashboard shows real active/waiting counts and SQL previews. Use text and count summaries, not percentage rings without a denominator. Blocking rows identify waiter and blocker explicitly; prepared transactions have no session action. Cancel query and End session are distinct, require a confirmation naming the PID, and disable for stale/demo readings or missing role privileges. The full page keeps its heading, summary and tabs fixed while the activity list scrolls.
 
-Docker uses collapsed Compose project rows in the Home panel, shared workspace and standalone Docker page. Each row shows the project name and running/total count; expansion reveals component service names, container names/images and live status. Expanded rows and keyboard focus survive refreshes. Small, borderless play/pause icons control all existing components, with both icons available for partial projects. Play starts and pause requests a graceful stop; accessible labels and tooltips name the actual action. Icons are 16px inside 44px touch targets. Project status is a compact count pill, such as 1/2, beside the name on the same line. Desktop panels share summary and list-row heights so their tables align; header icons have consistent sizing. Docker action feedback sits below the list to preserve its starting position. Uptime uses compact units such as 4m or 2h; full status is available in tooltips, while exit codes and unhealthy states remain visible. Stop asks for a second tap within five seconds with an inline message naming the project. Standalone containers and one-off jobs remain separate. Failures identify the affected components and persist through polling. Projects containing Codester have disabled controls. Opening a group never starts or stops anything.
+Docker uses collapsed Compose project rows in the Home panel, shared workspace and standalone Docker page. Expanded rows and keyboard focus survive refreshes. Small, borderless play/pause icons control all existing components, with both icons available for partial projects. Play starts and pause requests a graceful stop; accessible labels and tooltips name the actual action. Icons are 16px inside 44px touch targets. Desktop panels share summary and list-row heights so their tables align; header icons have consistent sizing. Docker action feedback sits below the list to preserve its starting position. Full container status, image and name remain available in tooltips. Stop asks for a second tap within five seconds with an inline message naming the project. Standalone containers and one-off jobs remain separate. Failures identify the affected components and persist through polling. Projects containing Codester have disabled controls. Opening a group never starts or stops anything.
 
 The embedded Activity & locks view reuses the workspace heading; only the standalone PostgreSQL activity page renders its own title and logo. Database and freshness information remain available in both views.
 
-Docker component rows show port mappings beneath the container/image names;
-standalone containers show them beneath their heading. The same renderer is used
-on Home, in the workspace and on the standalone page. Mappings read host address
-and port → container port/protocol, preserving IPv4/IPv6 bindings. Exposed ports
-without a published binding are labelled internal; an empty list reads Ports not
-reported. Ports remain plain text because a published port need not serve HTTP.
+Docker rows use name, ports, RAM and controls on a single line, with no count pills
+or second-line port text. Compose rows aggregate ports and RAM; expansion reveals
+member names, ports, RAM and status dots. Unknown RAM displays a dash, not zero.
+Published host ports are deduplicated; full mappings and status remain available
+in accessible labels and tooltips. Internal ports are labelled. Ports remain text
+because a published port need not serve HTTP. Stop/pause controls are red.
+
+SSH switches become spinners during connecting/reconnecting, including the All
+switch while any tunnel is connecting. Reduced motion keeps the indicator static.
+The row subtitle shows the SSH server address, not a redundant Connected label;
+hover exposes the full local-to-remote mapping. Errors remain visible and status
+remains available to assistive technology.
+
+Settings > Display > Codester updates offers a source-only fast-forward update
+from the current branch's configured upstream, for native Git checkouts. Dirty,
+untracked or diverged checkouts and protected data paths block changes. It never
+stashes, resets, cleans or writes credentials/settings. Updates require a restart;
+dependency changes prompt the user to rerun the installer. No automatic update or
+restart occurs, and demo mode cannot pull. Other installation types use installers.
 
 The GitHub workspace adds a compact Update button beside each configured repository. Settings > GitHub > Repository actions selects an existing SSH connection, absolute server folder, multiline script and optional confirmation. Local checkout actions remain in a separate disclosure. A remote-only repository needs no local checkout or GitHub monitoring connection; configured repositories stay visible alongside recent repositories. Update runs the saved script directly using the SSH identity, independently of port forwarding. The button disables during execution and shows Updating with elapsed seconds. A Finished, Failed or Unknown indicator expands the exact script, target, timestamp and escaped output inline; expansion and log scroll position survive polling. Results persist through reloads. Demo mode disables execution, and changed target/script revisions require a fresh review. Command completion does not claim verified deployment health.
 
@@ -80,6 +95,15 @@ Draft filters, applied filters and paused state survive workspace switches in me
 Loading, empty, demo, stale and unavailable states remain distinct. Same-search stale
 results are retained; changed searches never reuse another filter's rows. Log reads
 remain independent of trace charts. Message and attribute truncation is labelled.
+
+Settings can replace the SigNoz Home overview with Latest logs or Errors only while
+leaving Overview as the existing default. Log modes request only the newest six rows
+and refresh every five seconds while Home, the browser and the SigNoz panel are visible.
+Rows prefer structured HTTP status, method and path, falling back to severity and the
+first message line. They show app and a shortened user ID; the full ID remains available
+to assistive technology, hover and detail. Selecting a row opens that exact in-memory
+entry in Debug and pauses its live view. Home preserves stale rows but does not persist
+log content locally.
 
 Dagster job and error labels display underscores as spaces, retaining the exact
 job name in hover text. Recent job rows, including running and queued jobs, open

@@ -26,6 +26,7 @@ from codester.startup import save_startup, startup_status
 from codester.store import METRICS, ConfigurationError, Store
 from codester.transport import IntegrationError
 from codester.tunnels import TunnelManager
+from codester.updates import SourceUpdater
 
 
 def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Flask:
@@ -39,6 +40,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     repository_manager = RepositoryManager(store)
     service_manager = ServiceManager(store, tunnel_manager)
     sql_workspace = SQLWorkspace(store)
+    source_updater = SourceUpdater(Path(__file__).resolve().parent.parent, store.path.parent)
     token = secrets.token_urlsafe(32)
     docker_lock = threading.Lock()
     app.extensions.update(
@@ -142,6 +144,16 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     @app.get("/api/startup")
     def startup_read():
         return jsonify(startup_status(store.path.parent))
+
+    @app.get("/api/updates")
+    def updates_read():
+        return jsonify(source_updater.status())
+
+    @app.post("/api/updates/pull")
+    def updates_pull():
+        if store.read()["demo"]:
+            raise ConfigurationError("Turn off demo mode before updating Codester.")
+        return jsonify(source_updater.pull())
 
     @app.put("/api/startup")
     def startup_save():

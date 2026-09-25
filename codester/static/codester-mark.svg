@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Codester</title>
+  <style>
+    :root { color: #a9dac5; }
+  </style>
+  <path
+    d="M49 13H27L10 32l17 19h22"
+    fill="none"
+    stroke="currentColor"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="10"
+  />
+  <path d="m37 20-14 16h9l-5 10 15-17h-9z" fill="currentColor" />
+</svg>

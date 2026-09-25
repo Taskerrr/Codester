@@ -119,7 +119,9 @@ class Poller:
                         "data": demo.snapshot(name),
                     }
                 elif config[name]["enabled"]:
-                    key = self.store.secret(name) if name in {"signoz", "github", "postgres"} else ""
+                    key = (
+                        self.store.secret(name) if name in {"signoz", "github", "postgres"} else ""
+                    )
                     data = self.fetch(name, config, key)
                     result = {
                         "status": "connected",
@@ -159,7 +161,11 @@ class Poller:
             self.wakes[name].clear()
             success = self.refresh(name)
             failures = 0 if success else min(failures + 1, 5)
-            interval = self.store.read()["postgres"]["refresh_seconds"] if name == "postgres" else INTERVALS[name]
+            interval = (
+                self.store.read()["postgres"]["refresh_seconds"]
+                if name == "postgres"
+                else INTERVALS[name]
+            )
             delay = min(interval * 2**failures, 300)
             with self.lock:
                 if not self.wakes[name].is_set():
@@ -174,6 +180,7 @@ class Poller:
             return {
                 "demo": settings["demo"],
                 "layout": settings["dashboard_apps"],
+                "signoz_home_content": settings["signoz"]["home_content"],
                 "services": copy.deepcopy(self.state),
                 "server_time": time.time(),
                 "revision": self.generation,

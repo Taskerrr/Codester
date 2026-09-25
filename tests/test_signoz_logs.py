@@ -55,6 +55,7 @@ def test_logs_query_is_bounded_and_error_filter_is_upstream(monkeypatch):
     assert rows[0]["user_id"] == "42"
     assert rows[0]["app"] == "checkout"
     assert rows[0]["severity"] == "ERROR"
+    assert rows[0]["request"] == {"method": "", "path": "", "status": ""}
     assert rows[0]["timestamp"] == "1780000000000000000"
     assert rows[0]["body"].startswith("<script>")  # UI escapes it; API retains plain text.
     assert rows[1]["user_id"] == ""
@@ -72,6 +73,36 @@ def test_unknown_log_shapes_are_not_reported_as_empty(monkeypatch, results):
 def test_empty_raw_logs_are_supported(monkeypatch):
     monkeypatch.setattr(signoz, "query", lambda *a, **kw: [{"rows": None}])
     assert fetch_logs({}, "key", "recent") == []
+
+
+def test_home_log_query_requests_only_six_rows_and_normalizes_http_fields(monkeypatch):
+    calls = []
+
+    def query(config, key, queries, result_type, **kwargs):
+        calls.append(queries)
+        return [
+            {
+                "rows": [
+                    {
+                        "timestamp": 1780000000000000000,
+                        "data": {
+                            "id": "request-one",
+                            "body": "Request complete",
+                            "attributes_string": {
+                                "http.request.method": "post",
+                                "url.path": "/orders/42",
+                            },
+                            "attributes_number": {"http.response.status_code": 201},
+                        },
+                    }
+                ]
+            }
+        ]
+
+    monkeypatch.setattr(signoz, "query", query)
+    rows = fetch_logs({}, "key", "recent", {"limit": "6"})
+    assert calls[0][0]["limit"] == 6
+    assert rows[0]["request"] == {"method": "POST", "path": "/orders/42", "status": "201"}
 
 
 def live_store(tmp_path):
@@ -155,6 +186,10 @@ def test_api_validates_filter_and_marks_demo(tmp_path):
     response = client.get("/api/signoz/logs?mode=errors")
     assert response.status_code == 200
     assert response.json is not None and response.json["status"] == "demo"
+    home = client.get("/api/signoz/logs?mode=recent&seconds=900&limit=6")
+    assert home.status_code == 200
+    assert home.json is not None and home.json["limit"] == 6
+    assert len(home.json["rows"]) <= 6
 
 
 def test_debug_search_escapes_literals_and_pins_pagination(monkeypatch):
@@ -204,6 +239,8 @@ def test_debug_search_escapes_literals_and_pins_pagination(monkeypatch):
         {"app": "a\nb"},
         {"end_ms": "1"},
         {"seconds": "²"},
+        {"limit": "7"},
+        {"limit": "6", "offset": "100"},
     ],
 )
 def test_debug_filters_rejected_before_upstream(tmp_path, monkeypatch, filters):

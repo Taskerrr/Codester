@@ -21,6 +21,9 @@ reason rather than leaving conflicting requirements behind.
   scenes/sensors, weather/travel, NAS/backups/media status and personal routines.
   Calendar, email summaries, notes/tasks, timers and notifications could serve both.
   Provider API availability and supported embedding must be checked per integration.
+  A compact current-weather treatment could replace the oversized rail Home emblem,
+  with Home moving to the persistent bottom controls; location privacy, provider
+  choice, stale states and small-screen layout remain to be decided.
 
 - Saved SQL queries and persistent query history may make repeated tasks easier.
   Neither is part of the current runner. Current drafts and results live only in
@@ -46,6 +49,26 @@ and tools remain to be planned. Existing dedicated Docker and service-command
 pages remain accessible through their header links.
 
 ## Shipped
+
+### Dashboard control cleanup and source updates, 25 September 2026
+
+- SSH connection attempts use spinners; subtitles show the SSH host. Status and
+  forwarding mappings remain accessible without repeating Connected visually.
+- Home pickers now list only unused apps, with icon/name and Close. This replaces
+  the earlier disabled Current/Already shown entries.
+- Docker rows now show name, ports and RAM inline, with red stop controls and no
+  group-count pills. This supersedes the older second-line mapping treatment.
+- Settings > Display can pull fast-forward source updates in native Git checkouts.
+  Local edits, divergence and tracked local-data paths block updates. Settings and
+  credentials are untouched; restart and dependency installation remain explicit.
+
+### Configurable SigNoz Home log feed, 25 September 2026
+
+- Settings can keep the existing SigNoz overview or show the latest six logs or errors.
+- The compact feed updates every five seconds only while visible, preserves labelled
+  stale results and opens the selected in-memory entry in the full Debug workspace.
+- Rows prioritize structured HTTP status, method and path, with bounded message,
+  application and user fallbacks. Home log content is not persisted locally.
 
 ### Quiet Windows background commands, 25 September 2026
 
@@ -222,3 +245,8 @@ SQL execution/cancellation, keyboard use, and wide/narrow layouts.
 - All displayed recent job rows open run details, including running/queued jobs.
 - Detail lookups remain restricted to known snapshot run IDs; demo running jobs
   show a running example rather than a fabricated failure.
+
+### PNG logo preference, 25 September 2026 — shipped
+
+- Use `codester-mark-concept.png` for Home, the utility-page wordmark and favicon,
+  reflecting the preferred concept artwork. Retain the unused SVG alternative.

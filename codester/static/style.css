@@ -26,8 +26,7 @@ h3 { font-size: 1rem; font-weight: 600; }
 .topbar { min-height: 76px; padding: 12px 32px; display:flex; align-items:center; gap:32px; border-bottom:1px solid var(--line); }
 .wordmark { display:flex; align-items:center; gap:10px; font-size:1.45rem; font-weight:650; letter-spacing:-.065em; }
 .wordmark-dot { color: var(--accent); margin-left:-10px; }
-.brand-mark { width:36px; height:36px; background:var(--raised); border:1px solid var(--line); border-radius:9px; font:600 24px/32px monospace; text-align:center; letter-spacing:-5px; padding-right:5px; color:var(--accent); }
-.brand-mark span { font-size:18px; }
+.brand-mark { width:36px; height:36px; flex:0 0 auto; }
 .topbar-context { font-size:.65rem; letter-spacing:.18em; color:var(--muted); }
 nav { margin-left:auto; display:flex; align-items:center; gap:12px; }
 .quiet-button,.secondary-button,.primary-button { display:inline-flex; min-height:44px; padding:10px 16px; align-items:center; justify-content:center; gap:8px; border-radius:7px; font-size:.875rem; font-weight:550; border:1px solid transparent; background:transparent; }

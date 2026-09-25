@@ -306,6 +306,7 @@ function fill(data) {
   }
   $('#signoz-key').value = '';
   $('#signoz-window_seconds').value = String(data.signoz.window_seconds || 3600);
+  $('#signoz-home_content').value = data.signoz.home_content || 'overview';
   $('#clear-key').checked = false;
   $('#key-note').textContent = data.signoz.has_key ? 'A key is saved. Leave blank to keep it, or enter a replacement.' : 'No key saved. Use a query API key, not an ingestion key.';
   $('#github-token').value = '';
@@ -332,6 +333,7 @@ function read() {
   data.signoz.clear_key=$('#clear-key').checked;
   data.signoz.error_service=$('#error-service').value;
   data.signoz.window_seconds=Number($('#signoz-window_seconds').value);
+  data.signoz.home_content=$('#signoz-home_content').value;
   data.signoz.panels=[];
   for(let i=0;i<3;i++) if($(`#panel-${i}-enabled`).checked) data.signoz.panels.push({service:$(`#panel-${i}-service`).value,metric:$(`#panel-${i}-metric`).value});
   data.tunnels = Array.from(document.querySelectorAll('.tunnel-config')).map(row => ({
@@ -554,3 +556,30 @@ $('#save-startup').addEventListener('click', async () => {
   }
 });
 loadStartup();
+
+async function loadUpdateStatus() {
+  $('#check-update').disabled = true;
+  $('#pull-update').disabled = true;
+  try {
+    const state = await api('/api/updates');
+    $('#update-status').textContent = state.message;
+    $('#pull-update').disabled = !state.supported;
+  } catch (error) { $('#update-status').textContent = error.message; }
+  finally { $('#check-update').disabled = false; }
+}
+$('#check-update').addEventListener('click', loadUpdateStatus);
+$('#pull-update').addEventListener('click', async () => {
+  $('#check-update').disabled = true;
+  $('#pull-update').disabled = true;
+  $('#pull-update').setAttribute('aria-busy', 'true');
+  $('#update-status').textContent = 'Pulling updates… Keep this page open.';
+  try {
+    const result = await api('/api/updates/pull', {method:'POST', timeout:180000});
+    $('#update-status').textContent = result.message;
+  } catch (error) { $('#update-status').textContent = `${error.message} Check readiness before retrying.`; }
+  finally {
+    $('#check-update').disabled = false;
+    $('#pull-update').setAttribute('aria-busy', 'false');
+  }
+});
+loadUpdateStatus();
