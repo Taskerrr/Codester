@@ -27,6 +27,7 @@ from codester.store import METRICS, ConfigurationError, Store
 from codester.transport import IntegrationError
 from codester.tunnels import TunnelManager
 from codester.updates import SourceUpdater
+from codester.weather import Weather
 
 
 def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Flask:
@@ -41,6 +42,7 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     service_manager = ServiceManager(store, tunnel_manager)
     sql_workspace = SQLWorkspace(store)
     source_updater = SourceUpdater(Path(__file__).resolve().parent.parent, store.path.parent)
+    weather = Weather(store)
     token = secrets.token_urlsafe(32)
     docker_lock = threading.Lock()
     app.extensions.update(
@@ -148,6 +150,17 @@ def create_app(data_dir: Path | None = None, *, start_poller: bool = True) -> Fl
     @app.get("/api/updates")
     def updates_read():
         return jsonify(source_updater.status())
+
+    @app.get("/api/weather")
+    def weather_read():
+        return jsonify(weather.read())
+
+    @app.post("/api/weather/locations")
+    def weather_locations():
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ConfigurationError("Enter a town or city.")
+        return jsonify(locations=weather.search(payload.get("query")))
 
     @app.post("/api/updates/pull")
     def updates_pull():

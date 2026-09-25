@@ -127,3 +127,7 @@
 .repository-config summary { min-height:44px; display:flex; align-items:center; gap:8px; cursor:pointer; }
 .repository-config summary::before { content:'▸'; }
 .repository-config details[open] > summary::before { content:'▾'; }
+.weather-search { display:flex; align-items:center; gap:8px; }
+.weather-search input { min-width:0; flex:1; }
+.weather-results { display:grid; gap:6px; margin-top:8px; }
+.weather-results button { text-align:left; min-height:44px; white-space:normal; }

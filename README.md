@@ -13,6 +13,17 @@ A private, local dashboard for Codex subscription usage, Dagster runs, SigNoz se
 
 ## Start locally
 
+Weather is optional: **Settings > Display > Weather**, search for a town, choose a
+result and units, then save. The rail shows current modelled conditions and a
+**Next 6 hours** toggle. Forecasts refresh roughly hourly while the dashboard is
+visible. Home is beside Settings. Weather uses [MET Norway](https://api.met.no/)
+under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), summarised for
+display; town search uses [Photon](https://github.com/komoot/photon) and
+[OpenStreetMap contributors](https://www.openstreetmap.org/copyright). No API key
+or GPS permission is needed. Providers receive your public IP and town search or
+selected rounded coordinates. The selected location is saved as ordinary local
+settings, not a secret. Use a town, not a private address.
+
 Install **Python 3.12+** or [uv](https://docs.astral.sh/uv/getting-started/installation/). Clone this repository and run:
 
 **macOS / Linux**

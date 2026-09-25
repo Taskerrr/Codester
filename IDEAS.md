@@ -21,9 +21,6 @@ reason rather than leaving conflicting requirements behind.
   scenes/sensors, weather/travel, NAS/backups/media status and personal routines.
   Calendar, email summaries, notes/tasks, timers and notifications could serve both.
   Provider API availability and supported embedding must be checked per integration.
-  A compact current-weather treatment could replace the oversized rail Home emblem,
-  with Home moving to the persistent bottom controls; location privacy, provider
-  choice, stale states and small-screen layout remain to be decided.
 
 - Saved SQL queries and persistent query history may make repeated tasks easier.
   Neither is part of the current runner. Current drafts and results live only in
@@ -49,6 +46,16 @@ and tools remain to be planned. Existing dedicated Docker and service-command
 pages remain accessible through their header links.
 
 ## Shipped
+
+### Configurable rail weather, 25 September 2026
+
+- Replaced the oversized Home emblem with weather; Home now sits beside Settings.
+- Current forecast icon/temperature/condition and an optional next-six-hours panel.
+- Settings selects a town and units, with no inferred location or GPS request.
+- MET Norway weather is cached hourly; town search uses Photon/OpenStreetMap only
+  on explicit submission. Attribution and location-sharing disclosures are visible.
+- Disabled, demo, stale and unavailable states are distinct; no credentials are
+  needed or sent. No location is configured automatically.
 
 ### Dashboard control cleanup and source updates, 25 September 2026
 

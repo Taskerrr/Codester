@@ -4,7 +4,25 @@ Settings uses labelled icon tabs for Display, Codex, Dagster, SigNoz, GitHub, Do
 
 The dashboard is a full-height ultrawide instrument display with a narrow clock/launcher rail on the left and three configurable app channels. There is no dashboard header, marketing text, or freshness footer. Settings sits beside fullscreen at the bottom of the overview rail.
 
-Codester uses the transparent `codester-mark-concept.png` angular C and lightning mark. The PNG is the browser favicon, accompanies the wordmark on utility pages, and identifies Home in the dashboard rail. The SVG alternative is retained but is not displayed.
+Codester uses the transparent `codester-mark-concept.png` angular C and lightning mark. The PNG is the browser favicon, accompanies the wordmark on utility pages, and identifies the compact Home button beside Settings in the dashboard rail. The SVG alternative is retained but is not displayed.
+
+The former large Home tile is a compact weather area with an icon, temperature,
+condition and town. Next 6 hours toggles a small hourly forecast panel; Close,
+Escape and outside-click dismiss it. Home remains available beside Settings.
+Settings > Display > Weather enables weather, searches for a town, selects an
+explicit result and chooses Celsius/Fahrenheit. Nothing is inferred from GPS or IP,
+and weather stays disabled until configured and saved. Clearing a location also
+disables weather. Search uses Photon/OpenStreetMap on explicit submission only;
+forecasts use MET Norway, with attribution and links. Both see public IP, search or
+rounded coordinates as applicable; no integration credentials are sent.
+
+Backend weather requests are shared and cached for at least an hour (with jitter),
+respect provider expiry and use conditional requests. The visible browser checks
+the local cache each minute so the current forecast hour advances. Hidden tabs do
+not poll. Errors back off for 15 minutes, retain only same-location forecasts for
+up to six hours and mark them Out of date. Missing/invalid temperatures never show
+as zero. Current weather is modelled, not a station observation; hourly times use
+the device timezone. Demo weather is labelled and makes no forecast requests.
 
 The rail's Home button returns to the three selected channels. Each launcher opens its app across the content area and indicates the selected workspace; the clock, SSH controls and rail remain visible. Home selections are independent of workspace navigation. Apps initially expand their existing overview content, with PostgreSQL providing the first dedicated workspace. Error details also retain the rail. Browser back/forward follows workspace navigation.
 

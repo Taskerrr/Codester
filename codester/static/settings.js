@@ -1,11 +1,12 @@
 import {$, api, codexTrustNotice} from './common.js';
+import {fillWeather, readWeather} from './weather-settings.js';
 let saved;
 let dashboardApps = [];
 let editingSlot = null;
 let tunnelStatusRows = null;
 let tunnelStatusLoading = false;
 const tabs = [...document.querySelectorAll('[data-settings-tab]')];
-const tabAliases = {'dashboard-layout':'display', 'ssh-tunnels':'tunnels'};
+const tabAliases = {'dashboard-layout':'display', 'ssh-tunnels':'tunnels', 'weather-settings':'display'};
 function showTab(name, focus = false) {
   name = tabAliases[name] || name;
   if (!tabs.some(tab => tab.dataset.settingsTab === name)) name = 'display';
@@ -287,6 +288,7 @@ function updateRepositoryLimit() {
   $('#add-repository').disabled = document.querySelectorAll('.repository-config').length >= 3;
 }
 function fill(data) {
+  fillWeather(data.weather);
   const pg = data.postgres || {enabled:false,host:'127.0.0.1',port:5432,database:'',username:'',sslmode:'require',sslrootcert:'',refresh_seconds:10};
   $('#postgres-enabled').checked = pg.enabled;
   for (const field of ['host','port','database','username','sslmode','sslrootcert','refresh_seconds']) $(`#postgres-${field}`).value = pg[field] ?? '';
@@ -328,6 +330,7 @@ function fill(data) {
 }
 function read() {
   const data = {demo:$('#demo').checked,dashboard_apps:[...dashboardApps],codex:{enabled:$('#codex-enabled').checked, activity:$('#codex-activity').checked}};
+  data.weather = readWeather();
   for(const name of ['dagster','signoz','github']) data[name] = {enabled:$(`#${name}-enabled`).checked,api_url:$(`#${name}-api_url`).value,browser_url:$(`#${name}-browser_url`).value};
   data.signoz.api_key=$('#signoz-key').value;
   data.signoz.clear_key=$('#clear-key').checked;

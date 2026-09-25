@@ -42,6 +42,18 @@
       <button type="button" data-app-choice="github"><svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-4.1 25.3c.7.1.9-.3.9-.7v-2.5c-3.8.8-4.6-1.6-4.6-1.6-.6-1.6-1.5-2-1.5-2-1.3-.9.1-.9.1-.9 1.4.1 2.2 1.5 2.2 1.5 1.3 2.2 3.4 1.6 4.2 1.2.1-.9.5-1.6.9-2-3-.3-6.2-1.5-6.2-6.4 0-1.4.5-2.6 1.4-3.5-.1-.3-.6-1.7.1-3.5 0 0 1.1-.4 3.6 1.3a12.4 12.4 0 0 1 6.6 0c2.5-1.7 3.6-1.3 3.6-1.3.7 1.8.2 3.2.1 3.5.9.9 1.4 2.1 1.4 3.5 0 5-3.2 6.1-6.2 6.4.5.4.9 1.3.9 2.6v3.9c0 .4.2.8.9.7A13 13 0 0 0 16 3Z"/></svg><span>GitHub</span></button>
     </div>
   </fieldset>
+  <fieldset class="settings-section" id="weather-settings" disabled><legend>Weather</legend>
+    <label class="toggle"><input id="weather-enabled" type="checkbox"> Show weather beside the clock</label>
+    <label for="weather-query">Town or city</label>
+    <div class="weather-search"><input id="weather-query" type="search" maxlength="100" placeholder="e.g. Bristol, UK" autocomplete="off"><button id="weather-search" type="button" class="secondary-button">Search</button></div>
+    <div id="weather-results" class="weather-results" aria-label="Matching towns"></div>
+    <p id="weather-search-status" class="help" role="status"></p>
+    <p id="weather-selected" class="help">No location selected</p>
+    <button id="weather-clear" type="button" class="quiet-button">Clear location</button>
+    <label>Temperature<select id="weather-units"><option value="celsius">Celsius (°C)</option><option value="fahrenheit">Fahrenheit (°F)</option></select></label>
+    <p class="help">Save settings to apply. Weather refreshes roughly hourly; the dashboard can show the next six hours. No GPS access. Your chosen town and rounded coordinates are saved locally; searches go to Photon and coordinates go to MET Norway, which also see your public IP. Use a town, not a private address.</p>
+    <p class="help">Weather: <a href="https://api.met.no/" target="_blank" rel="noopener noreferrer">MET Norway</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>), summarised for display. Search: <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a> / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</p>
+  </fieldset>
   <fieldset class="settings-section" id="startup-settings"><legend>Startup</legend>
     <p id="startup-status" class="help" role="status">Checking login startup…</p>
     <label class="toggle"><input id="startup-enabled" type="checkbox" disabled> Start Codester when I log in</label>

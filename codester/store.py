@@ -3,6 +3,7 @@
 import copy
 import csv
 import json
+import math
 import os
 import re
 import sqlite3
@@ -21,6 +22,7 @@ from codester.subprocesses import hidden_subprocess_creation_flags
 DEFAULTS: dict = {
     "demo": True,
     "dashboard_apps": ["codex", "dagster", "signoz"],
+    "weather": {"enabled": False, "location": "", "latitude": None, "longitude": None, "units": "celsius"},
     "codex": {"enabled": False, "activity": False},
     "dagster": {"enabled": False, "api_url": "", "browser_url": ""},
     "signoz": {
@@ -181,6 +183,22 @@ def validate(data: object) -> dict:
     ):
         raise ConfigurationError("Choose three different dashboard apps.")
     result["dashboard_apps"] = dashboard_apps
+    weather = data.get("weather", DEFAULTS["weather"])
+    if not isinstance(weather, dict) or type(weather.get("enabled")) is not bool:
+        raise ConfigurationError("Choose whether to show weather.")
+    location = weather.get("location", "")
+    if not isinstance(location, str) or len(location) > 200 or any(ord(c) < 32 for c in location):
+        raise ConfigurationError("Choose a valid weather location.")
+    if not isinstance(weather.get("units"), str) or weather["units"] not in {"celsius", "fahrenheit"}:
+        raise ConfigurationError("Choose Celsius or Fahrenheit for weather.")
+    for field, limit in (("latitude", 90), ("longitude", 180)):
+        value = weather.get(field)
+        if value is not None and (type(value) not in (int, float) or not math.isfinite(value) or not -limit <= value <= limit):
+            raise ConfigurationError("Choose a valid weather location from the search results.")
+        result["weather"][field] = round(value, 3) if value is not None else None
+    if weather["enabled"] and (not location.strip() or any(result["weather"][key] is None for key in ("latitude", "longitude"))):
+        raise ConfigurationError("Choose a town before enabling weather.")
+    result["weather"].update(enabled=weather["enabled"], location=location.strip(), units=weather["units"])
     for name in ("codex", "dagster", "signoz", "github"):
         item = data.get(name)
         if not isinstance(item, dict) or not isinstance(item.get("enabled"), bool):
@@ -496,6 +514,7 @@ class Store:
         with self.lock, closing(sqlite3.connect(self.path)) as db, db:
             data = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()[0])
         data.setdefault("dashboard_apps", list(DEFAULTS["dashboard_apps"]))
+        data.setdefault("weather", copy.deepcopy(DEFAULTS["weather"]))
         data.setdefault("tunnels", [])
         data.setdefault("postgres", copy.deepcopy(DEFAULTS["postgres"]))
         data.setdefault("github", copy.deepcopy(DEFAULTS["github"]))
