@@ -569,6 +569,45 @@ async function openDetail(button) {
   }
 }
 
+async function openSourceOnLargestDisplay(url) {
+  if (typeof window.getScreenDetails !== 'function') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  // Reserve the new window during the click gesture so permission prompts do not
+  // cause the browser to treat the eventual navigation as an unsolicited popup.
+  const popup = window.open('about:blank', '_blank', 'popup=yes,width=1200,height=800');
+  if (!popup) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  try {
+    const details = await window.getScreenDetails();
+    const screen = [...details.screens].sort((a, b) => b.availWidth * b.availHeight - a.availWidth * a.availHeight)[0];
+    if (!screen) throw new Error('No displays available');
+    const width = Math.round(screen.availWidth * .92);
+    const height = Math.round(screen.availHeight * .92);
+    const left = screen.availLeft + Math.max(0, Math.round((screen.availWidth - width) / 2));
+    const top = screen.availTop + Math.max(0, Math.round((screen.availHeight - height) / 2));
+    popup.moveTo(left, top);
+    popup.resizeTo(width, height);
+  } catch {
+    // Keep the normal new-window behavior if permission is declined or placement fails.
+  }
+  if (!popup.closed) {
+    popup.opener = null;
+    popup.location.replace(url);
+  }
+}
+
+$('#detail-link').addEventListener('click', event => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const url = event.currentTarget.href;
+  if (!/^https?:\/\//.test(url)) return;
+  event.preventDefault();
+  openSourceOnLargestDisplay(url);
+});
+
 $('#overview').addEventListener('click', event => {
   const homeLog = event.target.closest('[data-home-log-id]');
   if (homeLog && signozHomeLogs) {

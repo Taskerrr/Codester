@@ -51,6 +51,7 @@ pages remain accessible through their header links.
 - Codex shows the active task plus up to two recent tasks without timestamps. Its usage-unavailable state is centered in the summary area.
 - Dashboard labels and row copy use a consistent, larger system font, with monospaced styling for clocks and numeric readouts. Table rows share a consistent height at ultrawide sizes.
 - Dagster job and error rows show repository and code location context above each job name; older GraphQL schemas retain run monitoring with no origin label.
+- Dagster and SigNoz run/error source links open on the largest connected display when supported and permitted by the browser; otherwise they use a normal new tab.
 - Settings now uses the full screen width, moves Weather to its own tab, removes demo mode and dashboard layout controls, and starts monitoring when connection details are configured. Help copy is available from compact info icons.
 
 - The dashboard clock/launcher rail centers its mark, clock and launchers vertically on desktop. Overview rows are compact, and Dagster recent jobs show up to six rows. The redundant panel picker down mark and workspace chevron are removed; launchers remain the workspace navigation.

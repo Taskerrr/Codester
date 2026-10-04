@@ -39,6 +39,10 @@ At 2560 × 720 and equivalent scaled viewports, fill the display without page sc
 
 Dagster run rows request repository origin metadata when supported by the GraphQL schema. Older servers retain run monitoring and show a generic context label.
 
+Opening a Dagster or SigNoz run/error source link places a new browser window on
+the largest connected display when the browser supports Window Management and
+the user grants its display permission. Otherwise, the link opens in a normal tab.
+
 When Codex usage is unavailable, keep its status centered in the reserved summary area so the Recent activity list stays aligned with neighboring panels without leaving the status pinned to the top edge.
 
 Top apps uses incoming SERVER-span request rates from the last five minutes. Tapping an error expands details across the display with Back and a source link.
