@@ -129,6 +129,7 @@
 .ring-value .ring-reset { min-height:0; margin-top:7px; color:var(--text); font:500 .48rem/1 ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.02em; }
 .metric-ring>small { min-height:18px; margin-top:10px; color:var(--deck-muted); font:.69rem ui-monospace,SFMono-Regular,Consolas,monospace; text-align:center; }
 .codex-rings .metric-ring>small { display:none; }
+.codex-rings>.deck-empty { align-self:center; margin:0; }
 .reading-ring .ring-progress { stroke-width:7; }
 .dagster-hero { justify-content:space-around; padding-left:10px; padding-right:10px; }
 .dagster-hero .ring-visual { width:min(9vw,158px); }
@@ -401,6 +402,58 @@
 .tunnel-row-toggle[aria-disabled=true],.tunnel-toggle[aria-disabled=true] { opacity:.5; cursor:wait; }
 .tunnel-popover>a { align-self:flex-start; margin:4px 0 0; flex-shrink:0; }
 @media(prefers-reduced-motion:reduce) { .mini-track>span { transition:none; } .tunnel-track,.mini-track { animation:none!important; } }
+
+/* Keep dashboard labels and table copy readable at the secondary display scale. */
+.channel .channel-identity>div>span,
+.channel .channel-status,
+.channel .refresh-countdown,
+.channel .mini-heading h3,
+.channel .mini-heading>span,
+.channel .recent-row strong,
+.channel .recent-row small,
+.channel .recent-row time,
+.channel .compact-row strong,
+.channel .compact-row time,
+.channel .error-title,
+.channel .deck-error time,
+.channel .app-row strong,
+.channel .app-row b,
+.channel .app-row small,
+.channel .home-log-meta time,
+.channel .home-log-meta strong,
+.channel .home-log-user,
+.channel .home-log-request b,
+.channel .home-log-request span,
+.channel .repo-copy strong,
+.channel .repo-copy small,
+.channel .repo-time,
+.channel .contribution-months,
+.channel .contribution-key {
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.channel .channel-identity>div>span { font-size:.72rem; letter-spacing:.12em; }
+.channel .channel-status,.channel .refresh-countdown { font-size:.68rem; }
+.channel .mini-heading h3 { font-size:.75rem; letter-spacing:.1em; }
+.channel .mini-heading>span { font-size:.7rem; }
+.channel .recent-row strong { font-size:.9rem; }
+.channel .recent-row small { margin-top:4px; font-size:.72rem; line-height:1.3; }
+.channel .recent-row time,.channel .compact-row time,.channel .deck-error time { font-size:.7rem; }
+.channel .compact-row strong { font-size:.84rem; }
+.channel .error-title { font-size:.8rem; }
+.channel .app-row strong { font-size:.82rem; }
+.channel .app-row b { font-size:.76rem; }
+.channel .app-row small { font-size:.68rem; }
+.channel .home-log-meta time,.channel .home-log-user,.channel .home-log-request span { font-size:.68rem; }
+.channel .home-log-meta strong { font-size:.78rem; }
+.channel .home-log-request b { font-size:.7rem; }
+.channel .repo-copy strong { font-size:.84rem; }
+.channel .repo-copy small { font-size:.68rem; }
+.channel .repo-row>b { font-family:system-ui,-apple-system,"Segoe UI",sans-serif; font-size:.82rem; }
+.channel .repo-time { font-size:.68rem; }
+.channel .contribution-months { font-size:.62rem; }
+.channel .contribution-key { font-size:.65rem; }
+.channel.codex .recent-row { min-height:50px; gap:12px; }
+.channel.codex .codex-task-marker { width:18px; height:18px; }
 
 .pg-counts { display:flex; gap:40px; padding:24px 0; }
 .pg-counts>div { display:flex; flex-direction:column; gap:7px; }
