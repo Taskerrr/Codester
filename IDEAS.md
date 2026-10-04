@@ -47,6 +47,9 @@ pages remain accessible through their header links.
 
 ## Shipped
 
+- The dashboard rail places Settings and fullscreen at the top, with Home first in the app launcher grid. SSH tunnel status buttons and switches are twice their previous visual size; status buttons sit at the bottom when tunnels are configured. The clock and launchers have more space below the top controls.
+- Settings now uses the full screen width, moves Weather to its own tab, removes demo mode and dashboard layout controls, and starts monitoring when connection details are configured. Help copy is available from compact info icons.
+
 - The dashboard clock/launcher rail centers its mark, clock and launchers vertically on desktop. Overview rows are more compact, and Codex activity and Dagster recent jobs show up to six rows. The redundant panel picker down mark and workspace chevron are removed; launchers remain the workspace navigation.
 
 ### Date-row weather and larger clock, 25 September 2026
@@ -74,7 +77,7 @@ pages remain accessible through their header links.
   the earlier disabled Current/Already shown entries.
 - Docker rows now show name, ports and RAM inline, with red stop controls and no
   group-count pills. This supersedes the older second-line mapping treatment.
-- Settings > Display can pull fast-forward source updates in native Git checkouts.
+- Settings > General can pull fast-forward source updates in native Git checkouts.
   Local edits, divergence and tracked local-data paths block updates. Settings and
   credentials are untouched; restart and dependency installation remain explicit.
 
@@ -163,7 +166,7 @@ pages remain accessible through their header links.
   successful single-statement execution. The API still supports explicit read-only requests.
 - One SQL statement per request, one running SQL request per instance, a 30-second
   statement timeout, three-second lock timeout, cancellation, and a 35-second cancellation
-  deadline. Demo mode never executes SQL.
+  deadline.
 - Stream results into a bounded preview: at most 500 rows, 4,000 characters per cell,
   and approximately 2 MB of text. Truncation is labelled; the query itself is not rewritten.
 - SQL drafts and results survive switching workspaces and connections in the current page.

@@ -1,12 +1,10 @@
 import {$, api, codexTrustNotice} from './common.js';
 import {fillWeather, readWeather} from './weather-settings.js';
 let saved;
-let dashboardApps = [];
-let editingSlot = null;
 let tunnelStatusRows = null;
 let tunnelStatusLoading = false;
 const tabs = [...document.querySelectorAll('[data-settings-tab]')];
-const tabAliases = {'dashboard-layout':'display', 'ssh-tunnels':'tunnels', 'weather-settings':'display'};
+const tabAliases = {'dashboard-layout':'display', 'ssh-tunnels':'tunnels', 'weather-settings':'weather'};
 function showTab(name, focus = false) {
   name = tabAliases[name] || name;
   if (!tabs.some(tab => tab.dataset.settingsTab === name)) name = 'display';
@@ -76,24 +74,6 @@ function message(text, error = false) {
 function selectService(select, value) {
   if (!Array.from(select.options).some(option => option.value === value)) select.add(new Option(value, value));
   select.value = value;
-}
-function renderDashboardApps() {
-  for (const slot of document.querySelectorAll('.column-slot')) {
-    const index = Number(slot.dataset.slot);
-    const app = dashboardApps[index];
-    const source = app ? document.querySelector(`[data-app-choice="${app}"]`) : null;
-    const glyph = slot.querySelector('.slot-glyph');
-    glyph.replaceChildren(source ? source.firstElementChild.cloneNode(true) : document.createTextNode('+'));
-    slot.querySelector('.slot-label').textContent = source ? source.textContent.trim() : 'Choose app';
-    slot.classList.toggle('editing', editingSlot === index);
-    slot.title = source ? source.textContent.trim() : 'Choose an app';
-    slot.setAttribute('aria-label', `Column ${index + 1}: ${source ? source.textContent.trim() : 'empty'}`);
-  }
-  for (const choice of document.querySelectorAll('[data-app-choice]')) {
-    const selectedAt = dashboardApps.indexOf(choice.dataset.appChoice);
-    choice.classList.toggle('selected', selectedAt >= 0);
-    choice.disabled = selectedAt >= 0 && selectedAt !== editingSlot;
-  }
 }
 function expandTunnel(row, open) {
   row.querySelector('.tunnel-editor').hidden = !open;
@@ -290,19 +270,12 @@ function updateRepositoryLimit() {
 function fill(data) {
   fillWeather(data.weather);
   const pg = data.postgres || {enabled:false,host:'127.0.0.1',port:5432,database:'',username:'',sslmode:'require',sslrootcert:'',refresh_seconds:10};
-  $('#postgres-enabled').checked = pg.enabled;
   for (const field of ['host','port','database','username','sslmode','sslrootcert','refresh_seconds']) $(`#postgres-${field}`).value = pg[field] ?? '';
   $('#postgres-password').value = '';
   $('#postgres-clear_password').checked = false;
-  $('#postgres-password-note').textContent = pg.has_password ? 'Password saved. Leave blank to keep it.' : 'Password uses the configured credential store.';
+  $('#postgres-password-note').textContent = pg.has_password ? 'Saved' : 'No saved password';
   $('#postgres-tunnel').replaceChildren(new Option('Choose a tunnel to fill host and port', ''), ...(data.tunnels || []).map(tunnel => new Option(`${tunnel.name} / localhost:${tunnel.local_port}`, String(tunnel.local_port))));
-  $('#demo').checked = data.demo;
-  dashboardApps = [...data.dashboard_apps];
-  editingSlot = null;
-  $('#app-picker').hidden = true;
-  renderDashboardApps();
   for(const name of ['codex','dagster','signoz','github']) {
-    $(`#${name}-enabled`).checked = data[name].enabled;
     if(name === 'codex') { $('#codex-activity').checked = data.codex.activity; continue; }
     for(const field of ['api_url','browser_url']) $(`#${name}-${field}`).value = data[name][field];
   }
@@ -310,11 +283,11 @@ function fill(data) {
   $('#signoz-window_seconds').value = String(data.signoz.window_seconds || 3600);
   $('#signoz-home_content').value = data.signoz.home_content || 'overview';
   $('#clear-key').checked = false;
-  $('#key-note').textContent = data.signoz.has_key ? 'A key is saved. Leave blank to keep it, or enter a replacement.' : 'No key saved. Use a query API key, not an ingestion key.';
+  $('#key-note').textContent = data.signoz.has_key ? 'Saved' : 'No saved key';
   $('#github-token').value = '';
   $('#github-organization').value = data.github.organization || '';
   $('#clear-github-token').checked = false;
-  $('#github-token-note').textContent = data.github.has_token ? 'Token saved · leave blank to keep it.' : 'No token saved.';
+  $('#github-token-note').textContent = data.github.has_token ? 'Saved' : 'No saved token';
   $('#repository-list').replaceChildren();
   for (const repository of data.github.repositories || []) addRepository(repository);
   updateRepositoryLimit();
@@ -329,9 +302,14 @@ function fill(data) {
   for (const tunnel of data.tunnels || []) addTunnel(tunnel);
 }
 function read() {
-  const data = {demo:$('#demo').checked,dashboard_apps:[...dashboardApps],codex:{enabled:$('#codex-enabled').checked, activity:$('#codex-activity').checked}};
+  const data = {dashboard_apps:[...(saved?.dashboard_apps || [])],codex:{enabled:true, activity:$('#codex-activity').checked}};
   data.weather = readWeather();
-  for(const name of ['dagster','signoz','github']) data[name] = {enabled:$(`#${name}-enabled`).checked,api_url:$(`#${name}-api_url`).value,browser_url:$(`#${name}-browser_url`).value};
+  for(const name of ['dagster','signoz','github']) {
+   data[name] = {api_url:$(`#${name}-api_url`).value,browser_url:$(`#${name}-browser_url`).value};
+   data[name].enabled = Boolean(data[name].api_url.trim());
+ }
+  data.signoz.enabled = Boolean(data.signoz.api_url.trim() && ($('#signoz-key').value || saved?.signoz.has_key));
+  data.github.enabled = Boolean(data.github.api_url.trim() && ($('#github-token').value || saved?.github.has_token));
   data.signoz.api_key=$('#signoz-key').value;
   data.signoz.clear_key=$('#clear-key').checked;
   data.signoz.error_service=$('#error-service').value;
@@ -369,9 +347,10 @@ function read() {
     update_pull:row.querySelector('[data-repository-field="update_pull"]').checked,
     update_confirm:row.querySelector('[data-repository-field="update_confirm"]').checked,
   }));
-  data.postgres = {enabled:$('#postgres-enabled').checked, password:$('#postgres-password').value, clear_password:$('#postgres-clear_password').checked};
+  data.postgres = {password:$('#postgres-password').value, clear_password:$('#postgres-clear_password').checked};
   for (const field of ['host','database','username','sslmode','sslrootcert']) data.postgres[field] = $(`#postgres-${field}`).value;
   for (const field of ['port','refresh_seconds']) data.postgres[field] = Number($(`#postgres-${field}`).value);
+  data.postgres.enabled = Boolean(data.postgres.database.trim() && data.postgres.username.trim());
   return data;
 }
 async function saveSettings(refill = true) {
@@ -391,8 +370,10 @@ async function saveSettings(refill = true) {
       $('#signoz-key').value='';
       $('#postgres-password').value='';
       $('#postgres-clear_password').checked=false;
-      $('#postgres-password-note').textContent = saved.postgres.has_password ? 'Password saved. Leave blank to keep it.' : 'No password saved.';
+      $('#postgres-password-note').textContent = saved.postgres.has_password ? 'Saved' : 'No saved password';
+      $('#key-note').textContent = saved.signoz.has_key ? 'Saved' : 'No saved key';
       $('#github-token').value='';
+      $('#github-token-note').textContent = saved.github.has_token ? 'Saved' : 'No saved token';
       for (const row of document.querySelectorAll('.tunnel-config')) {
         const input=row.querySelector('[data-tunnel-field="password"]');
         const tunnel=saved.tunnels.find(item=>item.id === row.dataset.id);
@@ -420,25 +401,6 @@ $('#settings-form').addEventListener('submit', async event => {
   catch(error) { message(error.message,true); }
 });
 $('#settings-form').addEventListener('input',()=> { $('#save-note').textContent='Unsaved changes'; });
-for (const slot of document.querySelectorAll('.column-slot')) slot.addEventListener('click', () => {
-  editingSlot = Number(slot.dataset.slot);
-  $('#app-picker').hidden = false;
-  renderDashboardApps();
-  $('#app-picker').querySelector('button:not(:disabled)')?.focus();
-});
-for (const choice of document.querySelectorAll('[data-app-choice]')) choice.addEventListener('click', () => {
-  if (editingSlot === null) return;
-  const app = choice.dataset.appChoice;
-  const existing = dashboardApps.indexOf(app);
-  if (existing >= 0 && existing !== editingSlot) [dashboardApps[editingSlot], dashboardApps[existing]] = [dashboardApps[existing], dashboardApps[editingSlot]];
-  else dashboardApps[editingSlot] = app;
-  const chosenSlot = editingSlot;
-  editingSlot = null;
-  $('#app-picker').hidden = true;
-  renderDashboardApps();
-  document.querySelector(`[data-slot="${chosenSlot}"]`).focus();
-  $('#save-note').textContent='Unsaved changes';
-});
 $('#add-tunnel').addEventListener('click',()=> { addTunnel(); $('#save-note').textContent='Unsaved changes'; });
 $('#add-postgres-tunnel').addEventListener('click', () => {
   showTab('tunnels');

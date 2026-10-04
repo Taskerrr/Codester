@@ -1,18 +1,18 @@
 # Codester design
 
-Settings uses labelled icon tabs for Display, Codex, Dagster, SigNoz, GitHub, Docker, PostgreSQL and SSH tunnels. On tablets and desktop, tabs form a left rail; below 650px they form two compact rows above the selected panel. Only the selected panel scrolls. Navigation and the shared Save settings action stay visible. Display keeps the three ordered dashboard app choices together with visible app names. Switching tabs preserves edits, and validation reveals the section containing an invalid field. All tab targets are at least 44px and support arrow keys, Home and End.
+Settings uses a full-width layout with labelled icon tabs for General, Weather, Codex, Dagster, SigNoz, GitHub, Docker, PostgreSQL, SSH tunnels and Commands. The selected panel uses the available screen width and scrolls independently; navigation and Save settings stay visible. Dashboard app choices remain on the dashboard. Monitoring follows configured connection details, while local Codex activity remains an opt-in display. Demo mode is removed. Concise info icons expose setup details on hover or keyboard focus. Switching tabs preserves edits, and validation reveals the section containing an invalid field. All tab targets are at least 44px and support arrow keys, Home and End.
 
-The dashboard is a full-height ultrawide instrument display with a narrow clock/launcher rail on the left and three configurable app channels. On desktop, the rail's mark, clock and launcher group sits vertically centered between the top controls and bottom utilities. There is no dashboard header, marketing text, or freshness footer. Settings sits beside fullscreen at the bottom of the overview rail.
+The dashboard is a full-height ultrawide instrument display with a narrow clock/launcher rail on the left and three configurable app channels. Settings and fullscreen sit at the top of the rail; weather, clock and launchers follow with extra spacing below the controls. Home, represented by the Codester mark, is the first launcher. SSH tunnel status buttons and switches are enlarged for visibility; status buttons sit at the bottom of the rail when tunnels are configured. There is no dashboard header, marketing text, or freshness footer.
 
-Codester uses the transparent `codester-mark-concept.png` angular C and lightning mark. The PNG is the browser favicon, accompanies the wordmark on utility pages, and identifies the compact Home button beside Settings in the dashboard rail. The SVG alternative is retained but is not displayed.
+Codester uses the transparent `codester-mark-concept.png` angular C and lightning mark. The PNG is the browser favicon, accompanies the wordmark on utility pages, and identifies the Home launcher at the start of the dashboard app grid. The SVG alternative is retained but is not displayed.
 
 The clock is enlarged at the top of the rail, with the date and a compact weather
 icon/temperature on one line beneath it. Hover or keyboard focus reveals location,
 conditions and the hourly forecast; tapping pins the panel open. Close, Escape and
-outside-click dismiss it. There is no separate Next hours button. Home remains
-available beside Settings. Stale/demo readings have an indicator and accessible
+outside-click dismiss it. There is no separate Next hours button. Home is the first
+launcher below the clock. Stale readings have an indicator and accessible
 state text; detailed status is inside the panel.
-Settings > Display > Weather enables weather, searches for a town, selects an
+Settings > Weather enables weather, searches for a town, selects an
 explicit result and chooses Celsius/Fahrenheit. Nothing is inferred from GPS or IP,
 and weather stays disabled until configured and saved. Clearing a location also
 disables weather. Search uses Photon/OpenStreetMap on explicit submission only;
@@ -25,7 +25,7 @@ the local cache each minute so the current forecast hour advances. Hidden tabs d
 not poll. Errors back off for 15 minutes, retain only same-location forecasts for
 up to six hours and mark them Out of date. Missing/invalid temperatures never show
 as zero. Current weather is modelled, not a station observation; hourly times use
-the device timezone. Demo weather is labelled and makes no forecast requests.
+the device timezone.
 
 The rail's Home button returns to the three selected channels. Each launcher opens its app across the content area and indicates the selected workspace; the clock, SSH controls and rail remain visible. Home selections are independent of workspace navigation. Apps initially expand their existing overview content, with PostgreSQL providing the first dedicated workspace. Error details also retain the rail. Browser back/forward follows workspace navigation.
 
@@ -33,7 +33,7 @@ On Home, each channel's heading icon opens a compact app picker containing only 
 
 The PostgreSQL workspace puts Query and Activity & locks tabs beside its heading, with a single connection dropdown for selecting, adding and editing connections. With no saved connections it reads New connection. The selected option shows name, environment and database; its tooltip includes the endpoint and username. A full-width, single-line SQL bar grows with content up to ten lines (capped at 35% of viewport height on short displays), leaving the remaining height for results. Read/write is always enabled; Play executes directly without a mode selector or separate confirmation. The green play icon becomes a red pause icon that requests cancellation, with elapsed time beside it. Empty results show no instructional copy. Results preserve duplicate column names, distinguish NULL from empty text, escape content, and report row count and preview truncation. Drafts, results and duration remain in browser memory per connection while switching workspaces; they are not persistent query history. Activity & locks uses the selected connection with the existing session confirmation controls. New/Edit connection opens an inline form; passwords are never returned. The monitoring connection is offered when configured and is edited through Settings.
 
-Use a nearly black neutral background with subtle vertical dividers. Vibrant mint/cyan Codex data, purple Dagster data, and orange SigNoz data. Color belongs on graphs, meters, and activity indicators, not large panel backgrounds. Service logos carry identity. Clock and numbers have monospaced/tabular typography. Minimal labels identify units, usage windows, recent tasks, and errors. Stale and offline states remain explicit. Demo mode is managed from Settings without adding a label to the display.
+Use a nearly black neutral background with subtle vertical dividers. Vibrant mint/cyan Codex data, purple Dagster data, and orange SigNoz data. Color belongs on graphs, meters, and activity indicators, not large panel backgrounds. Service logos carry identity. Clock and numbers have monospaced/tabular typography. Minimal labels identify units, usage windows, recent tasks, and errors. Stale and offline states remain explicit.
 
 At 2560 × 720 and equivalent scaled viewports, fill the display without page scroll. Settings chooses three unique apps and their left-to-right order; Codex, Dagster, and SigNoz are the defaults. Codex shows up to six activity rows and Dagster up to six recent jobs; compact row heights keep more visible. SigNoz uses two current readings above five-minute Top apps and errors. Docker can show a compact overview and opens a dedicated container-management screen. Individual channels can scroll. On mobile, the clock rail becomes a horizontal summary above stacked channels. Touch targets remain at least 44px, keyboard focus is visible, and reduced-motion preferences stop spinners. Spinners indicate confirmed Dagster execution only; Codex local history remains labelled Recent activity.
 
@@ -45,7 +45,7 @@ Dashboard ring arcs retain their position across refreshes and ease to the new v
 
 Service commands use a dedicated two-column screen: service names on the left, named commands and their exact script on the right, with the latest output below. Settings has a Commands entry; the Linux launcher and Dagster header arrow open this screen. Edit reveals server identity, folder, comparison branch, notes and independent command rows. Confirmations are configurable per command. Command success never claims verified deployment health; manual reload notes remain visible.
 
-PostgreSQL has a connection form in its Settings tab and a dedicated activity page with Queries and Blocking locks tabs. The dashboard shows real active/waiting counts and SQL previews. Use text and count summaries, not percentage rings without a denominator. Blocking rows identify waiter and blocker explicitly; prepared transactions have no session action. Cancel query and End session are distinct, require a confirmation naming the PID, and disable for stale/demo readings or missing role privileges. The full page keeps its heading, summary and tabs fixed while the activity list scrolls.
+PostgreSQL has a connection form in its Settings tab and a dedicated activity page with Queries and Blocking locks tabs. The dashboard shows real active/waiting counts and SQL previews. Use text and count summaries, not percentage rings without a denominator. Blocking rows identify waiter and blocker explicitly; prepared transactions have no session action. Cancel query and End session are distinct, require a confirmation naming the PID, and disable for stale readings or missing role privileges. The full page keeps its heading, summary and tabs fixed while the activity list scrolls.
 
 Docker uses collapsed Compose project rows in the Home panel, shared workspace and standalone Docker page. Expanded rows and keyboard focus survive refreshes. Small, borderless play/pause icons control all existing components, with both icons available for partial projects. Play starts and pause requests a graceful stop; accessible labels and tooltips name the actual action. Icons are 16px inside 44px touch targets. Desktop panels share summary and list-row heights so their tables align; header icons have consistent sizing. Docker action feedback sits below the list to preserve its starting position. Full container status, image and name remain available in tooltips. Stop asks for a second tap within five seconds with an inline message naming the project. Standalone containers and one-off jobs remain separate. Failures identify the affected components and persist through polling. Projects containing Codester have disabled controls. Opening a group never starts or stops anything.
 
@@ -64,14 +64,14 @@ The row subtitle shows the SSH server address, not a redundant Connected label;
 hover exposes the full local-to-remote mapping. Errors remain visible and status
 remains available to assistive technology.
 
-Settings > Display > Codester updates offers a source-only fast-forward update
+Settings > General > Codester updates offers a source-only fast-forward update
 from the current branch's configured upstream, for native Git checkouts. Dirty,
 untracked or diverged checkouts and protected data paths block changes. It never
 stashes, resets, cleans or writes credentials/settings. Updates require a restart;
 dependency changes prompt the user to rerun the installer. No automatic update or
-restart occurs, and demo mode cannot pull. Other installation types use installers.
+restart occurs. Other installation types use installers.
 
-The GitHub workspace adds a compact Update button beside each configured repository. Settings > GitHub > Repository actions selects an existing SSH connection, absolute server folder, multiline script and optional confirmation. Local checkout actions remain in a separate disclosure. A remote-only repository needs no local checkout or GitHub monitoring connection; configured repositories stay visible alongside recent repositories. Update runs the saved script directly using the SSH identity, independently of port forwarding. The button disables during execution and shows Updating with elapsed seconds. A Finished, Failed or Unknown indicator expands the exact script, target, timestamp and escaped output inline; expansion and log scroll position survive polling. Results persist through reloads. Demo mode disables execution, and changed target/script revisions require a fresh review. Command completion does not claim verified deployment health.
+The GitHub workspace adds a compact Update button beside each configured repository. Settings > GitHub > Repository actions selects an existing SSH connection, absolute server folder, multiline script and optional confirmation. Local checkout actions remain in a separate disclosure. A remote-only repository needs no local checkout or GitHub monitoring connection; configured repositories stay visible alongside recent repositories. Update runs the saved script directly using the SSH identity, independently of port forwarding. The button disables during execution and shows Updating with elapsed seconds. A Finished, Failed or Unknown indicator expands the exact script, target, timestamp and escaped output inline; expansion and log scroll position survive polling. Results persist through reloads. Changed target/script revisions require a fresh review. Command completion does not claim verified deployment health.
 
 Repository actions now also offer Repository script, the default for new entries.
 This reveals a checkout-relative Bash script path and optional fast-forward pull;
@@ -87,7 +87,7 @@ Finished means script exit zero, not independently verified health or test cover
 Native installation runs the dashboard at 127.0.0.1:8765 and starts at user login
 (macOS LaunchAgent or Windows Startup shortcut). Docker is optional packaging;
 Docker workload controls still require a running Docker engine. Migration preserves
-settings and the source Docker volume. Settings > Display includes a Startup section with independent login-start and
+settings and the source Docker volume. Settings > General includes Startup and Codester update sections with independent login-start and
 browser-opening preferences. Save startup preferences applies them separately
 from service settings; disabling login startup leaves the current session running.
 The browser opens only after the local server is listening. Unsupported or
@@ -113,7 +113,7 @@ Live reads check every five seconds only while visible. Older/Newer pages use a 
 time window, 100 rows per page and at most 1,000 rows; Resume live returns to latest.
 Busy live periods can skip entries, and late ingestion can change historical pages.
 Draft filters, applied filters and paused state survive workspace switches in memory.
-Loading, empty, demo, stale and unavailable states remain distinct. Same-search stale
+Loading, empty, stale and unavailable states remain distinct. Same-search stale
 results are retained; changed searches never reuse another filter's rows. Log reads
 remain independent of trace charts. Message and attribute truncation is labelled.
 

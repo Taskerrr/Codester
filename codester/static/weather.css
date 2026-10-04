@@ -2,7 +2,7 @@
 .rail-clock #clock { font-size:4.6rem; white-space:nowrap; }
 .rail-date-weather { position:relative; display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; }
 .rail-date-weather #date { margin:0; font-size:.68rem; letter-spacing:.05em; white-space:nowrap; }
-.rail-weather { flex-shrink:0; text-align:center; margin:0; min-height:44px; }
+.rail-weather { flex-shrink:0; text-align:center; margin:16px 0 0; min-height:44px; }
 .weather-reading { display:flex; align-items:center; justify-content:center; gap:10px; }
 .weather-reading strong { font:600 2rem/1 ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:-.06em; }
 .weather-icon { width:44px; height:44px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--deck-muted); }
@@ -28,9 +28,8 @@
 #weather-hours li>span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--deck-muted); }
 .weather-hours-panel>small { display:block; color:var(--deck-muted); font-size:.63rem; line-height:1.5; }
 .weather-hours-panel>a { color:var(--deck-muted); font-size:.63rem; }
-.rail-bottom .icon-button { flex-shrink:0; }
 .icon-button img { width:32px; height:32px; object-fit:contain; }
 @media (min-width:2100px) { .rail-clock #clock { font-size:6.5rem; } .rail-date-weather #date { font-size:.85rem; } #weather-toggle strong { font-size:1rem; } }
 @media (max-width:1450px) and (min-width:1151px) { .rail-clock #clock { font-size:3.8rem; } .rail-date-weather { gap:4px; } .rail-date-weather #date { font-size:.6rem; } }
-@media (max-width:1150px) and (min-width:851px) { .rail-bottom { gap:0; } .rail-bottom .icon-button { width:44px; } .clock-rail { padding-inline:4px; } .rail-clock #clock { font-size:2.9rem; } .rail-date-weather { gap:2px; } .rail-date-weather #date { font-size:.55rem; letter-spacing:0; } #weather-toggle { gap:2px; padding:2px; } #weather-toggle strong { font-size:.65rem; } #weather-toggle .weather-icon { width:20px; height:20px; } }
+@media (max-width:1150px) and (min-width:851px) { .rail-top .icon-button { width:44px; } .clock-rail { padding-inline:4px; } .rail-clock #clock { font-size:2.9rem; } .rail-date-weather { gap:2px; } .rail-date-weather #date { font-size:.55rem; letter-spacing:0; } #weather-toggle { gap:2px; padding:2px; } #weather-toggle strong { font-size:.65rem; } #weather-toggle .weather-icon { width:20px; height:20px; } }
 @media (max-width:850px) { .rail-clock { grid-column:1/-1; } .rail-clock #clock { font-size:5rem; } .rail-date-weather { gap:14px; } .weather-hours-panel { left:50%; transform:translateX(-50%); } }

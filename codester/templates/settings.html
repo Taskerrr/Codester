@@ -8,10 +8,10 @@
   <div class="settings-intro"><h1>Settings</h1><p class="muted">Local to this device</p></div>
   <form id="settings-form" novalidate>
   <div class="settings-tabs" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
-    {% for key, label, icon in [('display', 'Display', ''), ('codex', 'Codex', 'codex.svg'), ('dagster', 'Dagster', 'dagster.svg'), ('signoz', 'SigNoz', 'signoz.svg'), ('github', 'GitHub', 'github.svg'), ('docker', 'Docker', 'docker.svg'), ('postgres', 'PostgreSQL', 'postgresql.svg'), ('tunnels', 'SSH tunnels', ''), ('commands', 'Commands', '')] %}
+    {% for key, label, icon in [('display', 'General', ''), ('weather', 'Weather', ''), ('codex', 'Codex', 'codex.svg'), ('dagster', 'Dagster', 'dagster.svg'), ('signoz', 'SigNoz', 'signoz.svg'), ('github', 'GitHub', 'github.svg'), ('docker', 'Docker', 'docker.svg'), ('postgres', 'PostgreSQL', 'postgresql.svg'), ('tunnels', 'SSH tunnels', ''), ('commands', 'Commands', '')] %}
     <button type="button" id="tab-{{ key }}" class="settings-tab" role="tab" data-settings-tab="{{ key }}" aria-controls="settings-{{ key }}" aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="{{ '0' if loop.first else '-1' }}">
       {% if icon %}<img src="/static/{{ icon }}" alt="">
-      {% elif key == 'display' %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M9 4v13M15 4v13"/></svg>
+      {% elif key in ('display', 'weather') %}<svg viewBox="0 0 24 24" aria-hidden="true">{% if key == 'display' %}<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>{% else %}<path d="M20 15.5A7.5 7.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z"/><path d="M16 3v4m-2-2h4"/>{% endif %}</svg>
       {% elif key == 'github' %}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10M18 8v2a5 5 0 0 1-5 5H6"/></svg>
       {% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m6 9 3 3-3 3M13 15h5"/></svg>{% endif %}
       <span>{{ label }}</span>
@@ -20,29 +20,26 @@
   </div>
   <div class="settings-panels">
   <section id="settings-commands" class="settings-panel" role="tabpanel" aria-labelledby="tab-commands" tabindex="0" hidden>
-    <div class="settings-panel-heading"><h2>Service commands</h2><p class="help">Save commands for each server, run them and view their output.</p></div>
+    <div class="settings-panel-heading"><h2>Service commands</h2></div>
     <a href="/services" class="primary-button">Open service commands</a>
   </section>
   <section id="settings-display" class="settings-panel" role="tabpanel" aria-labelledby="tab-display" tabindex="0">
-    <div class="settings-panel-heading"><h2>Display</h2><p class="help">Choose the three apps shown on your dashboard, from left to right.</p></div>
-  <fieldset class="settings-section"><legend>Display mode</legend>
-    <label class="toggle"><input id="demo" type="checkbox"> Show demo data</label>
+    <div class="settings-panel-heading"><h2>General</h2></div>
+  <fieldset class="settings-section" id="startup-settings"><legend>Startup</legend>
+    <p id="startup-status" class="help" role="status">Checking login startup…</p>
+    <label class="toggle"><input id="startup-enabled" type="checkbox" disabled> Start Codester when I log in</label>
+    <label class="toggle"><input id="startup-browser" type="checkbox" disabled> Open the dashboard in my browser</label>
+    <button type="button" id="save-startup" class="secondary-button" disabled>Save startup preferences</button>
   </fieldset>
-  <fieldset id="dashboard-layout" class="settings-section"><legend>Dashboard columns</legend>
-    <div id="active-columns" class="active-columns" aria-label="Active dashboard columns">
-      {% for i in range(3) %}<button class="column-slot" data-slot="{{ i }}" type="button" aria-haspopup="true"><span class="slot-number">{{ i + 1 }}</span><span class="slot-glyph">+</span><span class="slot-label">Choose app</span></button>{% endfor %}
-    </div>
-    <div id="app-picker" class="app-picker" aria-label="Choose an app" hidden>
-      <button type="button" data-app-choice="codex"><img src="/static/codex.svg" alt=""><span>Codex</span></button>
-      <button type="button" data-app-choice="dagster"><img src="/static/dagster.svg" alt=""><span>Dagster</span></button>
-      <button type="button" data-app-choice="signoz"><img src="/static/signoz.svg" alt=""><span>SigNoz</span></button>
-      <button type="button" data-app-choice="postgres"><img src="/static/postgresql.svg" alt=""><span>PostgreSQL</span></button>
-      <button type="button" data-app-choice="server"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="5" width="26" height="22" rx="4"/><path d="m9 12 4 4-4 4M17 20h6"/></svg><span>Linux</span></button>
-      <button type="button" data-app-choice="docker"><img src="/static/docker.svg" alt=""><span>Docker</span></button>
-      <button type="button" data-app-choice="github"><svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-4.1 25.3c.7.1.9-.3.9-.7v-2.5c-3.8.8-4.6-1.6-4.6-1.6-.6-1.6-1.5-2-1.5-2-1.3-.9.1-.9.1-.9 1.4.1 2.2 1.5 2.2 1.5 1.3 2.2 3.4 1.6 4.2 1.2.1-.9.5-1.6.9-2-3-.3-6.2-1.5-6.2-6.4 0-1.4.5-2.6 1.4-3.5-.1-.3-.6-1.7.1-3.5 0 0 1.1-.4 3.6 1.3a12.4 12.4 0 0 1 6.6 0c2.5-1.7 3.6-1.3 3.6-1.3.7 1.8.2 3.2.1 3.5.9.9 1.4 2.1 1.4 3.5 0 5-3.2 6.1-6.2 6.4.5.4.9 1.3.9 2.6v3.9c0 .4.2.8.9.7A13 13 0 0 0 16 3Z"/></svg><span>GitHub</span></button>
-    </div>
+  <fieldset class="settings-section" id="update-settings"><legend>Codester updates</legend>
+    <p id="update-status" class="help" role="status">Checking this installation…</p>
+    <button type="button" id="check-update" class="secondary-button">Check readiness</button>
+    <button type="button" id="pull-update" class="secondary-button" disabled>Pull updates</button>
   </fieldset>
-  <fieldset class="settings-section" id="weather-settings" disabled><legend>Weather</legend>
+  </section>
+  <section id="settings-weather" class="settings-panel" role="tabpanel" aria-labelledby="tab-weather" tabindex="0" hidden>
+    <div class="settings-panel-heading"><h2>Weather</h2><span class="info-tip" tabindex="0" title="Choose a town manually. Forecasts update about hourly." aria-label="Weather information">i</span></div>
+  <fieldset class="settings-section" id="weather-settings">
     <label class="toggle"><input id="weather-enabled" type="checkbox"> Show weather beside the clock</label>
     <label for="weather-query">Town or city</label>
     <div class="weather-search"><input id="weather-query" type="search" maxlength="100" placeholder="e.g. Bristol, UK" autocomplete="off"><button id="weather-search" type="button" class="secondary-button">Search</button></div>
@@ -51,56 +48,33 @@
     <p id="weather-selected" class="help">No location selected</p>
     <button id="weather-clear" type="button" class="quiet-button">Clear location</button>
     <label>Temperature<select id="weather-units"><option value="celsius">Celsius (°C)</option><option value="fahrenheit">Fahrenheit (°F)</option></select></label>
-    <p class="help">Save settings to apply. Weather refreshes roughly hourly; the dashboard can show the next six hours. No GPS access. Your chosen town and rounded coordinates are saved locally; searches go to Photon and coordinates go to MET Norway, which also see your public IP. Use a town, not a private address.</p>
-    <p class="help">Weather: <a href="https://api.met.no/" target="_blank" rel="noopener noreferrer">MET Norway</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>), summarised for display. Search: <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a> / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</p>
-  </fieldset>
-  <fieldset class="settings-section" id="startup-settings"><legend>Startup</legend>
-    <p id="startup-status" class="help" role="status">Checking login startup…</p>
-    <label class="toggle"><input id="startup-enabled" type="checkbox" disabled> Start Codester when I log in</label>
-    <label class="toggle"><input id="startup-browser" type="checkbox" disabled> Open the dashboard in my browser when Codester starts</label>
-    <p class="help">Uses your default browser. Turning off login startup leaves this session running.</p>
-    <button type="button" id="save-startup" class="secondary-button" disabled>Save startup preferences</button>
-  </fieldset>
-  <fieldset class="settings-section" id="update-settings"><legend>Codester updates</legend>
-    <p id="update-status" class="help" role="status">Checking this installation…</p>
-    <p class="help">Pulls source changes from this branch’s configured upstream. Local edits block updates. Saved settings and credentials stay on this device. Restart Codester afterwards; dependency changes may require the installer.</p>
-    <button type="button" id="check-update" class="secondary-button">Check readiness</button>
-    <button type="button" id="pull-update" class="secondary-button" disabled>Pull updates</button>
   </fieldset>
   </section>
   <section id="settings-codex" class="settings-panel" role="tabpanel" aria-labelledby="tab-codex" tabindex="0" hidden>
   <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/codex.svg" alt=""> Codex</legend>
-    <label class="toggle"><input id="codex-enabled" type="checkbox"> Monitor my Codex subscription</label>
-    <p class="help">Uses the Codex installation and ChatGPT sign-in on this computer.</p>
     <label class="toggle"><input id="codex-activity" type="checkbox"> Show recent local VS Code task titles</label>
     <div id="codex-hook-notice"></div>
     <button type="button" class="secondary-button test" data-service="codex">Test connection</button><p id="codex-test" role="status" class="test-result"></p>
   </fieldset>
   </section>
   <section id="settings-dagster" class="settings-panel" role="tabpanel" aria-labelledby="tab-dagster" tabindex="0" hidden>
-  <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/dagster.svg" alt=""> Dagster</legend>
-    <label class="toggle"><input id="dagster-enabled" type="checkbox"> Monitor Dagster</label>
+  <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/dagster.svg" alt=""> Dagster <span class="info-tip" tabindex="0" title="The API URL is used for data. The browser URL is only for links." aria-label="Dagster URL information">i</span></legend>
     <div class="form-grid"><label>API base URL<input id="dagster-api_url" type="url" placeholder="http://localhost:8000" autocomplete="off"></label>
     <label><span>Browser base URL <span class="optional">optional</span></span><input id="dagster-browser_url" type="url" placeholder="Use API URL" autocomplete="off"></label></div>
-    <p class="help">API URL is used by Codester. Browser URL is used for links.</p>
     <button type="button" class="secondary-button test" data-service="dagster">Test connection</button><p id="dagster-test" role="status" class="test-result"></p>
   </fieldset>
   </section>
   <section id="settings-signoz" class="settings-panel" role="tabpanel" aria-labelledby="tab-signoz" tabindex="0" hidden>
-  <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/signoz.svg" alt=""> SigNoz</legend>
-    <label class="toggle"><input id="signoz-enabled" type="checkbox"> Monitor SigNoz</label>
+  <fieldset class="settings-section"><legend><img class="tiny-icon" src="/static/signoz.svg" alt=""> SigNoz <span class="info-tip" tabindex="0" title="Use a query API key with read access. Home content and measurement settings are optional." aria-label="SigNoz connection information">i</span></legend>
     <div class="form-grid"><label>API base URL<input id="signoz-api_url" type="url" placeholder="http://localhost:8080" autocomplete="off"></label>
     <label><span>Browser base URL <span class="optional">optional</span></span><input id="signoz-browser_url" type="url" placeholder="Use API URL" autocomplete="off"></label></div>
-    <label>Query API key<input id="signoz-key" type="password" placeholder="Enter a query API key" autocomplete="new-password"></label>
-    <p id="key-note" class="help">Use a read-capable API key, not a telemetry ingestion key. Keys are encrypted in local storage.</p>
+    <label>Query API key<input id="signoz-key" type="password" placeholder="Enter a query API key" autocomplete="new-password"><small id="key-note" class="field-state"></small></label>
     <label class="toggle"><input id="clear-key" type="checkbox"> Remove the saved SigNoz key</label>
     <div class="button-row"><button type="button" class="secondary-button test" data-service="signoz">Test connection</button><button type="button" id="discover" class="secondary-button">Find services</button></div>
-    <p id="signoz-test" role="status" class="test-result"></p><p id="discovery-status" role="status" class="help">Save the connection first, then find services observed in the last 24 hours.</p>
+    <p id="signoz-test" role="status" class="test-result"></p><p id="discovery-status" role="status" class="help"></p>
     <label>Time window<select id="signoz-window_seconds"><option value="300">Last 5 minutes</option><option value="900">Last 15 minutes</option><option value="3600">Last hour</option><option value="21600">Last 6 hours</option><option value="86400">Last 24 hours</option></select></label>
-    <p class="help">Applies to measurements, requests per app, and recent errors. Refreshes every 30 seconds after each query finishes.</p>
     <label>Home panel content<select id="signoz-home_content"><option value="overview">Overview</option><option value="recent">Latest logs</option><option value="errors">Errors only</option></select></label>
-    <p class="help">Log modes show the latest six entries and update every five seconds while the SigNoz Home panel is visible.</p>
-    <h3>Measurements</h3><p class="help">Choose up to three. Totals count recorded incoming server spans, so trace sampling can reduce the counts. The app list shows up to 200 services.</p>
+    <h3>Measurements <span class="info-tip" tabindex="0" title="Totals use incoming server spans. Trace sampling may reduce counts." aria-label="Measurement information">i</span></h3>
     {% for i in range(3) %}
     <div class="panel-config"><label class="toggle panel-toggle"><input id="panel-{{ i }}-enabled" type="checkbox" checked> {{ i + 1 }}</label>
       <label>Service<select id="panel-{{ i }}-service" class="service-select"><option value="">All services</option></select></label>
@@ -112,18 +86,13 @@
   </section>
   <section id="settings-github" class="settings-panel" role="tabpanel" aria-labelledby="tab-github" tabindex="0" hidden>
   <fieldset id="github" class="settings-section"><legend><svg class="tiny-icon inline-github" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-4.1 25.3c.7.1.9-.3.9-.7v-2.5c-3.8.8-4.6-1.6-4.6-1.6-.6-1.6-1.5-2-1.5-2-1.3-.9.1-.9.1-.9 1.4.1 2.2 1.5 2.2 1.5 1.3 2.2 3.4 1.6 4.2 1.2.1-.9.5-1.6.9-2-3-.3-6.2-1.5-6.2-6.4 0-1.4.5-2.6 1.4-3.5-.1-.3-.6-1.7.1-3.5 0 0 1.1-.4 3.6 1.3a12.4 12.4 0 0 1 6.6 0c2.5-1.7 3.6-1.3 3.6-1.3.7 1.8.2 3.2.1 3.5.9.9 1.4 2.1 1.4 3.5 0 5-3.2 6.1-6.2 6.4.5.4.9 1.3.9 2.6v3.9c0 .4.2.8.9.7A13 13 0 0 0 16 3Z"/></svg> GitHub</legend>
-    <label class="toggle"><input id="github-enabled" type="checkbox"> Monitor GitHub</label>
     <div class="form-grid"><label>API base URL<input id="github-api_url" type="url" placeholder="https://api.github.com" autocomplete="off"></label>
     <label>Browser base URL<input id="github-browser_url" type="url" placeholder="https://github.com" autocomplete="off"></label></div>
-    <label>Organisation <span class="optional">optional</span><input id="github-organization" type="text" maxlength="39" placeholder="TMPlant" autocomplete="off"></label>
-    <p class="help">Set an organisation to count your default-branch commits across its token-visible repositories. Personal repositories are excluded. The three latest repositories get charts. Leave blank for your account calendar and three selected or recent repositories.</p>
-    <label>Personal access token<input id="github-token" type="password" placeholder="github_pat_…" autocomplete="new-password"></label>
-    <p id="github-token-note" class="help">No token saved.</p>
+    <label><span class="field-label">Organisation <span class="optional">optional</span><span class="info-tip" tabindex="0" title="Counts authored default-branch commits in this organisation. Requires repository read access." aria-label="Organisation information">i</span></span><input id="github-organization" type="text" maxlength="39" placeholder="TMPlant" autocomplete="off"></label>
+    <label><span class="field-label">Personal access token <span class="info-tip" tabindex="0" title="Needed for private repositories and account activity." aria-label="GitHub token information">i</span></span><input id="github-token" type="password" placeholder="github_pat_…" autocomplete="new-password"><small id="github-token-note" class="field-state"></small></label>
     <label class="toggle"><input id="clear-github-token" type="checkbox"> Remove saved token</label>
     <button type="button" class="secondary-button test" data-service="github">Test connection</button><p id="github-test" role="status" class="test-result"></p>
-    <p class="help">Organisation mode needs repository Contents read access. Account calendar: classic token with <code>read:user</code>; when empty, visible repository commits are used. Only repositories accessible to the saved token can be counted.</p>
-    <h3>Repository actions</h3>
-    <p class="help">Run a deployment script from your repository on a saved SSH server. Staging is optional; the tunnel can remain off.</p>
+    <h3>Repository actions <span class="info-tip" tabindex="0" title="Runs your saved script on a server over SSH." aria-label="Repository action information">i</span></h3>
     <div id="repository-list" class="repository-list"></div>
     <button id="add-repository" type="button" class="secondary-button">+ Add repository</button>
   </fieldset>
@@ -135,9 +104,8 @@
         <label>SSH connection<select data-repository-field="update_host_id"></select></label>
         <label>Server folder<input data-repository-field="update_path" type="text" maxlength="1024" placeholder="/srv/Codester" autocomplete="off"></label>
         <label>Run<select data-repository-field="update_mode"><option value="script">Repository script</option><option value="command">Custom command</option></select></label>
-        <label class="repository-command" data-script-option>Script path<input data-repository-field="update_script_file" type="text" maxlength="1024" placeholder="scripts/deploy.sh" autocomplete="off"><span class="help">Relative to the server checkout. The committed Bash script owns build, pytest, deployment and health checks.</span></label>
+        <label class="repository-command" data-script-option><span class="field-label">Script path <span class="info-tip" tabindex="0" title="Relative to the server checkout. Runs with Bash; the script can build, test and deploy." aria-label="Repository script information">i</span></span><input data-repository-field="update_script_file" type="text" maxlength="1024" placeholder="scripts/deploy.sh" autocomplete="off"></label>
         <label class="toggle" data-script-option><input data-repository-field="update_pull" type="checkbox"> Pull latest before running (fast-forward only)</label>
-        <p class="help repository-command" data-script-option>Requires Bash, Git and flock on the server, and a clean checkout. No staging server is required.</p>
         <label class="repository-command" data-command-option>Update script<textarea data-repository-field="update_script" rows="4" maxlength="8000" spellcheck="false" placeholder="git pull --ff-only &amp;&amp; docker compose up -d --build"></textarea></label>
         <label class="toggle"><input data-repository-field="update_confirm" type="checkbox"> Confirm before running</label>
       </div>
@@ -145,21 +113,16 @@
         <label>Local checkout path<input data-repository-field="path" type="text" maxlength="4096" placeholder="/repos/Codester" autocomplete="off"></label>
         <label class="repository-command">Local deploy command<input data-repository-field="deploy_command" type="text" maxlength="2000" placeholder="docker compose up -d --build" autocomplete="off"></label>
       </div></details>
-      <p class="help">Use SSH agent, environment variables, or your platform credential store for access. Do not put passwords in the command.</p>
       <p class="test-result repository-test" role="status"></p>
     </section>
   </template>
   </section>
   <section id="settings-docker" class="settings-panel" role="tabpanel" aria-labelledby="tab-docker" tabindex="0" hidden>
-    <div class="settings-panel-heading"><h2><img class="tiny-icon" src="/static/docker.svg" alt=""> Docker</h2><p class="help">View containers, resource usage and start/stop controls.</p></div>
-    <h3>Connection</h3><p class="help">Native Codester uses an available local Docker socket or your Docker CLI connection. Start Docker Desktop before opening the container view. No separate password is needed here.</p>
-    <div class="button-row"><a class="secondary-button" href="/docker">Open containers</a><button type="button" class="secondary-button" data-open-settings="display">Choose dashboard apps</button></div>
-    <p class="help settings-info">When Codester runs in Docker, it uses the Docker socket mounted into its container. Anyone with control of Codester can use the Docker access you grant it.</p>
+    <div class="settings-panel-heading"><h2><img class="tiny-icon" src="/static/docker.svg" alt=""> Docker</h2></div>
+    <div class="button-row"><a class="secondary-button" href="/docker">Open containers</a></div>
   </section>
   <section id="settings-postgres" class="settings-panel" role="tabpanel" aria-labelledby="tab-postgres" tabindex="0" hidden>
-    <div class="settings-panel-heading"><h2><img class="tiny-icon" src="/static/postgresql.svg" alt=""> PostgreSQL</h2><p class="help">Current queries and blocking locks for one database.</p></div>
-    <p class="help"><a href="/#workspace/postgres">Open SQL workspace</a> to manage named development and production connections and run queries. These monitoring settings remain independent.</p>
-    <label class="toggle"><input id="postgres-enabled" type="checkbox"> Enable monitoring</label>
+    <div class="settings-panel-heading"><h2><img class="tiny-icon" src="/static/postgresql.svg" alt=""> PostgreSQL <span class="info-tip" tabindex="0" title="Role permissions control which sessions and SQL are visible. TLS is required by default." aria-label="PostgreSQL monitoring information">i</span></h2><a class="quiet-button" href="/#workspace/postgres">Open SQL workspace</a></div>
     <div class="field-grid">
       <label>Host<input id="postgres-host" maxlength="1024" value="127.0.0.1" autocomplete="off"></label>
       <label>Port<input id="postgres-port" type="number" min="1" max="65535" value="5432"></label>
@@ -173,10 +136,8 @@
     <p id="postgres-password-note" class="help"></p>
     <label class="toggle"><input id="postgres-clear_password" type="checkbox"> Remove saved database password</label>
     <label>Use a saved tunnel<select id="postgres-tunnel"><option value="">Choose a tunnel to fill host and port</option></select></label>
-    <p class="help">For an SSH forward, use 127.0.0.1 and its local port. Database credentials are separate from SSH credentials; connect the tunnel first.</p>
     <div class="button-row"><button type="button" class="secondary-button test" data-service="postgres">Save &amp; test</button><a class="quiet-button" href="/postgres">View activity</a><button type="button" class="secondary-button" id="add-postgres-tunnel">Add PostgreSQL tunnel</button></div>
     <p id="postgres-test" class="help" role="status"></p>
-    <p class="help">To see other users' SQL, the database role needs pg_read_all_stats (or pg_monitor). Cancelling other users' queries normally requires pg_signal_backend; PostgreSQL enforces the permissions. Superuser sessions require a superuser.</p>
   </section>
   <section id="settings-tunnels" class="settings-panel" role="tabpanel" aria-labelledby="tab-tunnels" tabindex="0" hidden>
   <fieldset id="ssh-tunnels" class="settings-section"><legend>SSH tunnels</legend>
@@ -211,7 +172,7 @@
           <label>Username<input data-tunnel-field="username" type="text" maxlength="64" placeholder="Server username" autocomplete="username" required></label>
           <label class="tunnel-password" hidden>Password<input data-tunnel-field="password" type="password" maxlength="4096" placeholder="Enter password" autocomplete="new-password"></label>
         </div>
-        <p class="help tunnel-agent-note" hidden>Uses keys from this computer's SSH agent, not your Termius password.</p>
+        <span class="info-tip tunnel-agent-note" tabindex="0" role="note" title="Uses keys loaded in this computer's SSH agent." aria-label="SSH agent information" hidden>i</span>
         <details class="tunnel-advanced"><summary>Advanced</summary><label>SSH port<input data-tunnel-field="ssh_port" type="number" min="1" max="65535" value="22" inputmode="numeric" required></label></details>
       </fieldset>
       <fieldset class="tunnel-group"><legend>Destination</legend>

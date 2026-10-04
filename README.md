@@ -13,7 +13,7 @@ A private, local dashboard for Codex subscription usage, Dagster runs, SigNoz se
 
 ## Start locally
 
-Weather is optional: **Settings > Display > Weather**, search for a town, choose a
+Weather is optional: **Settings > Weather**, search for a town, choose a
 result and units, then save. Weather sits beside the date below the larger clock.
 Hover, focus or tap its icon/temperature for conditions and the hourly forecast.
 Forecasts refresh roughly hourly while the dashboard is
@@ -39,7 +39,7 @@ Install **Python 3.12+** or [uv](https://docs.astral.sh/uv/getting-started/insta
 .\scripts\start.ps1
 ```
 
-Open **http://localhost:8765**. The app starts in demo mode. Open Settings, choose the three apps shown in the overview, enter connections, save, test each saved connection, then turn off demo mode. Codex, Dagster, and SigNoz are the default columns. Enabling a service is independent of demo mode; demo makes no automatic upstream requests. Explicit connection tests always use real saved settings.
+Open **http://localhost:8765**. The app uses live data. Add connection details in Settings and select **Save & test** where available. Configured connections are monitored automatically. Choose the three dashboard apps from a panel's heading icon; Codex, Dagster, and SigNoz are the defaults.
 
 The server uses Waitress, not Flask's development server. No JavaScript build or database service is needed. Startup uses the committed lockfile when uv is available. The pip fallback resolves compatible package ranges.
 
@@ -78,7 +78,7 @@ the login session's agent; passwords are stored in the OS credential vault.
 
 ### Choose startup behaviour in Settings
 
-For a native Git checkout, **Settings > Display > Codester updates** can pull
+For a native Git checkout, **Settings > General > Codester updates** can pull
 fast-forward changes from your branch's configured upstream. Commit or review local
 edits first: this action will not stash, reset or discard them. It leaves saved
 settings and credentials alone and refuses tracked local-data paths. It updates
@@ -86,7 +86,7 @@ source only. Restart Codester afterwards (`.venv\Scripts\python.exe -m codester.
 on Windows); if dependencies changed, rerun the native installer instead. The UI
 reports which step is needed. Packaged/copied installations use their installer.
 
-Open **Settings > Display > Startup**. Choose **Start Codester when I log in** and,
+Open **Settings > General > Startup**. Choose **Start Codester when I log in** and,
 optionally, **Open the dashboard in my browser when Codester starts**, then press
 **Save startup preferences**. These preferences save separately from service settings.
 Turning off login startup leaves the current session running. The browser opens
@@ -141,7 +141,7 @@ on macOS); the native log rotates at startup once it exceeds 5 MB.
 
 The installer registers native Python hooks for all local projects, preserving
 other hooks and backing up the previous file as `hooks.json.before-codester-native`.
-It enables live activity and switches off demo mode. Other saved settings remain.
+It enables live activity. Other saved settings remain.
 
 **One-time review:** changed hook commands require review and trust in Codex's Hooks
 settings or CLI `/hooks`, then a new turn. The installer never changes trust records.
@@ -292,9 +292,9 @@ Blank key and saved-password fields preserve their existing secrets. Switching a
 
 The server binds to loopback by default. Docker publishes only `127.0.0.1`. Host validation, origin checks, CSRF tokens, response size limits, and a restrictive content security policy protect the local app. This is a single-user local tool with **no multi-user authentication**; do not publish it on a shared network. The process can access configured private URLs by design.
 
-The display has a clock/launcher rail and three configurable app channels. Settings stores three unique choices and their left-to-right order. Codex, Dagster, SigNoz, GitHub, and PostgreSQL have live overview renderers; Docker has a compact container summary and a full management screen. The Linux server tile remains a metrics placeholder; its launcher opens saved service commands. Dagster spinners stop on stale connections or when reduced motion is enabled.
+The display has a clock/launcher rail and three configurable app channels. Choose three unique apps and their order from the dashboard panel pickers. Codex, Dagster, SigNoz, GitHub, and PostgreSQL have live overview renderers; Docker has a compact container summary and a full management screen. The Linux server tile remains a metrics placeholder; its launcher opens saved service commands. Dagster spinners stop on stale connections or when reduced motion is enabled.
 
-Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s, GitHub sparklines 60s, and PostgreSQL 10s (configurable to 30s or 60s). Sparkline reads fetch only the three displayed repositories and their last 14 days of commits. Local checkout status is cached centrally for four seconds. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results. Demo data is never used as a fallback for a failed live connection.
+Polling is shared across browser tabs: Dagster 10s, SigNoz 30s, Codex 60s, GitHub sparklines 60s, and PostgreSQL 10s (configurable to 30s or 60s). Sparkline reads fetch only the three displayed repositories and their last 14 days of commits. Local checkout status is cached centrally for four seconds. Failures back off to at most 5 minutes, preserve the last successful snapshot, and display its age. Each service has a separate worker; upstream requests have time/size limits. Settings changes discard in-flight old results.
 
 Settings > SigNoz can keep the Home overview or replace it with Latest logs or Errors only. Log modes request the newest six rows every five seconds only while the Home panel is visible. Each row shows the app, shortened user ID and structured HTTP status/method/path when supplied, falling back to severity and message. Selecting a row opens its full in-memory detail in Debug. These Home rows are not saved to SQLite and are not a lossless log stream.
 
@@ -341,22 +341,22 @@ The last command, output and result are saved locally in SQLite; output is limit
 
 ### PostgreSQL activity and blocking locks
 
-In Settings > PostgreSQL, enter the host, port, database, username and database password, then enable monitoring and choose Save & test. The password uses the existing credential store and never returns to the browser. For an SSH forward, select the saved tunnel to fill `127.0.0.1` and its local port; start the tunnel separately. SSH and database credentials are different. TLS defaults to requiring encryption. Use certificate verification for authenticated TLS, or explicitly disable database TLS when relying on an encrypted SSH tunnel to a server without PostgreSQL TLS. CA paths refer to the machine/container running Codester.
+In Settings > PostgreSQL, enter the host, port, database, username and database password, then choose Save & test. Monitoring starts when database and username are configured. The password uses the existing credential store and never returns to the browser. For an SSH forward, select the saved tunnel to fill `127.0.0.1` and its local port; start the tunnel separately. SSH and database credentials are different. TLS defaults to requiring encryption. Use certificate verification for authenticated TLS, or explicitly disable database TLS when relying on an encrypted SSH tunnel to a server without PostgreSQL TLS. CA paths refer to the machine/container running Codester.
 
-Select PostgreSQL in Settings > Display to show active queries, waiting sessions and blockers in one of the three dashboard columns. Click through to the activity page for SQL text, PID, user, application, query/transaction age, lock modes and blocker relationships. Idle transactions show their **last** query. Normal held locks are counted separately from blocked sessions. Monitoring covers the configured database, not every database on the server. Other-database and prepared-transaction blockers can be visible but are not controllable from this database's page.
+Configure PostgreSQL in Settings > PostgreSQL to show active queries, waiting sessions and blockers in one of the three dashboard columns. Click through to the activity page for SQL text, PID, user, application, query/transaction age, lock modes and blocker relationships. Idle transactions show their **last** query. Normal held locks are counted separately from blocked sessions. Monitoring covers the configured database, not every database on the server. Other-database and prepared-transaction blockers can be visible but are not controllable from this database's page.
 
 Reads use `pg_stat_activity`, `pg_locks` and `pg_blocking_pids`, with one shared background worker, autocommit connections, a four-second statement timeout, at most 50 query rows and blocker inspection for at most 20 waiting sessions per refresh. Browser polling reads the cache. Query text is capped at 4,000 characters (PostgreSQL may truncate it further) and retained only in the in-memory snapshot, not stored as query history. Short queries between samples may not appear. These system-view queries are modest for typical deployments, but are not free; increase the refresh interval on busy servers.
 
 For visibility into other users' activity, use a role with `pg_read_all_stats` or `pg_monitor`. PostgreSQL enforces cancellation/termination privileges; `pg_signal_backend` allows signalling other non-superuser sessions, while superuser sessions require a superuser. Codester does not grant roles. Limited visibility is explicitly labelled instead of treating hidden activity as zero workload.
 
-The activity page offers **Cancel query** and **End session**, each with a confirmation naming the PID and showing the SQL. Cancellation does not guarantee that an open transaction releases its locks. Ending a session rolls back its open transaction, and the application may reconnect. Successful responses report a signal request, not proof all locks disappeared. Controls are unavailable for demo, disabled or stale connections. Short-lived signed tokens bind the target connection, backend start, query start, transaction start, state and query fingerprint; a single SQL statement rechecks that identity before signalling. PostgreSQL signalling cannot eliminate every race with concurrently changing queries. No live work-database sessions were terminated during development; integration tests use an isolated local PostgreSQL container.
+The activity page offers **Cancel query** and **End session**, each with a confirmation naming the PID and showing the SQL. Cancellation does not guarantee that an open transaction releases its locks. Ending a session rolls back its open transaction, and the application may reconnect. Successful responses report a signal request, not proof all locks disappeared. Controls are unavailable for disabled or stale connections. Short-lived signed tokens bind the target connection, backend start, query start, transaction start, state and query fingerprint; a single SQL statement rechecks that identity before signalling. PostgreSQL signalling cannot eliminate every race with concurrently changing queries. No live work-database sessions were terminated during development; integration tests use an isolated local PostgreSQL container.
 
 ### App workspaces and quick SQL
 
 Use any left-rail app icon to open that app across the main content area. The
 clock, SSH dots and launchers stay visible; **Home** returns to your three panels.
-Click a panel's heading icon on Home to replace that slot. The picker and
-Settings > Display share the same saved layout and require three unique apps.
+Click a panel's heading icon on Home to replace that slot. The picker keeps three
+unique apps and saves the dashboard layout directly.
 Workspace navigation does not alter that layout. PostgreSQL has the first
 purpose-built workspace; other apps currently expand their overview content.
 
@@ -378,8 +378,8 @@ write was rolled back, so inspect the data before retrying.
 Run with the green play icon or Ctrl/Command+Enter. Elapsed time appears beside it. One SQL request can run at a time per
 Codester instance. Statement and lock timeouts are 30 and 3 seconds, respectively,
 with cancellation requested after 35 seconds as a backstop. While running, the icon
-becomes a red pause button that sends a cancellation request. There are no automatic retries. Demo mode disables SQL
-execution. The query runner uses the database role's normal schema search path;
+becomes a red pause button that sends a cancellation request. There are no automatic retries.
+The query runner uses the database role's normal schema search path;
 the separate monitoring adapter continues to use `pg_catalog`.
 
 Results retain text representations (including large integers), duplicate column
@@ -428,8 +428,8 @@ script in the server folder without starting a forwarding tunnel. Updating shows
 elapsed time; tap the status to expand the exact script and command output. The
 latest result survives reloads. Success means the command exited successfully,
 not that deployment health was checked. Interrupted SSH sessions and commands
-still running when Codester restarts report an unknown outcome. Demo mode never
-runs remote repository updates. Existing local Push/Deploy controls remain separate.
+still running when Codester restarts report an unknown outcome. Existing local
+Push/Deploy controls remain separate.
 
 ### SigNoz debugging workspace
 
@@ -459,5 +459,5 @@ ingestion may change historical pages. Use SigNoz for the full history. Messages
 are capped at 4,000 characters; attributes at 60 fields, 1,000 characters each and
 12,000 total characters. Truncation is labelled. Content is rendered as text.
 Logs and investigation state stay in memory. Failed searches retain only same-search
-stale data and do not interrupt trace charts. Demo filters work without contacting
-SigNoz. Live compatibility with the work server still needs verification.
+stale data and do not interrupt trace charts. Live compatibility with the work
+server still needs verification.

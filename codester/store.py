@@ -20,7 +20,7 @@ from codester.credentials import PREFIX, CredentialStoreError, NativeCredentials
 from codester.subprocesses import hidden_subprocess_creation_flags
 
 DEFAULTS: dict = {
-    "demo": True,
+    "demo": False,
     "dashboard_apps": ["codex", "dagster", "signoz"],
     "weather": {"enabled": False, "location": "", "latitude": None, "longitude": None, "units": "celsius"},
     "codex": {"enabled": False, "activity": False},
@@ -171,9 +171,7 @@ def validate(data: object) -> dict:
     if not isinstance(data, dict):
         raise ConfigurationError("Settings must be a JSON object.")
     result = copy.deepcopy(DEFAULTS)
-    if not isinstance(data.get("demo"), bool):
-        raise ConfigurationError("Choose demo or live mode.")
-    result["demo"] = data["demo"]
+    result["demo"] = False
     dashboard_apps = data.get("dashboard_apps", DEFAULTS["dashboard_apps"])
     if (
         not isinstance(dashboard_apps, list)
@@ -201,22 +199,21 @@ def validate(data: object) -> dict:
     result["weather"].update(enabled=weather["enabled"], location=location.strip(), units=weather["units"])
     for name in ("codex", "dagster", "signoz", "github"):
         item = data.get(name)
-        if not isinstance(item, dict) or not isinstance(item.get("enabled"), bool):
-            raise ConfigurationError(f"Choose whether to enable {name}.")
-        result[name]["enabled"] = item["enabled"]
+        if not isinstance(item, dict):
+            raise ConfigurationError(f"Invalid {name} settings.")
         if name == "codex":
             if not isinstance(item.get("activity"), bool):
                 raise ConfigurationError("Choose whether to read local Codex activity.")
             result[name]["activity"] = item["activity"]
+            result[name]["enabled"] = True
             continue
         for field in ("api_url", "browser_url"):
             result[name][field] = valid_url(item.get(field, ""))
-        if item["enabled"] and not result[name]["api_url"]:
-            raise ConfigurationError(f"Enter the {name} API URL before enabling it.")
+        needs_key = name in {"signoz", "github"}
+        result[name]["enabled"] = bool(result[name]["api_url"] and (not needs_key or item.get("enabled", False)))
     pg = data.get("postgres", DEFAULTS["postgres"])
-    if not isinstance(pg, dict) or not isinstance(pg.get("enabled"), bool):
-        raise ConfigurationError("Choose whether to enable PostgreSQL.")
-    result["postgres"]["enabled"] = pg["enabled"]
+    if not isinstance(pg, dict):
+        raise ConfigurationError("Invalid PostgreSQL settings.")
     for field in ("host", "database", "username", "sslrootcert"):
         value = pg.get(field, DEFAULTS["postgres"][field])
         if not isinstance(value, str) or len(value) > 1024 or any(ord(c) < 32 for c in value):
@@ -224,8 +221,7 @@ def validate(data: object) -> dict:
         result["postgres"][field] = value.strip()
     if not re.fullmatch(r"[A-Za-z0-9._:-]+", result["postgres"]["host"]):
         raise ConfigurationError("Enter a PostgreSQL hostname or IP address.")
-    if pg["enabled"] and (not result["postgres"]["database"] or not result["postgres"]["username"]):
-        raise ConfigurationError("Enter the PostgreSQL database and username before enabling it.")
+    result["postgres"]["enabled"] = bool(result["postgres"]["database"] and result["postgres"]["username"])
     port = pg.get("port", 5432)
     if type(port) is not int or not 1 <= port <= 65535:
         raise ConfigurationError("Use a PostgreSQL port from 1 to 65535.")
@@ -513,12 +509,20 @@ class Store:
     def read(self) -> dict:
         with self.lock, closing(sqlite3.connect(self.path)) as db, db:
             data = json.loads(db.execute("SELECT value FROM settings WHERE id=1").fetchone()[0])
+            secret_names = {name for (name,) in db.execute("SELECT name FROM secrets")}
         data.setdefault("dashboard_apps", list(DEFAULTS["dashboard_apps"]))
         data.setdefault("weather", copy.deepcopy(DEFAULTS["weather"]))
         data.setdefault("tunnels", [])
         data.setdefault("postgres", copy.deepcopy(DEFAULTS["postgres"]))
         data.setdefault("github", copy.deepcopy(DEFAULTS["github"]))
         data["github"].setdefault("repositories", [])
+        data["demo"] = False
+        data["codex"]["enabled"] = True
+        for name in ("dagster", "signoz", "github"):
+            data[name]["enabled"] = bool(data[name].get("api_url"))
+        for name in ("signoz", "github"):
+            data[name]["enabled"] = bool(data[name].get("api_url") and name in secret_names)
+        data["postgres"]["enabled"] = bool(data["postgres"].get("database") and data["postgres"].get("username"))
         data["github"].setdefault("organization", "")
         data["signoz"].setdefault("window_seconds", 3600)
         data["signoz"].setdefault("home_content", "overview")

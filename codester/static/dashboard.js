@@ -679,6 +679,7 @@ function renderTunnelDots() {
   const container = $('#tunnel-dots');
   const tunnels = tunnelState?.tunnels || [];
   container.hidden = !tunnels.length;
+  container.closest('.clock-rail').classList.toggle('has-tunnels', tunnels.length > 0);
   for (const dot of [...container.children]) {
     if (!tunnels.some(tunnel => tunnel.id === dot.dataset.id)) dot.remove();
   }
