@@ -5,7 +5,11 @@ from urllib.parse import quote
 
 from codester.transport import IntegrationError, post_json
 
-RUN_FIELDS = "runId jobName status startTime endTime creationTime"
+RUN_FIELDS = (
+    "runId jobName status startTime endTime creationTime "
+    "repositoryOrigin { repositoryName repositoryLocationName }"
+)
+RUN_FIELDS_WITHOUT_ORIGIN = "runId jobName status startTime endTime creationTime"
 
 
 def graphql(config: dict, query: str, variables: dict | None = None) -> dict:
@@ -26,21 +30,33 @@ def run_link(config: dict, run_id: str) -> str:
 
 def snapshot(config: dict) -> dict:
     # Runs.count gives an exact total even though the displayed rows are bounded.
-    query = (
-        "query {"
-        + " ".join(
-            f"{alias}: runsOrError(filter: {{statuses: [{statuses}]}}, limit: 12) "
-            f"{{ __typename ... on Runs {{ count results {{ {RUN_FIELDS} }} }} }}"
-            for alias, statuses in [
-                ("queued", "QUEUED"),
-                ("running", "STARTING, STARTED, CANCELING"),
-                ("failed", "FAILURE"),
-                ("recent", "SUCCESS, FAILURE, CANCELED"),
-            ]
+    def runs_query(fields: str) -> str:
+        return (
+            "query {"
+            + " ".join(
+                f"{alias}: runsOrError(filter: {{statuses: [{statuses}]}}, limit: 12) "
+                f"{{ __typename ... on Runs {{ count results {{ {fields} }} }} }}"
+                for alias, statuses in [
+                    ("queued", "QUEUED"),
+                    ("running", "STARTING, STARTED, CANCELING"),
+                    ("failed", "FAILURE"),
+                    ("recent", "SUCCESS, FAILURE, CANCELED"),
+                ]
+            )
+            + "}"
         )
-        + "}"
-    )
-    data = graphql(config, query)
+
+    try:
+        run_fields = RUN_FIELDS
+        data = graphql(config, runs_query(run_fields))
+    except IntegrationError as exc:
+        if str(exc) not in {
+            "Dagster GraphQL schema rejected the query. Check the installed version.",
+            "API query not supported. Check the base URL and server version.",
+        }:
+            raise
+        run_fields = RUN_FIELDS_WITHOUT_ORIGIN
+        data = graphql(config, runs_query(run_fields))
     for name in ("queued", "running", "failed", "recent"):
         if data.get(name, {}).get("__typename") != "Runs":
             raise IntegrationError(
@@ -56,7 +72,7 @@ def snapshot(config: dict) -> dict:
         page = graphql(
             config,
             "query($cursor: String!) { runsOrError(filter: {statuses: [QUEUED]}, "
-            "cursor: $cursor, limit: 100) { ... on Runs { results { " + RUN_FIELDS + " } } } }",
+            "cursor: $cursor, limit: 100) { ... on Runs { results { " + run_fields + " } } } }",
             {"cursor": rows[-1]["runId"]},
         )
         more = page.get("runsOrError", {}).get("results", [])
@@ -72,6 +88,8 @@ def snapshot(config: dict) -> dict:
         return {
             "id": row["runId"],
             "title": row["jobName"],
+            "repository": (row.get("repositoryOrigin") or {}).get("repositoryName", ""),
+            "location": (row.get("repositoryOrigin") or {}).get("repositoryLocationName", ""),
             "status": row["status"],
             "timestamp": row.get("endTime") or row.get("startTime") or row["creationTime"],
             "duration": max(0, (row.get("endTime") or now) - started),

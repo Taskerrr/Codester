@@ -48,11 +48,12 @@ pages remain accessible through their header links.
 ## Shipped
 
 - The dashboard rail places Settings and fullscreen at the top, with Home first in the app launcher grid. SSH tunnel status buttons and switches are twice their previous visual size; status buttons sit at the bottom when tunnels are configured. The clock and launchers have more space below the top controls.
-- Codex activity rows have more line spacing and clearer task text. Dashboard labels and row copy now use a consistent, larger system font; monospaced styling remains for clocks and numeric readouts.
-- Codex's usage-unavailable state is centered in its summary area, balancing the panel while preserving row alignment.
+- Codex shows the active task plus up to two recent tasks without timestamps. Its usage-unavailable state is centered in the summary area.
+- Dashboard labels and row copy use a consistent, larger system font, with monospaced styling for clocks and numeric readouts. Table rows share a consistent height at ultrawide sizes.
+- Dagster job rows show repository and code location context above each job name; older GraphQL schemas retain run monitoring with a generic context label.
 - Settings now uses the full screen width, moves Weather to its own tab, removes demo mode and dashboard layout controls, and starts monitoring when connection details are configured. Help copy is available from compact info icons.
 
-- The dashboard clock/launcher rail centers its mark, clock and launchers vertically on desktop. Overview rows are more compact, and Codex activity and Dagster recent jobs show up to six rows. The redundant panel picker down mark and workspace chevron are removed; launchers remain the workspace navigation.
+- The dashboard clock/launcher rail centers its mark, clock and launchers vertically on desktop. Overview rows are compact, and Dagster recent jobs show up to six rows. The redundant panel picker down mark and workspace chevron are removed; launchers remain the workspace navigation.
 
 ### Date-row weather and larger clock, 25 September 2026
 

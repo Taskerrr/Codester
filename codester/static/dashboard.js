@@ -105,10 +105,11 @@ function codex(data) {
     const reset = window.resets ? duration(window.resets - Date.now() / 1000) : '—';
     return ring({value: remaining === null ? null : `${Math.round(remaining)}%`, label, insideDetail: reset, progress: remaining});
   }).join('');
-  const tasks = data.tasks.slice(0, 6).map(task => `<div class="recent-row codex-task ${task.inferred_active ? 'active' : ''}">
+  const activeTask = data.tasks.find(task => task.inferred_active);
+  const visibleTasks = [...(activeTask ? [activeTask] : []), ...data.tasks.filter(task => task !== activeTask).slice(0, activeTask ? 2 : 3)];
+  const tasks = visibleTasks.map(task => `<div class="recent-row codex-task ${task.inferred_active ? 'active' : ''}">
     <span class="codex-task-marker">${task.inferred_active ? spinner('Active Codex turn') : ['limited', 'error'].includes(task.activity_state) ? `<span class="state-mark stopped" aria-label="${e(task.status)}">!</span>` : task.activity_state === 'stopped' ? '<span class="state-mark stopped" aria-label="Stopped">–</span>' : '<span class="state-mark success" aria-label="Idle">✓</span>'}</span>
     <div><strong title="${e(task.project)}">${e(task.project)}</strong><small title="${e(task.title)}">${e(task.title)}</small>${['limited', 'error'].includes(task.activity_state) ? `<small class="task-failure">${e(task.status)}</small>` : ''}</div>
-    ${task.inferred_active ? '' : `<time title="${ago(task.timestamp)}">${compactTime(task.timestamp)}</time>`}
   </div>`).join('');
   return `<div class="hero-rings codex-rings">${windows || empty('Usage unavailable')}</div>
     ${sectionHeading('Recent activity')}
@@ -119,11 +120,17 @@ function dagster(data) {
   const running = number(data.running);
   const queued = number(data.queued);
   const total = running + queued;
-  const jobs = data.jobs.slice(0, 6).map(job => `<button type="button" class="compact-row dagster-job" data-service="dagster" data-id="${e(job.id)}" aria-label="View run: ${e(jobLabel(job.title))}">
+  const jobs = data.jobs.slice(0, 6).map(job => {
+    const repository = job.repository && job.repository !== '__repository__' ? job.repository : '';
+    const location = job.location && job.location !== repository ? job.location : '';
+    const context = [repository, location].filter(Boolean).join(' · ');
+    const runLabel = context ? `View run: ${context} / ${jobLabel(job.title)}` : `View run: ${jobLabel(job.title)}`;
+    return `<button type="button" class="compact-row dagster-job" data-service="dagster" data-id="${e(job.id)}" aria-label="${e(runLabel)}">
     ${dagsterState(job.status)}
-    <strong title="${e(job.title)}">${e(jobLabel(job.title))}</strong>
+    <span class="dagster-job-copy">${context ? `<small title="${e(context)}">${e(context)}</small>` : ''}<strong title="${e(job.title)}">${e(jobLabel(job.title))}</strong></span>
     <time>${job.status === 'QUEUED' ? 'queued' : duration(job.duration)}</time>
-  </button>`).join('');
+  </button>`;
+  }).join('');
   return `<div class="dagster-hero hero-rings">
         ${ring({value: running, label: 'RUNNING', progress: total ? running / total * 100 : 0})}
         ${ring({value: queued, label: 'QUEUED', progress: total ? queued / total * 100 : 0, detail: queued && data.oldest != null ? `oldest ${duration(data.oldest)}` : ''})}
