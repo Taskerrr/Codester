@@ -47,6 +47,8 @@ pages remain accessible through their header links.
 
 ## Shipped
 
+- The dashboard clock/launcher rail centers its mark, clock and launchers vertically on desktop. Overview rows are more compact, and Codex activity and Dagster recent jobs show up to six rows. The redundant panel picker down mark and workspace chevron are removed; launchers remain the workspace navigation.
+
 ### Date-row weather and larger clock, 25 September 2026
 
 - Weather now shows only icon and temperature to the right of the date, below a
