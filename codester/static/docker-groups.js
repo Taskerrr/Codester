@@ -23,11 +23,18 @@ function compactStatus(row) {
 
 function portsMarkup(row) {
   const mappings = String(row.ports || '').split(/,\s*/).filter(Boolean);
-  const ports = [...new Set(mappings.map(port => {
+  const ports = [...new Map(mappings.map(port => {
     const parts = port.split(/\s*(?:->|→)\s*/);
-    return parts.length > 1 ? parts[0].replace(/^.*:/, '') + (parts[1].endsWith('/udp') ? '/udp' : '') : `${port} internal`;
-  }))];
-  return `<span class="docker-row-ports" title="${e(mappings.join(', ') || 'No ports reported')}" aria-label="${e(mappings.join(', ') || 'No ports reported')}">${e(ports.join(', ') || '—')}</span>`;
+    if (parts.length < 2) return [`internal:${port}`, {label:`${port} internal`}];
+    const hostPort = parts[0].replace(/^.*:/, '');
+    const udp = parts[1].endsWith('/udp');
+    const label = `${hostPort}${udp ? '/udp' : ''}`;
+    return [`${label}`, {label, hostPort, link:!udp && /^\d+$/.test(hostPort)}];
+  }))].map(([, value]) => value);
+  const content = ports.length ? ports.map(port => port.link
+    ? `<a href="http://localhost:${e(port.hostPort)}" target="_blank" rel="noopener noreferrer">${e(port.label)}</a>`
+    : e(port.label)).join(', ') : '—';
+  return `<span class="docker-row-ports" title="${e(mappings.join(', ') || 'No ports reported')}" aria-label="${e(mappings.join(', ') || 'No ports reported')}">${content}</span>`;
 }
 
 function memoryMarkup(rows) {
@@ -61,14 +68,13 @@ export class DockerGroups {
       const expanded = this.expanded.has(key);
       const statusLabel = project ? `${group.running} of ${group.total} containers running` : group.containers[0].status || group.containers[0].state;
       const protectedNote = !group.manageable ? 'Includes Codester; manage outside this dashboard.' : group.total > 50 ? 'Manage projects larger than 50 containers in Docker Desktop.' : '';
-      const heading = `<strong title="${e(`${group.name}: ${statusLabel}`)}" aria-label="${e(`${group.name}: ${statusLabel}`)}">${e(group.name)}</strong>`;
+      const heading = `<strong title="${e(`${group.name}: ${statusLabel}`)}">${e(group.name)}</strong>`;
       const actions = [];
       if (group.running < group.total) actions.push('start');
       if (group.active) actions.push('stop');
       return `<section class="docker-group" data-docker-group="${e(key)}">
         <div class="docker-group-heading">
-          ${project ? `<button type="button" class="docker-project-toggle" data-docker-toggle="${e(key)}" data-docker-key="toggle:${e(key)}" aria-expanded="${expanded}" aria-controls="docker-members-${e(group.id)}"><span class="docker-chevron" aria-hidden="true">›</span><span class="docker-name-line">${heading}</span></button>` : `<div class="docker-standalone-name docker-name-line">${heading}</div>`}
-          ${portsMarkup({ports:group.containers.map(row => row.ports || '').filter(Boolean).join(', ')})}
+          <button type="button" class="docker-group-toggle" data-docker-toggle="${e(key)}" data-docker-key="toggle:${e(key)}" aria-expanded="${expanded}" aria-controls="docker-members-${e(group.id)}"><span class="docker-chevron" aria-hidden="true">›</span><span class="docker-name-line">${heading}</span></button>
           ${memoryMarkup(group.containers)}
           <div class="docker-group-actions">${actions.map(action => {
             const verb = action === 'start' ? 'Start' : 'Stop';
@@ -78,7 +84,7 @@ export class DockerGroups {
         </div>
         <p class="docker-group-confirmation" role="status" hidden></p>
         ${protectedNote ? `<p class="docker-group-note">${e(protectedNote)}</p>` : ''}
-        ${project ? `<ul id="docker-members-${e(group.id)}" class="docker-members" ${expanded ? '' : 'hidden'}>${group.containers.map(row => `<li><strong title="${e(`${row.name} · ${row.image} · ${compactStatus(row)}`)}">${e(row.service || row.name)}</strong>${portsMarkup(row)}${memoryMarkup([row])}<span class="docker-member-state" data-state="${row.running ? 'running' : 'stopped'}" title="${e(row.status || row.state)}" aria-label="${e(row.status || row.state)}">●</span></li>`).join('')}</ul>` : ''}
+        <ul id="docker-members-${e(group.id)}" class="docker-members" ${expanded ? '' : 'hidden'}>${group.containers.map(row => `<li><strong title="${e(`${row.name} · ${row.image} · ${compactStatus(row)}`)}">${e(row.service || row.name)}</strong>${portsMarkup(row)}${memoryMarkup([row])}<span class="docker-member-state" data-state="${row.running ? 'running' : 'stopped'}" title="${e(row.status || row.state)}" aria-label="${e(row.status || row.state)}">●</span></li>`).join('')}</ul>
       </section>`;
     }).join('') || '<p class="docker-groups-empty">No containers</p>';
   }

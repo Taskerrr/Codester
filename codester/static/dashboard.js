@@ -87,14 +87,22 @@ function renderMetrics(target, html) {
 }
 
 const jobLabel = title => String(title ?? '').replaceAll('_', ' ');
+const dagsterContext = row => [
+  row.repository && row.repository !== '__repository__' ? row.repository : '',
+  row.location && row.location !== row.repository ? row.location : '',
+].filter(Boolean).join(' · ');
 
 function errors(name, rows, limit = 3) {
   if (!rows.length) return '<div class="all-clear"><span>✓</span> Clear</div>';
-  return `<div class="deck-errors">${rows.slice(0, limit).map(row => `<button class="deck-error" type="button" data-service="${name}" data-id="${e(row.id)}">
+  return `<div class="deck-errors">${rows.slice(0, limit).map(row => {
+    const context = name === 'dagster' ? dagsterContext(row) : '';
+    const title = name === 'dagster' ? jobLabel(row.title) : row.title;
+    return `<button class="deck-error" type="button" data-service="${name}" data-id="${e(row.id)}">
     <span class="failure-mark" aria-label="Failed">!</span>
-    <span class="error-title" title="${e(row.title)}">${e(name === 'dagster' ? jobLabel(row.title) : row.title)}</span>
+    <span class="error-copy">${context ? `<small class="error-context" title="${e(context)}">${e(context)}</small>` : ''}<span class="error-title" title="${e(row.title)}">${e(title)}</span></span>
     <time title="${ago(row.timestamp)}">${compactTime(row.timestamp)}</time>
-  </button>`).join('')}</div>`;
+  </button>`;
+  }).join('')}</div>`;
 }
 
 function codex(data) {
@@ -121,9 +129,7 @@ function dagster(data) {
   const queued = number(data.queued);
   const total = running + queued;
   const jobs = data.jobs.slice(0, 6).map(job => {
-    const repository = job.repository && job.repository !== '__repository__' ? job.repository : '';
-    const location = job.location && job.location !== repository ? job.location : '';
-    const context = [repository, location].filter(Boolean).join(' · ');
+    const context = dagsterContext(job);
     const runLabel = context ? `View run: ${context} / ${jobLabel(job.title)}` : `View run: ${jobLabel(job.title)}`;
     return `<button type="button" class="compact-row dagster-job" data-service="dagster" data-id="${e(job.id)}" aria-label="${e(runLabel)}">
     ${dagsterState(job.status)}

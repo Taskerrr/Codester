@@ -50,15 +50,20 @@ pages remain accessible through their header links.
 - The dashboard rail places Settings and fullscreen at the top, with Home first in the app launcher grid. SSH tunnel status buttons and switches are twice their previous visual size; status buttons sit at the bottom when tunnels are configured. The clock and launchers have more space below the top controls.
 - Codex shows the active task plus up to two recent tasks without timestamps. Its usage-unavailable state is centered in the summary area.
 - Dashboard labels and row copy use a consistent, larger system font, with monospaced styling for clocks and numeric readouts. Table rows share a consistent height at ultrawide sizes.
-- Dagster job rows show repository and code location context above each job name; older GraphQL schemas retain run monitoring with a generic context label.
+- Dagster job and error rows show repository and code location context above each job name; older GraphQL schemas retain run monitoring with no origin label.
 - Settings now uses the full screen width, moves Weather to its own tab, removes demo mode and dashboard layout controls, and starts monitoring when connection details are configured. Help copy is available from compact info icons.
 
 - The dashboard clock/launcher rail centers its mark, clock and launchers vertically on desktop. Overview rows are compact, and Dagster recent jobs show up to six rows. The redundant panel picker down mark and workspace chevron are removed; launchers remain the workspace navigation.
 
-### Date-row weather and larger clock, 25 September 2026
+### Weather below the date, 4 October 2026
 
-- Weather now shows only icon and temperature to the right of the date, below a
-  larger clock. Location, conditions and hourly forecast appear on hover/focus.
+- Moved the compact weather reading below the date so it sits naturally in the
+  clock rail. The forecast details still open from the weather control.
+
+### Larger clock and compact weather, 25 September 2026
+
+- Weather shows only icon and temperature below a larger clock. Location,
+  conditions and hourly forecast appear on hover/focus.
 - Tap pins the panel; Escape, Close and outside-click dismiss it. This replaces
   the separate weather block and Next 6 hours button without a server restart.
 
@@ -78,8 +83,9 @@ pages remain accessible through their header links.
   forwarding mappings remain accessible without repeating Connected visually.
 - Home pickers now list only unused apps, with icon/name and Close. This replaces
   the earlier disabled Current/Already shown entries.
-- Docker rows now show name, ports and RAM inline, with red stop controls and no
-  group-count pills. This supersedes the older second-line mapping treatment.
+- Docker project and container rows share disclosure arrows. Ports are hidden
+  until expanded; published TCP ports link to localhost in a new tab. RAM stays
+  visible in the collapsed row, and stop controls remain red.
 - Settings > General can pull fast-forward source updates in native Git checkouts.
   Local edits, divergence and tracked local-data paths block updates. Settings and
   credentials are untouched; restart and dependency installation remain explicit.
@@ -101,9 +107,10 @@ pages remain accessible through their header links.
 
 ### Docker port visibility, 23 September 2026
 
-- Compose members and standalone containers now show Docker-reported ports in all
-  three views. Published mappings retain host addresses and TCP/UDP protocols;
-  unbound exposed ports are labelled internal. Missing mappings are explicit.
+- Expanded Compose members and standalone containers show Docker-reported ports
+  in all three views. Published mappings retain host addresses and TCP/UDP
+  protocols; published TCP ports open localhost in a new tab. Unbound exposed
+  ports are labelled internal. Missing mappings are explicit.
 - Corrected socket formatting for internal ports and bracketed IPv6 bindings.
   Ports do not imply HTTP support or independently verified reachability.
 

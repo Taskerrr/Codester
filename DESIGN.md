@@ -7,7 +7,7 @@ The dashboard is a full-height ultrawide instrument display with a narrow clock/
 Codester uses the transparent `codester-mark-concept.png` angular C and lightning mark. The PNG is the browser favicon, accompanies the wordmark on utility pages, and identifies the Home launcher at the start of the dashboard app grid. The SVG alternative is retained but is not displayed.
 
 The clock is enlarged at the top of the rail, with the date and a compact weather
-icon/temperature on one line beneath it. Hover or keyboard focus reveals location,
+icon/temperature stacked beneath it. Hover or keyboard focus reveals location,
 conditions and the hourly forecast; tapping pins the panel open. Close, Escape and
 outside-click dismiss it. There is no separate Next hours button. Home is the first
 launcher below the clock. Stale readings have an indicator and accessible
@@ -35,7 +35,7 @@ The PostgreSQL workspace puts Query and Activity & locks tabs beside its heading
 
 Use a nearly black neutral background with subtle vertical dividers. Vibrant mint/cyan Codex data, purple Dagster data, and orange SigNoz data. Color belongs on graphs, meters, and activity indicators, not large panel backgrounds. Service logos carry identity. Interface labels and row text use a consistent system sans font; clocks and numeric readouts use monospaced/tabular typography. Keep table copy large enough for a small secondary display. Stale and offline states remain explicit.
 
-At 2560 × 720 and equivalent scaled viewports, fill the display without page scroll. Settings chooses three unique apps and their left-to-right order; Codex, Dagster, and SigNoz are the defaults. Codex shows the active task and up to two recent tasks without timestamps. Dagster shows up to six recent jobs; each job row identifies its repository and code location above the job name. Table rows share a consistent height at ultrawide sizes; lists keep their natural lengths instead of stretching sparse data. SigNoz uses two current readings above five-minute Top apps and errors. Docker can show a compact overview and opens a dedicated container-management screen. Individual channels can scroll. On mobile, the clock rail becomes a horizontal summary above stacked channels. Touch targets remain at least 44px, keyboard focus is visible, and reduced-motion preferences stop spinners. Spinners indicate confirmed Dagster execution only; Codex local history remains labelled Recent activity.
+At 2560 × 720 and equivalent scaled viewports, fill the display without page scroll. Settings chooses three unique apps and their left-to-right order; Codex, Dagster, and SigNoz are the defaults. Codex shows the active task and up to two recent tasks without timestamps. Dagster shows up to six recent jobs; job and error rows identify the repository and code location above the job name when origin metadata is available. Table rows share a consistent height at ultrawide sizes; lists keep their natural lengths instead of stretching sparse data. SigNoz uses two current readings above five-minute Top apps and errors. Docker can show a compact overview and opens a dedicated container-management screen. Individual channels can scroll. On mobile, the clock rail becomes a horizontal summary above stacked channels. Touch targets remain at least 44px, keyboard focus is visible, and reduced-motion preferences stop spinners. Spinners indicate confirmed Dagster execution only; Codex local history remains labelled Recent activity.
 
 Dagster run rows request repository origin metadata when supported by the GraphQL schema. Older servers retain run monitoring and show a generic context label.
 
@@ -55,12 +55,12 @@ Docker uses collapsed Compose project rows in the Home panel, shared workspace a
 
 The embedded Activity & locks view reuses the workspace heading; only the standalone PostgreSQL activity page renders its own title and logo. Database and freshness information remain available in both views.
 
-Docker rows use name, ports, RAM and controls on a single line, with no count pills
-or second-line port text. Compose rows aggregate ports and RAM; expansion reveals
-member names, ports, RAM and status dots. Unknown RAM displays a dash, not zero.
-Published host ports are deduplicated; full mappings and status remain available
-in accessible labels and tooltips. Internal ports are labelled. Ports remain text
-because a published port need not serve HTTP. Stop/pause controls are red.
+Collapsed Docker project and container rows use a consistent disclosure arrow and
+show name, RAM and controls. Expanding reveals member names, ports, RAM and status
+dots; standalone containers use the same disclosure. Unknown RAM displays a dash,
+not zero. Published host ports are deduplicated and open `localhost` in a new tab
+when clicked; UDP and internal ports remain text. Full mappings and status remain
+available in accessible labels and tooltips. Stop/pause controls are red.
 
 SSH switches become spinners during connecting/reconnecting, including the All
 switch while any tunnel is connecting. Reduced motion keeps the indicator static.

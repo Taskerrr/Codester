@@ -164,7 +164,9 @@
 .deck-error:first-child { border-top:0; }
 .deck-error:hover { color:var(--channel-color); }
 .failure-mark { width:15px; height:15px; display:grid; place-items:center; flex-shrink:0; border:1px solid var(--danger); border-radius:50%; background:var(--danger); box-shadow:0 0 7px color-mix(in oklch,var(--danger),transparent 58%); color:var(--deck-bg); font:800 .56rem ui-monospace,SFMono-Regular,Consolas,monospace; }
-.error-title { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.7rem; }
+.error-copy { display:block; min-width:0; flex:1; }
+.error-context { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--deck-muted); font:500 .62rem/1.2 system-ui,-apple-system,"Segoe UI",sans-serif; }
+.error-title { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.7rem; }
 .all-clear { min-height:57px; display:flex; align-items:center; gap:8px; color:var(--deck-muted); font-size:.72rem; }
 .all-clear span { color:var(--channel-color); }
 
