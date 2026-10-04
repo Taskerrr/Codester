@@ -135,7 +135,7 @@ export function openHomeLog(data, identifier) {
 async function refresh(manual = false) {
   clearTimeout(timer);
   if (busy) { queued ||= manual; return; }
-  if (!visible() || (paused && !manual)) { timer = setTimeout(refresh, 5000); return; }
+  if (!visible() || (paused && !manual)) { timer = setTimeout(refresh, 10000); return; }
   busy = true;
   pages();
   const requestRevision = revision;
@@ -159,7 +159,7 @@ async function refresh(manual = false) {
     busy = false;
     pages();
     if (queued) { queued = false; refresh(true); }
-    else timer = setTimeout(refresh, 5000);
+    else timer = setTimeout(refresh, 10000);
   }
 }
 function apply() {

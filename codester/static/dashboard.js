@@ -128,13 +128,18 @@ function dagster(data) {
   const running = number(data.running);
   const queued = number(data.queued);
   const total = running + queued;
-  const jobs = data.jobs.slice(0, 6).map(job => {
+  const jobs = [...data.jobs].sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0)).slice(0, 6).map(job => {
     const context = dagsterContext(job);
     const runLabel = context ? `View run: ${context} / ${jobLabel(job.title)}` : `View run: ${jobLabel(job.title)}`;
+    const timing = job.status === 'QUEUED'
+      ? 'Queued'
+      : ['STARTING', 'STARTED', 'CANCELING'].includes(job.status)
+        ? `Started ${ago(job.timestamp)} · Elapsed ${duration(job.duration)}`
+        : `Finished ${ago(job.timestamp)} · Runtime ${duration(job.duration)}`;
     return `<button type="button" class="compact-row dagster-job" data-service="dagster" data-id="${e(job.id)}" aria-label="${e(runLabel)}">
     ${dagsterState(job.status)}
     <span class="dagster-job-copy">${context ? `<small title="${e(context)}">${e(context)}</small>` : ''}<strong title="${e(job.title)}">${e(jobLabel(job.title))}</strong></span>
-    <time>${job.status === 'QUEUED' ? 'queued' : duration(job.duration)}</time>
+    <time title="${e(timing)}">${job.status === 'QUEUED' ? 'queued' : e(ago(job.timestamp))}</time>
   </button>`;
   }).join('');
   return `<div class="dagster-hero hero-rings">
@@ -318,7 +323,7 @@ function redrawSignozHome() {
 async function refreshSignozHome() {
   clearTimeout(signozHomeTimer);
   if (!signozHomeVisible()) {
-    signozHomeTimer = setTimeout(refreshSignozHome, 5000);
+    signozHomeTimer = setTimeout(refreshSignozHome, 10000);
     return;
   }
   if (signozHomeLoading) return;
@@ -341,7 +346,7 @@ async function refreshSignozHome() {
     }
   } finally {
     signozHomeLoading = false;
-    signozHomeTimer = setTimeout(refreshSignozHome, 5000);
+    signozHomeTimer = setTimeout(refreshSignozHome, 10000);
   }
 }
 
@@ -469,7 +474,7 @@ function render(snapshot) {
   if (layout.includes('github') || activeWorkspace() === 'github') refreshGithubRepositories();
   if (signozHomeVisible()) {
     clearTimeout(signozHomeTimer);
-    signozHomeTimer = setTimeout(refreshSignozHome, signozHomeLogs ? 5000 : 0);
+    signozHomeTimer = setTimeout(refreshSignozHome, signozHomeLogs ? 10000 : 0);
   }
 }
 

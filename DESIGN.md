@@ -37,7 +37,7 @@ Use a nearly black neutral background with subtle vertical dividers. Vibrant min
 
 At 2560 × 720 and equivalent scaled viewports, fill the display without page scroll. Settings chooses three unique apps and their left-to-right order; Codex, Dagster, and SigNoz are the defaults. Codex shows the active task and up to two recent tasks without timestamps. Dagster shows up to six recent jobs; job and error rows identify the repository and code location above the job name when origin metadata is available. Table rows share a consistent height at ultrawide sizes; lists keep their natural lengths instead of stretching sparse data. SigNoz uses two current readings above five-minute Top apps and errors. Docker can show a compact overview and opens a dedicated container-management screen. Individual channels can scroll. On mobile, the clock rail becomes a horizontal summary above stacked channels. Touch targets remain at least 44px, keyboard focus is visible, and reduced-motion preferences stop spinners. Spinners indicate confirmed Dagster execution only; Codex local history remains labelled Recent activity.
 
-Dagster run rows request repository origin metadata when supported by the GraphQL schema. Older servers retain run monitoring and show a generic context label.
+Dagster run rows request repository origin metadata when supported by the GraphQL schema. Older servers retain run monitoring and show a generic context label. Recent jobs are sorted newest first across run statuses. Their time label shows how long ago the run started or finished; hovering shows its execution duration.
 
 Opening a Dagster or SigNoz run/error source link places a new browser window on
 the largest connected display when the browser supports Window Management and
@@ -46,6 +46,9 @@ the user grants its display permission. Otherwise, the link opens in a normal ta
 When Codex usage is unavailable, keep its status centered in the reserved summary area so the Recent activity list stays aligned with neighboring panels without leaving the status pinned to the top edge.
 
 Top apps uses incoming SERVER-span request rates from the last five minutes. Tapping an error expands details across the display with Back and a source link.
+
+SigNoz overview data refreshes every ten seconds. Home log feeds and the Debug
+workspace also refresh every ten seconds while visible.
 
 SSH tunnels use collapsible rows with name, server, forwarding ports and live SSH status. Saved rows start closed; new and duplicated rows open for editing. Test, Duplicate and Delete stay accessible while collapsed. Duplication reuses credentials securely and selects a different local port. Expanding or duplicating a row does not initiate a connection.
 
@@ -117,7 +120,7 @@ trace link when available. Copy controls stay at the top. On narrow screens the
 detail replaces the list; Close or Escape returns focus to the selected message.
 Logs for this trace clears other filters and searches all levels in the chosen range.
 
-Live reads check every five seconds only while visible. Older/Newer pages use a fixed
+Live reads check every ten seconds only while visible. Older/Newer pages use a fixed
 time window, 100 rows per page and at most 1,000 rows; Resume live returns to latest.
 Busy live periods can skip entries, and late ingestion can change historical pages.
 Draft filters, applied filters and paused state survive workspace switches in memory.
@@ -127,7 +130,7 @@ remain independent of trace charts. Message and attribute truncation is labelled
 
 Settings can replace the SigNoz Home overview with Latest logs or Errors only while
 leaving Overview as the existing default. Log modes request only the newest six rows
-and refresh every five seconds while Home, the browser and the SigNoz panel are visible.
+and refresh every ten seconds while Home, the browser and the SigNoz panel are visible.
 Rows prefer structured HTTP status, method and path, falling back to severity and the
 first message line. They show app and a shortened user ID; the full ID remains available
 to assistive technology, hover and detail. Selecting a row opens that exact in-memory

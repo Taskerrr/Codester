@@ -50,8 +50,9 @@ pages remain accessible through their header links.
 - The dashboard rail places Settings and fullscreen at the top, with Home first in the app launcher grid. SSH tunnel status buttons and switches are twice their previous visual size; status buttons sit at the bottom when tunnels are configured. The clock and launchers have more space below the top controls.
 - Codex shows the active task plus up to two recent tasks without timestamps. Its usage-unavailable state is centered in the summary area.
 - Dashboard labels and row copy use a consistent, larger system font, with monospaced styling for clocks and numeric readouts. Table rows share a consistent height at ultrawide sizes.
-- Dagster job and error rows show repository and code location context above each job name; older GraphQL schemas retain run monitoring with no origin label.
+- Dagster job and error rows show repository and code location context above each job name; older GraphQL schemas retain run monitoring with no origin label. Recent jobs sort newest first across statuses, show run recency, and keep execution duration in the hover label.
 - Dagster and SigNoz run/error source links open on the largest connected display when supported and permitted by the browser; otherwise they use a normal new tab.
+- SigNoz overview and visible log views refresh every ten seconds.
 - Settings now uses the full screen width, moves Weather to its own tab, removes demo mode and dashboard layout controls, and starts monitoring when connection details are configured. Help copy is available from compact info icons.
 
 - The dashboard clock/launcher rail centers its mark, clock and launchers vertically on desktop. Overview rows are compact, and Dagster recent jobs show up to six rows. The redundant panel picker down mark and workspace chevron are removed; launchers remain the workspace navigation.
@@ -94,7 +95,7 @@ pages remain accessible through their header links.
 ### Configurable SigNoz Home log feed, 25 September 2026
 
 - Settings can keep the existing SigNoz overview or show the latest six logs or errors.
-- The compact feed updates every five seconds only while visible, preserves labelled
+- The compact feed updates every ten seconds only while visible, preserves labelled
   stale results and opens the selected in-memory entry in the full Debug workspace.
 - Rows prioritize structured HTTP status, method and path, with bounded message,
   application and user fallbacks. Home log content is not persisted locally.
@@ -262,8 +263,9 @@ SQL execution/cancellation, keyboard use, and wide/narrow layouts.
   and Errors views, app name, optional user.id, timestamp, level and message.
 - Queries the v5 Logs API independently of trace errors. Errors uses severity
   number 17+ or common error/fatal severity names, filtered upstream.
-- A five-second, on-demand shared cache bounds reads across tabs. Paused/hidden
-  workspaces stop requesting; errors back off and retain visibly stale same-source data.
+- A five-second, on-demand shared cache bounds reads across tabs. Visible workspace
+  polling runs every ten seconds. Paused/hidden workspaces stop requesting; errors
+  back off and retain visibly stale same-source data.
 - Latest 100 logs in 15 minutes, not a lossless stream. Bodies are capped at 4,000
   characters and truncation is labelled. No local persistent log history.
 - Log response normalization and browser behavior are fixture/demo tested. A live

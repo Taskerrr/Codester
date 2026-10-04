@@ -11,7 +11,7 @@ from codester.postgres import PostgresMonitor
 from codester.store import Store
 from codester.transport import IntegrationError
 
-INTERVALS = {"codex": 60, "dagster": 10, "signoz": 30, "github": 60, "postgres": 10}
+INTERVALS = {"codex": 60, "dagster": 10, "signoz": 10, "github": 60, "postgres": 10}
 
 
 class Poller:
