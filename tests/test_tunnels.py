@@ -89,6 +89,7 @@ def test_manager_builds_loopback_forward_and_stops(monkeypatch, tmp_path):
     assert status["desired"] is True
     assert status["tunnels"][0]["id"] == tunnel()["id"]
     assert status["tunnels"][0]["ssh_host"] == "192.168.1.90"
+    assert status["tunnels"][0]["ssh_port"] == 22
     assert status["tunnels"][0]["remote_host"] == "127.0.0.1"
     assert status["tunnels"][0]["remote_port"] == 3417
     command, options = commands[0]

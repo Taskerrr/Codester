@@ -34,7 +34,7 @@ const fs = require('node:fs');
     assert.equal(await page.locator('#panel-picker > strong').count(),0);
     await page.locator('#panel-picker-close').click();
     await page.locator('.tunnel-dot').click();
-    assert.equal(await page.locator('.tunnel-list-row small').innerText(),'10.15.14.129');
+    assert.equal(await page.locator('.tunnel-list-row strong').innerText(),'10.15.14.129');
     await page.locator('#tunnels').click();
     await page.waitForFunction(() => document.querySelector('#tunnels').dataset.state === 'disconnected');
     await page.locator('#tunnels').click();

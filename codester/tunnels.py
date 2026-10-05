@@ -194,6 +194,7 @@ class TunnelManager:
                         "name": item["config"]["name"],
                         "local_port": item["config"]["local_port"],
                         "ssh_host": item["config"]["ssh_host"],
+                        "ssh_port": item["config"]["ssh_port"],
                         "remote_host": item["config"]["remote_host"],
                         "remote_port": item["config"]["remote_port"],
                         "desired": item["desired"],

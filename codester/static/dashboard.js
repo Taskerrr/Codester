@@ -3,6 +3,7 @@ import {applyWorkspaceLayout, activeWorkspace, currentLayout, layoutEpoch, navig
 import {DockerGroups} from './docker-groups.js';
 import {GitHubUpdates} from './github-updates.js';
 import {openHomeLog} from './signoz-logs.js';
+import {groupTunnels, controlTunnelGroup} from './tunnel-groups.js';
 
 let latest;
 let snapshotReceivedAt = 0;
@@ -680,7 +681,7 @@ document.addEventListener('fullscreenchange', () => $('#fullscreen').setAttribut
 let selectedTunnelId = null;
 let tunnelPopoverTimer;
 let tunnelStatusAvailable = false;
-const tunnelNames = {connected:'Connected', connecting:'Connecting', reconnecting:'Reconnecting', disconnected:'Off', error:'Failed'};
+const tunnelNames = {connected:'Connected', connecting:'Connecting', reconnecting:'Reconnecting', disconnected:'Off', error:'Failed', partial:'Partly connected'};
 
 function closeTunnelPopover() {
   clearTimeout(tunnelPopoverTimer);
@@ -694,7 +695,7 @@ function updateTunnelPopover() {
   if (!dot) { closeTunnelPopover(); return; }
   const panel = $('#tunnel-popover');
   const list = $('#tunnel-list');
-  const tunnels = tunnelState?.tunnels || [];
+  const tunnels = groupTunnels(tunnelState?.tunnels || []);
   for (const row of [...list.children]) {
     if (!tunnels.some(tunnel => tunnel.id === row.dataset.id)) row.remove();
   }
@@ -708,16 +709,18 @@ function updateTunnelPopover() {
       list.append(row);
     }
     row.querySelector('strong').textContent = tunnel.name;
+    const ports = tunnel.tunnels.map(item => item.local_port).join(', ');
+    const problems = tunnel.tunnels.filter(item => item.message).map(item => `${item.name}: ${item.message}`);
     row.querySelector('small').textContent = tunnelStatusAvailable
-      ? `${tunnel.ssh_host || 'SSH host unavailable'}${tunnel.message ? ` / ${tunnel.message}` : ''}`
+      ? `${tunnel.connected}/${tunnel.tunnels.length} connected · Ports ${ports}${problems.length ? ` / ${problems.join('; ')}` : ''}`
       : 'Status unavailable';
-    row.querySelector('small').title = `localhost:${tunnel.local_port} → ${tunnel.remote_host || 'remote'}:${tunnel.remote_port || '?'} via ${tunnel.ssh_host || 'SSH'}`;
+    row.querySelector('small').title = tunnel.tunnels.map(item => `${item.name}: localhost:${item.local_port} → ${item.remote_host || 'remote'}:${item.remote_port || '?'} (${tunnelNames[item.state] || item.state})`).join('\n');
     const toggle = row.querySelector('button');
     toggle.dataset.id = tunnel.id;
     toggle.dataset.state = tunnelStatusAvailable ? tunnel.state : 'unknown';
     toggle.setAttribute('aria-busy', String(['connecting', 'reconnecting'].includes(toggle.dataset.state)));
     toggle.setAttribute('aria-checked', String(Boolean(tunnel.desired)));
-    toggle.setAttribute('aria-label', `${tunnel.name}: ${tunnelStatusAvailable ? tunnelNames[tunnel.state] || tunnel.state : 'Status unavailable'}`);
+    toggle.setAttribute('aria-label', `${tunnel.desired ? 'Disconnect' : 'Connect'} all ${tunnel.tunnels.length} forwards on ${tunnel.name}: ${tunnelStatusAvailable ? tunnelNames[tunnel.state] || tunnel.state : 'Status unavailable'}`);
     toggle.setAttribute('aria-disabled', String(tunnelLoading || !tunnelStatusAvailable));
   }
   $('#tunnels').setAttribute('aria-disabled', String(tunnelLoading || !tunnelStatusAvailable));
@@ -741,7 +744,7 @@ function openTunnelPopover(dot) {
 
 function renderTunnelDots() {
   const container = $('#tunnel-dots');
-  const tunnels = tunnelState?.tunnels || [];
+  const tunnels = groupTunnels(tunnelState?.tunnels || []);
   container.hidden = !tunnels.length;
   container.closest('.clock-rail').classList.toggle('has-tunnels', tunnels.length > 0);
   for (const dot of [...container.children]) {
@@ -769,7 +772,9 @@ function renderTunnelDots() {
       container.append(dot);
     }
     dot.dataset.state = tunnelStatusAvailable ? tunnel.state : 'unknown';
-    dot.setAttribute('aria-label', `${tunnel.name}: ${tunnelStatusAvailable ? tunnelNames[tunnel.state] || tunnel.state : 'Status unavailable'}. Tunnel controls`);
+    const label = `${tunnel.name}: ${tunnelStatusAvailable ? tunnelNames[tunnel.state] || tunnel.state : 'Status unavailable'}, ${tunnel.connected}/${tunnel.tunnels.length} forwards connected. Tunnel controls`;
+    dot.setAttribute('aria-label', label);
+    dot.title = label;
   }
   if (selectedTunnelId) updateTunnelPopover();
 }
@@ -803,16 +808,22 @@ window.addEventListener('resize', () => { if (selectedTunnelId) updateTunnelPopo
 $('#tunnel-list').addEventListener('click', async event => {
   const toggle = event.target.closest('.tunnel-row-toggle');
   if (!toggle) return;
-  const tunnel = tunnelState?.tunnels?.find(row => row.id === toggle.dataset.id);
+  const tunnel = groupTunnels(tunnelState?.tunnels || []).find(row => row.id === toggle.dataset.id);
   if (!tunnel || tunnelLoading || !tunnelStatusAvailable) return;
   tunnelLoading = true;
   tunnelMutation += 1;
   updateTunnelPopover();
   toggle.dataset.state = 'connecting';
   try {
-    const action = tunnel.desired ? 'disconnect' : 'connect';
-    showTunnelStatus(await api(`/api/tunnels/${encodeURIComponent(tunnel.id)}/${action}`, {method:'POST', timeout:15000}));
+    const failures = await controlTunnelGroup(tunnel, api);
+    showTunnelStatus(await api('/api/tunnels', {timeout:5000}));
+    if (failures.length) {
+      $('#tunnel-warning').textContent = failures.join('; ');
+      $('#tunnel-warning').hidden = false;
+    }
   } catch (error) {
+    tunnelStatusAvailable = false;
+    renderTunnelDots();
     $('#tunnel-warning').textContent = error.message;
     $('#tunnel-warning').hidden = false;
   } finally {

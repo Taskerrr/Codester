@@ -47,10 +47,12 @@ pages remain accessible through their header links.
 
 ## Shipped
 
+- SSH forwards now group by server host and SSH port, with one switch to connect or disconnect that server?s forwards together. Compact rows show connected counts and ports, status dots wrap, and connected indicators use a brighter saturated green. All still controls every server; underlying forwards remain independent.
+
 - Dagster now puts job names first, trims `_repository.py` from origin labels, removes oldest-queue captions and queued-row timing, and shows now for sub-minute recency.
 - SigNoz Home logs use a Site, Time, Status, Route and User table with no repeated status line. User names prefer `user.full_name`, then `user.name`, then `user.id`; upstream adoption of name attributes is not assumed.
 
-- The dashboard rail places Settings and fullscreen at the top, with Home first in the app launcher grid. SSH tunnel status buttons and switches are twice their previous visual size; status buttons sit at the bottom when tunnels are configured. The clock and launchers have more space below the top controls.
+- The dashboard rail places Settings and fullscreen at the top, with Home first in the app launcher grid. SSH tunnel status buttons and switches use compact 44px targets grouped by server; status buttons sit at the bottom when tunnels are configured. The clock and launchers have more space below the top controls.
 - Codex shows the active task plus up to two recent tasks without timestamps. Its usage-unavailable state is centered in the summary area.
 - Dashboard labels and row copy use a consistent, larger system font, with monospaced styling for clocks and numeric readouts. Table rows share a consistent height at ultrawide sizes.
 - Dagster job and error rows show each job name above smaller repository and code location context; older GraphQL schemas retain run monitoring with no origin label. Recent jobs sort newest first across statuses, show run recency, and keep execution duration in the hover label.
@@ -206,7 +208,7 @@ pages remain accessible through their header links.
 
 ### Compact SSH controls
 
-Small status dots beneath the date open a shared tunnel list with individual
+Small status dots open a shared server list with grouped
 switches and an All switch. This establishes the preference for compact controls
 that reveal detail on demand rather than adding persistent dashboard clutter.
 

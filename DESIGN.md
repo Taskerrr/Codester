@@ -2,7 +2,7 @@
 
 Settings uses a full-width layout with labelled icon tabs for General, Weather, Codex, Dagster, SigNoz, GitHub, Docker, PostgreSQL, SSH tunnels and Commands. The selected panel uses the available screen width and scrolls independently; navigation and Save settings stay visible. Dashboard app choices remain on the dashboard. Monitoring follows configured connection details, while local Codex activity remains an opt-in display. Demo mode is removed. Concise info icons expose setup details on hover or keyboard focus. Switching tabs preserves edits, and validation reveals the section containing an invalid field. All tab targets are at least 44px and support arrow keys, Home and End.
 
-The dashboard is a full-height ultrawide instrument display with a narrow clock/launcher rail on the left and three configurable app channels. Settings and fullscreen sit at the top of the rail; weather, clock and launchers follow with extra spacing below the controls. Home, represented by the Codester mark, is the first launcher. SSH tunnel status buttons and switches are enlarged for visibility; status buttons sit at the bottom of the rail when tunnels are configured. There is no dashboard header, marketing text, or freshness footer.
+The dashboard is a full-height ultrawide instrument display with a narrow clock/launcher rail on the left and three configurable app channels. Settings and fullscreen sit at the top of the rail; weather, clock and launchers follow with extra spacing below the controls. Home, represented by the Codester mark, is the first launcher. SSH status dots sit at the bottom of the rail, grouped by server, with compact switches and bright green connected indicators. There is no dashboard header, marketing text, or freshness footer.
 
 Codester uses the transparent `codester-mark-concept.png` angular C and lightning mark. The PNG is the browser favicon, accompanies the wordmark on utility pages, and identifies the Home launcher at the start of the dashboard app grid. The SVG alternative is retained but is not displayed.
 
@@ -52,7 +52,7 @@ workspace also refresh every ten seconds while visible.
 
 SSH tunnels use collapsible rows with name, server, forwarding ports and live SSH status. Saved rows start closed; new and duplicated rows open for editing. Test, Duplicate and Delete stay accessible while collapsed. Duplication reuses credentials securely and selects a different local port. Expanding or duplicating a row does not initiate a connection.
 
-Dashboard ring arcs retain their position across refreshes and ease to the new value in either direction, respecting reduced motion. Small SSH status dots below the date open a shared vertical list on hover, keyboard focus or tap, with names and status on the left and individual switches on the right. Long lists scroll inside the panel. Each tunnel can be connected independently; an All switch sits at the top of the list. Grey means off, green connected, amber connecting or reconnecting, red failed, and a hollow dot means status unavailable. Opening controls never connects or disconnects a tunnel.
+Dashboard ring arcs retain their position across refreshes and ease to the new value in either direction, respecting reduced motion. SSH status dots open a shared vertical list on hover, keyboard focus or tap, with one dot and switch per SSH host and port. Each server row shows its connected count and local ports; hover reveals named mappings and per-forward status. Its switch enables or disables all forwards on that server together using their existing independent connections. An All switch controls every server. Compact 44px tap targets wrap into a scrollable rail area; long server lists scroll inside the panel. Bright saturated green means every forward is connected, amber means partial or connecting, red means at least one failed, and a hollow dot means status unavailable. Opening controls never connects or disconnects a tunnel.
 
 Service commands use a dedicated two-column screen: service names on the left, named commands and their exact script on the right, with the latest output below. Settings has a Commands entry; the Linux launcher and Dagster header arrow open this screen. Edit reveals server identity, folder, comparison branch, notes and independent command rows. Confirmations are configurable per command. Command success never claims verified deployment health; manual reload notes remain visible.
 
@@ -71,8 +71,8 @@ available in accessible labels and tooltips. Stop/pause controls are red.
 
 SSH switches become spinners during connecting/reconnecting, including the All
 switch while any tunnel is connecting. Reduced motion keeps the indicator static.
-The row subtitle shows the SSH server address, not a redundant Connected label;
-hover exposes the full local-to-remote mapping. Errors remain visible and status
+The row title shows the SSH server address and its subtitle shows connected count
+and local ports; hover exposes named local-to-remote mappings. Errors remain visible and status
 remains available to assistive technology.
 
 Settings > General > Codester updates offers a source-only fast-forward update
