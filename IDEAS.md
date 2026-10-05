@@ -47,10 +47,13 @@ pages remain accessible through their header links.
 
 ## Shipped
 
+- Dagster now puts job names first, trims `_repository.py` from origin labels, removes oldest-queue captions and queued-row timing, and shows now for sub-minute recency.
+- SigNoz Home logs use a Site, Time, Status, Route and User table with no repeated status line. User names prefer `user.full_name`, then `user.name`, then `user.id`; upstream adoption of name attributes is not assumed.
+
 - The dashboard rail places Settings and fullscreen at the top, with Home first in the app launcher grid. SSH tunnel status buttons and switches are twice their previous visual size; status buttons sit at the bottom when tunnels are configured. The clock and launchers have more space below the top controls.
 - Codex shows the active task plus up to two recent tasks without timestamps. Its usage-unavailable state is centered in the summary area.
 - Dashboard labels and row copy use a consistent, larger system font, with monospaced styling for clocks and numeric readouts. Table rows share a consistent height at ultrawide sizes.
-- Dagster job and error rows show repository and code location context above each job name; older GraphQL schemas retain run monitoring with no origin label. Recent jobs sort newest first across statuses, show run recency, and keep execution duration in the hover label.
+- Dagster job and error rows show each job name above smaller repository and code location context; older GraphQL schemas retain run monitoring with no origin label. Recent jobs sort newest first across statuses, show run recency, and keep execution duration in the hover label.
 - Dagster and SigNoz run/error source links open on the largest connected display when supported and permitted by the browser; otherwise they use a normal new tab.
 - SigNoz overview and visible log views refresh every ten seconds.
 - Settings now uses the full screen width, moves Weather to its own tab, removes demo mode and dashboard layout controls, and starts monitoring when connection details are configured. Help copy is available from compact info icons.

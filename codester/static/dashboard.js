@@ -88,8 +88,8 @@ function renderMetrics(target, html) {
 
 const jobLabel = title => String(title ?? '').replaceAll('_', ' ');
 const dagsterContext = row => [
-  row.repository && row.repository !== '__repository__' ? row.repository : '',
-  row.location && row.location !== row.repository ? row.location : '',
+  row.repository && row.repository !== '__repository__' ? row.repository.replace(/_repository\.py$/, '') : '',
+  row.location && row.location !== row.repository ? row.location.replace(/_repository\.py$/, '') : '',
 ].filter(Boolean).join(' · ');
 
 function errors(name, rows, limit = 3) {
@@ -99,7 +99,7 @@ function errors(name, rows, limit = 3) {
     const title = name === 'dagster' ? jobLabel(row.title) : row.title;
     return `<button class="deck-error" type="button" data-service="${name}" data-id="${e(row.id)}">
     <span class="failure-mark" aria-label="Failed">!</span>
-    <span class="error-copy">${context ? `<small class="error-context" title="${e(context)}">${e(context)}</small>` : ''}<span class="error-title" title="${e(row.title)}">${e(title)}</span></span>
+    <span class="error-copy"><span class="error-title" title="${e(row.title)}">${e(title)}</span>${context ? `<small class="error-context" title="${e(context)}">${e(context)}</small>` : ''}</span>
     <time title="${ago(row.timestamp)}">${compactTime(row.timestamp)}</time>
   </button>`;
   }).join('')}</div>`;
@@ -138,13 +138,13 @@ function dagster(data) {
         : `Finished ${ago(job.timestamp)} · Runtime ${duration(job.duration)}`;
     return `<button type="button" class="compact-row dagster-job" data-service="dagster" data-id="${e(job.id)}" aria-label="${e(runLabel)}">
     ${dagsterState(job.status)}
-    <span class="dagster-job-copy">${context ? `<small title="${e(context)}">${e(context)}</small>` : ''}<strong title="${e(job.title)}">${e(jobLabel(job.title))}</strong></span>
-    <time title="${e(timing)}">${job.status === 'QUEUED' ? 'queued' : e(ago(job.timestamp))}</time>
+    <span class="dagster-job-copy"><strong title="${e(job.title)}">${e(jobLabel(job.title))}</strong>${context ? `<small title="${e(context)}">${e(context)}</small>` : ''}</span>
+    <time title="${e(timing)}">${job.status === 'QUEUED' ? '' : e(ago(job.timestamp))}</time>
   </button>`;
   }).join('');
   return `<div class="dagster-hero hero-rings">
         ${ring({value: running, label: 'RUNNING', progress: total ? running / total * 100 : 0})}
-        ${ring({value: queued, label: 'QUEUED', progress: total ? queued / total * 100 : 0, detail: queued && data.oldest != null ? `oldest ${duration(data.oldest)}` : ''})}
+        ${ring({value: queued, label: 'QUEUED', progress: total ? queued / total * 100 : 0})}
     </div>
     <div class="split-lists">
       <section>${sectionHeading('Recent jobs')}<div class="compact-list">${jobs || empty('Idle')}</div></section>
@@ -191,16 +191,23 @@ function signozHomeFeed(data, mode) {
     const numericStatus = Number(request.status);
     const problem = ['ERROR','FATAL','CRITICAL'].includes(String(row.severity).toUpperCase()) || (Number.isFinite(numericStatus) && numericStatus >= 400);
     const app = row.app || 'Unknown app';
-    const user = shortUser(row.user_id);
-    const label = [compactTime(row.timestamp), app, row.user_id ? `user ${row.user_id}` : '', signal, requestText].filter(Boolean).join(', ');
-    return `<button class="home-log-row ${problem ? 'is-error' : ''}" type="button" data-home-log-id="${e(row.id)}" data-id="${e(row.id)}" aria-label="${e(label)}">
-      <span class="home-log-meta"><time>${e(compactTime(row.timestamp))}</time><strong title="${e(app)}">${e(app)}</strong>${user ? `<span class="home-log-user" title="${e(row.user_id)}">${e(user)}</span>` : ''}</span>
-      <span class="home-log-request"><b>${e(signal)}</b><span title="${e(requestText)}">${e(requestText)}</span></span>
-    </button>`;
+    const user = row.user_name || shortUser(row.user_id) || '—';
+    const identity = [row.user_name, row.user_id].filter(Boolean).join(' · ') || 'Not supplied';
+    const label = [app, compactTime(row.timestamp), signal, requestText, identity].join(', ');
+    return `<tr class="home-log-row ${problem ? 'is-error' : ''}" data-home-log-id="${e(row.id)}" data-id="${e(row.id)}">
+      <td><button type="button" aria-label="${e(label)}" title="${e(app)}">${e(app)}</button></td>
+      <td><time title="${e(ago(row.timestamp))}">${e(compactTime(row.timestamp))}</time></td>
+      <td class="home-log-status" title="${e(row.severity)}">${e(signal)}</td>
+      <td title="${e(requestText)}">${e(requestText)}</td>
+      <td title="${e(identity)}" aria-label="${e(identity)}">${e(user)}</td>
+    </tr>`;
   }).join('');
   const emptyMessage = healthy ? (mode === 'errors' ? 'No recent errors' : 'No recent logs') : data.message || 'Logs unavailable';
   return `${sectionHeading(title, freshness)}
-    <div class="home-log-list" aria-label="${e(title)}">${rows || empty(emptyMessage)}</div>`;
+    <div class="home-log-list">${rows ? `<table class="home-log-table" aria-label="${e(title)}">
+      <colgroup><col class="log-site"><col class="log-time"><col class="log-status"><col class="log-route"><col class="log-user"></colgroup>
+      <thead><tr><th scope="col">Site</th><th scope="col">Time</th><th scope="col">Status</th><th scope="col">Route</th><th scope="col">User</th></tr></thead>
+      <tbody>${rows}</tbody></table>` : empty(emptyMessage)}</div>`;
 }
 
 function signoz(data, homeContent = 'overview', homeLogs = undefined) {

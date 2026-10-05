@@ -35,9 +35,9 @@ The PostgreSQL workspace puts Query and Activity & locks tabs beside its heading
 
 Use a nearly black neutral background with subtle vertical dividers. Vibrant mint/cyan Codex data, purple Dagster data, and orange SigNoz data. Color belongs on graphs, meters, and activity indicators, not large panel backgrounds. Service logos carry identity. Interface labels and row text use a consistent system sans font; clocks and numeric readouts use monospaced/tabular typography. Keep table copy large enough for a small secondary display. Stale and offline states remain explicit.
 
-At 2560 × 720 and equivalent scaled viewports, fill the display without page scroll. Settings chooses three unique apps and their left-to-right order; Codex, Dagster, and SigNoz are the defaults. Codex shows the active task and up to two recent tasks without timestamps. Dagster shows up to six recent jobs; job and error rows identify the repository and code location above the job name when origin metadata is available. Table rows share a consistent height at ultrawide sizes; lists keep their natural lengths instead of stretching sparse data. SigNoz uses two current readings above five-minute Top apps and errors. Docker can show a compact overview and opens a dedicated container-management screen. Individual channels can scroll. On mobile, the clock rail becomes a horizontal summary above stacked channels. Touch targets remain at least 44px, keyboard focus is visible, and reduced-motion preferences stop spinners. Spinners indicate confirmed Dagster execution only; Codex local history remains labelled Recent activity.
+At 2560 × 720 and equivalent scaled viewports, fill the display without page scroll. Settings chooses three unique apps and their left-to-right order; Codex, Dagster, and SigNoz are the defaults. Codex shows the active task and up to two recent tasks without timestamps. Dagster shows up to six recent jobs; job and error rows show the job name above smaller repository and code location text when origin metadata is available. Table rows share a consistent height at ultrawide sizes; lists keep their natural lengths instead of stretching sparse data. SigNoz uses two current readings above five-minute Top apps and errors. Docker can show a compact overview and opens a dedicated container-management screen. Individual channels can scroll. On mobile, the clock rail becomes a horizontal summary above stacked channels. Touch targets remain at least 44px, keyboard focus is visible, and reduced-motion preferences stop spinners. Spinners indicate confirmed Dagster execution only; Codex local history remains labelled Recent activity.
 
-Dagster run rows request repository origin metadata when supported by the GraphQL schema. Older servers retain run monitoring and show a generic context label. Recent jobs are sorted newest first across run statuses. Their time label shows how long ago the run started or finished; hovering shows its execution duration.
+Dagster run rows request repository origin metadata when supported by the GraphQL schema. Older servers retain run monitoring and show a generic context label. Recent jobs are sorted newest first across run statuses. Their time label shows how long ago the run started or finished, with now for less than a minute and no time text for queued jobs; hovering shows execution duration. Repository and location labels omit a trailing `_repository.py`. The queued chart has no oldest-run caption.
 
 Opening a Dagster or SigNoz run/error source link places a new browser window on
 the largest connected display when the browser supports Window Management and
@@ -131,8 +131,10 @@ remain independent of trace charts. Message and attribute truncation is labelled
 Settings can replace the SigNoz Home overview with Latest logs or Errors only while
 leaving Overview as the existing default. Log modes request only the newest six rows
 and refresh every ten seconds while Home, the browser and the SigNoz panel are visible.
-Rows prefer structured HTTP status, method and path, falling back to severity and the
-first message line. They show app and a shortened user ID; the full ID remains available
+A table shows Site, Time, Status, Route and User. Status and route prefer structured
+HTTP fields, falling back to severity and the first message line without a second
+status line. User prefers `user.full_name`, then `user.name`, then a shortened
+`user.id`; missing identity shows a dash. The full ID remains available
 to assistive technology, hover and detail. Selecting a row opens that exact in-memory
 entry in Debug and pauses its live view. Home preserves stale rows but does not persist
 log content locally.

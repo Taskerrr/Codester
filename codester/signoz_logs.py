@@ -179,6 +179,11 @@ def fetch_logs(config: dict, key: str, mode: str, filters: dict | None = None) -
                 "timestamp": text(row.get("timestamp"), 64),
                 "app": text(attribute(row, "service.name", "resources"), 200),
                 "user_id": text(attribute(row, "user.id", "attributes"), 200),
+                "user_name": text(
+                    attribute(row, "user.full_name", "attributes")
+                    or attribute(row, "user.name", "attributes"),
+                    200,
+                ),
                 "severity": text(row.get("severity_text"), 32),
                 "body": body[:4000],
                 "truncated": len(body) > 4000,

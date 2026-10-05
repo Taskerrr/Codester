@@ -75,6 +75,26 @@ def test_empty_raw_logs_are_supported(monkeypatch):
     assert fetch_logs({}, "key", "recent") == []
 
 
+@pytest.mark.parametrize(
+    ("attributes", "expected"),
+    [
+        ({"user.full_name": "Alex Smith", "user.name": "alex"}, "Alex Smith"),
+        ({"user.name": "alex"}, "alex"),
+        ({"user.id": "42"}, ""),
+    ],
+)
+def test_log_user_names_preserve_id_fallback(monkeypatch, attributes, expected):
+    monkeypatch.setattr(
+        signoz, "query",
+        lambda *a, **kw: [{"rows": [{"data": {
+            "attributes_string": {"user.id": "42", **attributes},
+        }}]}],
+    )
+    row = fetch_logs({}, "key", "recent")[0]
+    assert row["user_name"] == expected
+    assert row["user_id"] == "42"
+
+
 def test_home_log_query_requests_only_six_rows_and_normalizes_http_fields(monkeypatch):
     calls = []
 

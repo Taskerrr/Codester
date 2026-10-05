@@ -27,7 +27,12 @@ export function epoch(value) {
   else if (number > 1e11) number /= 1e3;
   return Number.isFinite(number) ? number : null;
 }
-export function ago(value) { const stamp = epoch(value); return stamp == null ? 'Time unavailable' : `${duration(Date.now()/1000 - stamp)} ago`; }
+export function ago(value) {
+  const stamp = epoch(value);
+  if (stamp == null) return 'Time unavailable';
+  const seconds = Date.now()/1000 - stamp;
+  return seconds < 60 ? 'now' : `${duration(seconds)} ago`;
+}
 export function compactTime(value) {
   const stamp = epoch(value);
   if (stamp == null) return '—';
